@@ -1,0 +1,276 @@
+# Simularea Comportamentului Inteligent și Navigare Autonomă
+**Titlu**: Simularea comportamentului inteligent: Navigare și supraviețuire autonomă bazată pe interacțiunea cu mediul.
+
+**Descriere**: Această lucrare își propune dezvoltarea unei aplicații software pentru simularea și analiza proceselor cognitive de învățare într-un sistem bazat pe agenți autonomi. Spre deosebire de abordările clasice bazate pe seturi de date statice (Supervised Learning), proiectul se concentrează pe paradigma Învățării prin Consolidare (Reinforcement Learning). Agentul virtual va fi plasat într-un mediu necunoscut și va trebui să își dezvolte propria 'înțelegere' a lumii prin interacțiune directă (încercare și eroare). Obiectivul principal este implementarea algoritmului Q-Learning pentru a permite agentului să învețe relațiile cauzale dintre obiecte (obstacole, resurse) și consecințe (recompense, penalizări), simulând astfel procese cognitive fundamentale precum memoria, curiozitatea (explorarea) și planificarea. Aplicația va include o interfață grafică pentru vizualizarea în timp real a procesului de învățare și a evoluției performanței agentului în scenarii cu grade variate de complexitate.
+
+Prin acest document detaliez arhitectura simulării, punând un accent major pe modelarea matematică a entităților, dinamica mediului, fluxurile de date și mecanismele de interacțiune.
+
+---
+
+## Ce vrem să obținem
+
+### Obiectiv principal
+O aplicație funcțională care demonstrează că un agent software poate **învăța singur** să navigheze și să supraviețuiască într-un mediu necunoscut, fără nicio programare explicită a regulilor — exclusiv prin interacțiune repetată cu mediul și feedback numeric (recompense/penalizări).
+
+La finalul antrenamentului, agentul trebuie să fie capabil să:
+- Găsească drumul optim (sau aproape optim) de la start la țintă;
+- Gestioneze resursele limitate (energie) fără să moară înainte de a ajunge la țintă;
+- Se adapteze parțial la schimbări ale mediului după antrenament.
+
+### Rezultate concrete așteptate
+
+| Livrabil | Descriere |
+|---|---|
+| **Aplicație Python/Pygame** | Simulare vizuală interactivă cu GUI |
+| **Q-Table antrenată** | Politică optimă salvată pentru fiecare scenariu |
+| **Export CSV** | Metrici per episod: pași, reward, epsilon, outcome |
+| **Grafice convergență** | Rolling average reward — dovada că agentul a învățat |
+| **3 scenarii validate** | A (navigare), B (supraviețuire), C (adaptabilitate) |
+
+### Ce NU face proiectul (limitări asumate)
+- Nu folosește rețele neuronale (Deep Q-Learning / DQN) — Q-Learning tabular clasic.
+- Nu generalizează la medii complet nevăzute — agentul memorează o politică optimă per configurație de hartă, nu abstractizează reguli universale. Aceasta este o caracteristică a RL tabular, nu un defect de implementare.
+- Nu pretinde să rezolve probleme de inteligență generală (cf. benchmark-uri precum ARC-AGI-3, 2026). Scopul este demonstrarea mecanismelor fundamentale de învățare prin interacțiune.
+
+---
+
+### I. Paradigma de Simulare Aleasă
+
+Pentru acest proiect, voi utiliza o **Arhitectură de Simulare cu Pași de Timp Discreți (Discrete Time Simulation / Time-Driven Simulation)**.
+
+- **Definiție și Funcționare:** În acest model, timpul sistemului avansează în incremente fixe numite "Ticks" sau "Time Steps". Starea sistemului la momentul $t+1$ este o funcție deterministă (sau probabilistică) a stării sistemului la momentul $t$ și a acțiunilor efectuate.
+    - **Unitatea de timp:** 1 Tick = 1 Ciclu complet de procesare: [Percepție -> Decizie -> Acțiune -> Reacția Mediului].
+    - **Decuplarea Timpului:** Este esențial să separăm "Timpul Simulării" (Ticks) de "Timpul Real" (Wall-clock time). Viteza de execuție a simulării poate fi accelerată (pentru antrenament rapid) sau încetinită (pentru vizualizare și debugging), fără a afecta logica internă sau rezultatele învățării.
+        
+- **Motivație Teoretică:**
+    - **Sincronizare:** Această paradigmă permite o sincronizare perfectă între procesul decizional al agentului (Algoritmul Q-Learning, care este prin natură iterativ) și actualizarea stării mediului.
+    - **Reproductibilitate:** Eliminarea variațiilor de timp real (lag, performanța CPU) asigură că un experiment rulat de două ori cu același "seed" aleatoriu va produce exact aceleași rezultate.
+
+### II. Modelarea Mediului (The Environment Model)
+
+Mediul nu este doar un graf abstract, ci un spațiu fizic simulat cu reguli, constrângeri și proprietăți emergente.
+
+#### 1. Topologia Spațiului și Sistemul de Coordonate
+
+- **Structura Matematică:** Mediul este reprezentat ca o matrice bidimensională (Grid 2D) de dimensiune $N \times M$ (ex: 20x20 sau 50x50 pentru scenarii complexe).
+- **Sistemul de Coordonate:** Folosim un sistem cartezian discret unde $x \in \{0, ..., N-1\}$ și $y \in \{0, ..., M-1\}$. Colțul stânga-sus este originea $(0,0)$.
+- **Limitele Lumii (Boundaries):** Mediul este finit și mărginit ("Bounded World"). Tentativa de a ieși din limitele matricei (ex: $x < 0$) este tratată ca o coliziune cu un perete indestructibil.
+
+#### 2. Generare Procedurală (Stochasticity & Validation)
+
+Pentru a valida robustetea algoritmului de învățare (generalizare), agentul nu trebuie să memoreze o singură hartă.
+
+- **Algoritmul de Generare:** Se va utiliza un generator pseudo-aleatoriu bazat pe un "Seed" numeric.
+    1. Inițializare hartă goală.
+    2. Plasare aleatorie a Țintei și a Agentului (asigurând distanța minimă Manhattan între ele).
+    3. Plasare obstacole cu o densitate $\rho$ (ex: 30% din suprafață).
+- **Validarea Topologiei (Flood Fill Check):** După generare, sistemul va rula un algoritm rapid de verificare (ex: BFS sau A*) pentru a garanta că există cel puțin un drum valid de la Agent la Țintă. Dacă harta este insolubilă, procesul de generare se repetă automat. Aceasta previne antrenarea agentului în scenarii imposibile, care ar corupe tabela Q.
+
+#### 3. Elementele Statice și Dinamice (Ontologia Mediului)
+
+Fiecare celulă $(x, y)$ are un tip $T$ și proprietăți asociate care influențează funcția de cost și recompensă:
+
+- **Vid:**
+    - _Proprietate:_ Traversabil.
+    - _Cost:_ Metabolism bazal (Energie: -1/tick).
+- **Obstacol:**
+    - _Proprietate:_ Impenetrabil. Agentul rămâne în poziția anterioară.
+    - _Feedback:_ Penalizare minoră pentru "lovire" (pentru a descuraja comportamentul redundant).
+- **Zona Dificilă:**
+    - _Proprietate:_ Traversabil, dar cu dificultate.
+    - _Cost:_ Dublu față de normal (Energie: -2 sau -3/tick).
+    - _Implicație:_ Agentul trebuie să decidă dacă un drum mai lung pe teren curat este mai eficient energetic decât un drum scurt prin "mlaștină".
+- **Resurse:**
+    - _Dinamică:_ Obiecte colectabile. Odată intrate în celulă, valoarea energiei agentului crește (ex: +20), iar resursa dispare din mediu.
+    - _Regenerare (Opțional):_ Pentru scenarii de supraviețuire infinită, resursele pot reapărea după un interval $\Delta t$.
+- **Pericole:**
+    - _Proprietate:_ Stare terminală negativă (Game Over instantaneu) sau penalizare masivă continuă (-50).
+
+### III. Modelarea Agentului
+
+Agentul este o entitate autonomă complexă, compusă din trei subsisteme interconectate: Stare Internă, Sistem Senzorial și Modul Decizional.
+
+#### 1. Starea Internă
+
+Agentul simulează homeostazia unui organism simplu:
+- **Nivel de Energie (**$E$**):** Variabilă scalară continuă $E \in [0, E_{max}]$.
+    - _Ecuația de dinamică:_ $E_{t+1} = E_t - Cost_{mișcare} + Gain_{resurse}$.
+    - _Condiție de oprire:_ Dacă $E \le 0$, episodul se termină cu eșec (s-au terminat toate resursele).
+- **Poziția Curentă (**$P_t$**):** Vector $(x_t, y_t)$.
+- **Memoria Cognitivă (Q-Table):** Structura de date centrală pentru învățare. Este o matrice (Look-up Table) de dimensiuni $Size(S) \times Size(A)$, inițializată cu zero sau valori mici aleatorii.
+
+#### 2. Definiția Stării și Cunoașterea Agentului
+
+Agentul **nu accesează harta globală**. El nu știe de la început unde sunt resursele, obstacolele sau ținta. Această cunoaștere se acumulează *implicit* în Q-Table pe parcursul antrenamentului, prin mii de episoade de interacțiune directă.
+
+**Definiția formală a stării:**
+$$S_t = (P_x, P_y, E_{discret})$$
+
+| Componentă | Tip | Valori | Semnificație |
+|---|---|---|---|
+| $P_x$ | Întreg | $\{0, ..., N-1\}$ | Coloana curentă pe grid |
+| $P_y$ | Întreg | $\{0, ..., M-1\}$ | Rândul curent pe grid |
+| $E_{discret}$ | Întreg | $\{0, 1, 2, 3\}$ | Nivel energie discretizat |
+
+**Pragurile de discretizare a energiei:**
+- $E_{discret} = 0$ → Critic ($E < 25\%$)
+- $E_{discret} = 1$ → Scăzut ($25\% \leq E < 50\%$)
+- $E_{discret} = 2$ → Mediu ($50\% \leq E < 75\%$)
+- $E_{discret} = 3$ → Înalt ($E \geq 75\%$)
+
+**Dimensiunea Q-Table** pentru un grid 20×20:
+$$|S| \times |A| = (20 \times 20 \times 4) \times 5 = 8.000 \text{ intrări}$$
+Acest spațiu este mic și convergent — agentul poate explora toate stările relevante în câteva mii de episoade.
+
+_Notă despre cunoaștere contextuală:_ Includerea $E_{discret}$ în stare permite agentului să învețe comportamente dependente de context: același nod $(P_x, P_y)$ poate merita o acțiune diferită când agentul e pe cale să moară de foame față de când e plin de energie. Fără această componentă, agentul ar adopta o politică unică per poziție, incapabilă să modeleze urgența supraviețuirii.
+
+#### 3. Modul Decizional
+
+Spațiul de acțiune $A$ este discret și finit:
+- $\mathcal{A} = \{UP, DOWN, LEFT, RIGHT, STAY\}$
+- Acțiunea `STAY` este relevantă strategic în medii cu inamici mobili sau resurse care se regenerează, permițând agentului să conserve energie (dacă costul de staționare < costul de mișcare).
+
+### IV. Dinamica Simulării și Algoritmul Q-Learning
+
+Acesta este motorul logic care guvernează evoluția sistemului.
+#### 1. Bucla Principală (The Simulation Loop)
+
+Pseudocod detaliat pentru un episod de antrenament:
+
+```
+INITIALIZARE Episod:
+   Setează Agent la poziția de start, Energie = 100%.
+   Generează/Resetează Harta.
+
+WHILE (Agent.isAlive() AND !TargetReached):
+    1. OBSERVĂ (S): Agentul construiește starea curentă S_t pe baza senzorilor.
+    
+    2. DECIDE (A): Selecția acțiunii pe baza politicii Epsilon-Greedy:
+       Generăm un număr aleator r in [0, 1].
+       IF r < epsilon:
+           A_t = RANDOM (Explorare - încearcă ceva nou).
+       ELSE:
+           A_t = argmax Q(S_t, a) (Exploatare - alege cea mai bună acțiune cunoscută).
+    
+    3. ACȚIONEAZĂ: Execută A_t în mediu.
+       - Calculează noua poziție potențială.
+       - Verifică coliziuni (Pereți).
+       - Actualizează poziția reală a agentului.
+       - Consumă Energie.
+    
+    4. REACȚIE MEDIU (R, S'):
+       - Observă noua stare S_{t+1}.
+       - Calculează Recompensa R_{t+1} (Reward Signal).
+       - Verifică condițiile terminale (Moarte sau Victorie).
+    
+    5. ÎNVAȚĂ (Q-Update):
+       Aplică Ecuația Bellman pentru a actualiza valoarea estimată a acțiunii:
+       Q(S, A) = Q(S, A) + alpha * [R + gamma * max(Q(S', a')) - Q(S, A)]
+       
+    6. ACTUALIZARE PARAMETRI:
+       - Scade epsilon (Decay) pentru a reduce explorarea pe măsură ce agentul devine "expert".
+    
+    7. RENDER (Opțional): Desenează frame-ul dacă vizualizarea este activă.
+```
+
+#### 2. Sistemul de Recompense 
+
+- **Pedeapsa Existențială:** $R = -1$ per pas.
+    - _Efect:_ Motivează agentul să găsească cea mai rapidă soluție. Fără asta, agentul ar putea sta pe loc la infinit dacă nu există pericole.
+- **Recompensă de Supraviețuire (Hrană):** $R = +15$.
+    - _Efect:_ Suficient de mare pentru a justifica devierea de la traseu (care costă pași $\times -1$), dar nu atât de mare încât agentul să ignore Ținta finală doar pentru a mânca la infinit.
+- **Pedeapsa de Coliziune:** $R = -5$.
+- **Recompensă Finală (Țintă):** $R = +100$.
+- **Pedeapsa Capitală (Moarte):** $R = -100$.
+
+### V. Instrumentare și Vizualizare (Analytics)
+
+#### 1. Vizualizare Avansată în Timp Real (GUI)
+
+Interfața grafică va oferi debugging vizual:
+
+- **Grid Map:** Randarea celulelor (Verde=Iarbă, Gri=Zid, Maro=Noroi, Galben=Hrană).    
+- **Indicatori de strategie:** Desenarea unor săgeți peste fiecare celulă, indicând direcția preferată de agent conform Q-Table. Acest lucru permite observatorului să vadă "intenția" agentului înainte ca acesta să se miște.
+- **Q-Value Heatmap:** Colorarea celulelor în funcție de valoarea maximă Q (roșu intens = pericol/valoare mică, verde intens = zonă foarte bună).
+
+#### 2. Metrici de Performanță și Logging
+
+Datele vor fi exportate în format CSV pentru analiză ulterioară:
+
+- **Episode ID:** Indexul episodului.
+- **Total Steps:** Numărul de pași efectuați.
+- **Total Reward:** Scorul cumulat.
+- **Epsilon Value:** Valoarea curentă a parametrului de explorare.
+- **Outcome:** Rezultat (Succes / Deces Energie / Deces Capcană / Timeout).
+- **Coverage %:** Procentul de celule unice vizitate (pentru a măsura gradul de explorare a hărții).
+
+_Analiza Convergenței:_ Se va urmări "Evoluția Recompensei Medii mobile (Rolling Average Reward). Un grafic ascendent care se stabilizează indică faptul că agentul a "învățat".
+
+### VI. Scenarii de Simulare Propuse (Case Studies)
+
+Proiectul va testa ipoteze specifice prin trei scenarii distincte:
+
+1. **Scenariul A: Navigare Pură**
+    - _Condiții:_ Mediu static, Energie Infinită (sau foarte mare).
+    - _Obiectiv:_ Validarea implementării Q-Learning. Agentul trebuie să conveargă către drumul optim (echivalent cu Dijkstra/A*).
+    - _Metrică:_ Distanța parcursă vs. Distanța Manhattan optimă.
+2. **Scenariul B: Dilema Supraviețuitorului**
+    - _Condiții:_ Energie limitată strict. Drumul direct către țintă este imposibil fără realimentare. Resursele sunt plasate în zone lăturalnice.
+    - _Ipoteză:_ Agentul va învăța o rută sub-optimă geometric, dar optimă funcțional (detur pentru hrană -> Țintă).
+    - _Comportament Emergent:_ Se așteaptă oscilații în faza de învățare, urmate de stabilizarea pe un traseu de tip "pit-stop".
+3. **Scenariul C: Mediu Dinamic și Adaptabilitate**
+    - _Condiții:_ După $N$ episoade (când agentul a învățat harta), se introduc schimbări: se deschide un drum nou (scurtătură) sau se blochează drumul vechi.
+    - _Obiectiv:_ Testarea plasticității. Cât de repede își poate agentul "uita" vechea politică pentru a se adapta noii realități? (Analiza influenței ratei de învățare $\alpha$).    - _Limitare asumată:_ Q-Learning tabular nu garantează convergență în medii non-staționate. Rezultatele Scenariului C sunt prezentate ca observație empirică, nu ca dovadă teoretică de adaptabilitate.
+
+---
+
+## VII. Aplicații Reale și Relevanță
+
+Deși proiectul este o simulare academică, mecanismele implementate sunt direct analogice unor sisteme reale cu impact practic. Această secțiune argumentează relevanța lucrării dincolo de contextul academic.
+
+### 1. Robotică și Navigare Autonomă
+
+Problema fundamentală rezolvată — *un agent care învață să navigheze evitând obstacole și gestionând resurse limitate* — este identică cu cea a roboților autonomi în medii necunoscute.
+
+- **Roboți de explorare** (NASA rovers, drone-uri de căutare-salvare): trebuie să găsească drumuri fezabile în medii nevăzute, fără hartă preconstruită.
+- **Aspiratoare robotice** (Roomba și echivalente): problemă de acoperire a spațiului cu energie limitată (baterie), cu obstacole dinamice (mobilă mutată).
+- **Diferența față de proiect:** sistemele reale folosesc DQN cu input din senzori fizici (LIDAR, cameră). Proiectul nostru implementează stratul decizional fundamental — același algoritm Bellman, același ciclu Observă→Decide→Acționează→Învață.
+
+### 2. Optimizarea Rețelelor de Transport și Logistică
+
+$$S_t = (\text{nod curent}, \text{combustibil rămas})$$
+
+Această formulare este identică cu problema unui vehicul de livrare care:
+- Trebuie să ajungă la destinație ($+100$ reward)
+- Consumă combustibil per km parcurs ($-1$/pas)
+- Poate face pit-stop la stații de alimentare ($+15$ energie)
+- Trebuie să decidă dacă deturul merită costul extra (exact Scenariul B)
+
+Companii precum **UPS, FedEx, Amazon Logistics** folosesc variante de RL pentru optimizarea rutelor în timp real.
+
+### 3. Sisteme de Management al Energiei
+
+Agentul care decide când să consume energie și când să se *conserve* ($STAY$) modelează direct:
+- **Smart grids**: sisteme care decid când să cumpere/vândă energie în funcție de prețul pieței (stare = preț curent + stoc baterie)
+- **Managementul bateriei în vehicule electrice**: algoritmii de regenerative braking decid când să recupereze energie și când să frâneze mecanic
+
+### 4. Jocuri și Inteligență Artificială în Gaming
+
+Genul de simulare implementat este precursorul direct al:
+- **NPC behavior** (comportamentul personajelor non-jucător în jocuri video): inamici care "învață" tactici ale jucătorului
+- **Procedural content generation**: medii generate procedural (similar cu generatorul nostru cu seed) sunt standard în jocuri ca Minecraft, Hades, Dead Cells
+- **Game AI research**: benchmark-ul ARC-AGI-3 (lansat martie 2026) testează exact această capacitate — un agent care explorează un mediu de tip joc, fără instrucțiuni, și deduce singur regulile și obiectivele
+
+### 5. Analogia Biologică: Modelarea Comportamentului Animal
+
+Proiectul simulează explicit mecanisme cognitive studiate în neuroștiință:
+
+| Element simulat | Corespondent biologic |
+|---|---|
+| Q-Table | Memoria procedurală (ganglionii bazali) |
+| Epsilon-Greedy | Echilibrul explorare/exploatare (cortex prefrontal) |
+| $E_{discret}$ în stare | Homeostazia — comportament modificat de foame |
+| Reward $+100$ la țintă | Dopamina — reinforcement la succes |
+| Epsilon decay | Consolidarea deprinderilor prin repetare |
+
+Sistemele de RL au fost validate ca modele computaționale ale învățării la animale (Schultz et al., 1997 — descoperire premiată cu Nobel în 2024 indirect prin Premiul Nobel pentru Fizică acordat lui Hopfield & Hinton).

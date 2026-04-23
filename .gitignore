@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Virtual environment
+.venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Local assistant settings
+.claude/settings.local.json
+
+# Generated training artifacts
+data/*.csv
+data/*.png
+data/*.npy
