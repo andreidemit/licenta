@@ -44,6 +44,25 @@ class Trainer:
         self.energy = energy
         self.max_steps = max_steps
         self.history = []  # lista EpisodeResult
+        self._reset_grid = None
+        self._reset_start_pos = None
+        self._reset_target_pos = None
+
+    def _reset_environment_for_episode(self):
+        """
+        Resetează mediul la configurația de bază a episodului.
+
+        În mod normal, Environment.reset() regenerează harta din seed-ul stocat.
+        Pentru Scenariul C, după relocarea obstacolelor, episoadele viitoare trebuie
+        să pornească din aceeași configurație relocată, nu din harta inițială.
+        """
+        if self._reset_grid is None:
+            self.env.reset()
+            return
+
+        self.env.grid = [row[:] for row in self._reset_grid]
+        self.env.start_pos = self._reset_start_pos
+        self.env.target_pos = self._reset_target_pos
 
     def run_episode(self, episode_id, render_callback=None):
         """
@@ -57,7 +76,7 @@ class Trainer:
             EpisodeResult
         """
         # Reset mediu și agent
-        self.env.reset()
+        self._reset_environment_for_episode()
         agent = Agent(start_pos=self.env.start_pos, energy=self.energy)
 
         state = agent.get_state()
@@ -159,6 +178,9 @@ class Trainer:
                 env.grid[r][c] = CellType.OBSTACLE
 
             if env._validate_path():
+                self._reset_grid = [row[:] for row in env.grid]
+                self._reset_start_pos = env.start_pos
+                self._reset_target_pos = env.target_pos
                 return True
 
             # Revine dacă harta e invalidă
@@ -225,7 +247,7 @@ class Trainer:
         Returns:
             (Agent, str) — agentul final și outcome
         """
-        self.env.reset()
+        self._reset_environment_for_episode()
         agent = Agent(start_pos=self.env.start_pos, energy=self.energy)
         state = agent.get_state()
         outcome = "timeout"

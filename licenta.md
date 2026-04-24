@@ -147,7 +147,7 @@ Lucrarea este organizată în opt capitole, fiecare contribuind la construcția 
 
 **Capitolul 3** oferă fundamentarea matematică necesară: formalizarea Proceselor Markov de Decizie, derivarea și analiza ecuației Bellman, politica epsilon-greedy și justificarea teoretică a discretizării spațiului de stări.
 
-**Capitolul 4** descrie în detaliu arhitectura modulară a sistemului implementat — cele șase module Python și interacțiunile dintre ele — cu explicarea deciziilor de design relevante.
+**Capitolul 4** descrie în detaliu arhitectura modulară a sistemului implementat — șase module de bază pentru bucla RL, completate de modulele `analytics.py` și `warehouse_scenario.py` pentru evaluare și extensia practică — cu explicarea deciziilor de design relevante.
 
 **Capitolul 5** prezintă rezultatele experimentale pentru cele trei scenarii, inclusiv curbele de convergență, analiza de sensibilitate la $\alpha$ și comparația între scenarii.
 
@@ -156,6 +156,16 @@ Lucrarea este organizată în opt capitole, fiecare contribuind la construcția 
 **Capitolul 7** detaliază implementarea `WarehouseEnvironment` și rezultatele obținute în contextul simulării unui depozit automat de tip Amazon-Kiva.
 
 **Capitolul 8** sintetizează concluziile, discută limitările abordării și propune direcții concrete de cercetare viitoare.
+
+### 1.5 Protocol de reproducere și pachet final de evaluare
+
+Pentru a reduce riscul de nealiniere dintre cod, grafice, prezentare și afirmațiile din text, versiunea finală a proiectului include un flux standardizat de reproducere. Rularea recomandată pentru pachetul complet este:
+
+```bash
+python -m src.final_report --episodes 2000 --save-qtables
+```
+
+Această comandă execută scenariile A, B, C și WAREHOUSE, generează artefactele standard (`results_*`, `convergence_*`, `epsilon_*`, `success_*`) și scrie un sumar agregat în `data/final_summary_<grid>_<seed>_<episodes>.csv` și `.json`. Pentru demo-uri rapide sau verificări smoke, rulările mai scurte sunt acceptate, însă pentru raportarea rezultatelor finale se păstrează configurațiile standardizate din pachetul final.
 
 ---
 
@@ -357,7 +367,7 @@ Sistemul implementat funcționează în **timp discret**: la fiecare pas $t$, ag
 
 ### 4.1 Arhitectura Modulară a Sistemului
 
-Sistemul este implementat în Python 3.11 cu o arhitectură de șase module principale, organizate după principiul **separării responsabilităților**: fiecare modul are o responsabilitate bine definită și interacționează cu celelalte prin interfețe clare. Această structură facilitează testarea independentă a componentelor, modificarea unui modul fără a afecta celelalte și extinderea sistemului cu noi funcționalități.
+Sistemul este implementat în Python 3.11 cu o arhitectură modulară organizată după principiul **separării responsabilităților**: șase module formează bucla principală Reinforcement Learning, iar două module suplimentare acoperă analytics-ul și scenariul industrial `WAREHOUSE`. Această structură facilitează testarea independentă a componentelor, modificarea unui modul fără a afecta celelalte și extinderea sistemului cu noi funcționalități.
 
 ```
 licenta/
@@ -379,13 +389,13 @@ licenta/
 └── CLAUDE.md
 ```
 
-**Fluxul de date per pas** urmează un circuit clar: `Renderer` vizualizează starea curentă → `Agent` selectează o acțiune (prin `QLearning.select_action`) → `Environment.try_move()` procesează acțiunea și returnează recompensa, noua stare și flagul terminal → `Agent` actualizează starea internă și energia → `QLearning.update()` aplică actualizarea Bellman → `Trainer` loghează rezultatul.
+**Fluxul de date per pas** urmează un circuit clar: `Renderer` vizualizează starea curentă → `QLearning.choose_action()` selectează o acțiune pe baza stării furnizate de `Agent.get_state()` → `Environment.try_move()` procesează acțiunea și returnează un payload complet de tranziție (poziție nouă, cost energetic, energie câștigată, reward, flag terminal și motiv terminal) → `Agent.apply_action_result()` actualizează starea internă și energia → `QLearning.update()` aplică actualizarea Bellman → `Trainer` înregistrează rezultatul episodului.
 
 Dependențele sunt unidirectionale: `main.py` → `trainer.py` → (`environment.py`, `agent.py`, `q_learning.py`) → `constants.py`. `renderer.py` și `analytics.py` sunt dependențe laterale (nu afectează logica de antrenament).
 
 ### 4.2 Mediul de Simulare (environment.py) — Generare Procedurală BFS-Validată
 
-Modulul `environment.py` implementează grila 2D și toate mecanismele de interacțiune ale agentului cu mediul. Grila este o matrice NumPy de dimensiune $N \times M$ (implicit $20 \times 20$), fiecare celulă conținând un tip din enum-ul:
+Modulul `environment.py` implementează grila 2D și toate mecanismele de interacțiune ale agentului cu mediul. Grila este reprezentată ca o matrice Python bidimensională de dimensiune $N \times M$ (implicit $20 \times 20$), fiecare celulă conținând un tip din enum-ul:
 
 ```python
 class CellType(Enum):
@@ -398,7 +408,7 @@ class CellType(Enum):
     START   = 6  # Poziție inițială a agentului
 ```
 
-**Generarea procedurală** utilizează un generator de numere pseudoaleatoare cu seed configurabil (`numpy.random.default_rng(seed)`), asigurând reproductibilitatea completă a experimentelor. Procesul de generare urmează pașii:
+**Generarea procedurală** utilizează un generator de numere pseudoaleatoare cu seed configurabil (`random.Random(seed)`), asigurând reproductibilitatea completă a experimentelor. Procesul de generare urmează pașii:
 
 1. Inițializare grilă cu celule EMPTY;
 2. Plasarea START și TARGET la distanță Manhattan minimă de $\lfloor N/2 \rfloor$ (pentru a garanta o problemă netrivială);
@@ -430,7 +440,7 @@ def _validate_path_bfs(self) -> bool:
 
 Complexitatea BFS este $O(N \cdot M)$, neglijabilă față de costul episoadelor de antrenament.
 
-**Metoda `try_move()`** este interfața principală prin care agentul interacționează cu mediul. Primește acțiunea și poziția curentă, returnează un tuplu `(reward, new_position, is_terminal, info)`. Tratarea coliziunilor cu marginile grilei și cu obstacolele este implementată consistent: agentul rămâne pe loc și primește penalizarea de $-5$ pentru coliziune cu obstacol, fără cost energetic suplimentar.
+**Metoda `try_move()`** este interfața principală prin care agentul interacționează cu mediul. Primește poziția curentă și acțiunea, apoi returnează un dicționar cu toate efectele tranziției: poziția nouă, costul energetic, energia câștigată, recompensa, flagul terminal și motivul terminării. Tratarea coliziunilor cu marginile grilei și cu obstacolele este implementată consistent: agentul rămâne pe loc și primește penalizarea de $-5$ pentru coliziune, fără schimbarea poziției.
 
 ### 4.3 Modelul Agentului (agent.py) — Stare Internă și Discretizare Energie
 
@@ -467,7 +477,7 @@ def get_energy_bucket(self) -> int:
 | OBSTACLE | $0$ (nu se mișcă) | $-5$ |
 | TARGET | — | $+100$ |
 
-**Statistici per episod.** Agentul colectează metrici pe parcursul fiecărui episod: numărul de pași, recompensa totală, numărul de coliziuni, numărul de bucăți de hrană colectate, nivelul minim de energie atins și dacă a reușit să ajungă la destinație. Aceste metrici sunt returnate la finalul episodului ca un obiect `EpisodeResult`.
+**Statistici per episod.** Agentul colectează metrici pe parcursul fiecărui episod: numărul de pași, recompensa totală, coverage-ul (procentul de celule unice vizitate), energia rămasă și motivul terminării episodului. Aceste metrici sunt returnate la finalul episodului ca un obiect `EpisodeResult`.
 
 ### 4.4 Modulul Q-Learning (q_learning.py) — Q-Table, Bellman, Epsilon-Greedy
 
@@ -476,7 +486,7 @@ Clasa `QLearning` implementează nucleul algoritmului de reinforcement learning.
 ```python
 class QLearning:
     def __init__(self, rows: int, cols: int, n_energy: int = 4, n_actions: int = 5):
-        self.q_table = np.zeros((rows, cols, n_energy, n_actions), dtype=np.float32)
+        self.q_table = np.zeros((rows, cols, n_energy, n_actions))
         self.alpha = ALPHA        # 0.1
         self.gamma = GAMMA        # 0.95
         self.epsilon = EPSILON_START  # 1.0
@@ -484,17 +494,20 @@ class QLearning:
         self.epsilon_decay = EPSILON_DECAY  # 0.995
 ```
 
-Dimensiunile pentru grila 20×20: $20 \times 20 \times 4 \times 5 = 8.000$ de valori Q, fiecare de tip `float32` (4 bytes) → **32 KB de memorie** pentru Q-table. Aceasta este o amprentă de memorie complet neglijabilă față de alternativele bazate pe rețele neurale.
+Dimensiunile pentru grila 20×20: $20 \times 20 \times 4 \times 5 = 8.000$ de valori Q, fiecare de tip `float64` (8 bytes) → **64 KB de memorie** pentru Q-table. Aceasta este o amprentă de memorie complet neglijabilă față de alternativele bazate pe rețele neurale.
 
 **Selecția acțiunii** urmează politica epsilon-greedy:
 
 ```python
-def select_action(self, state: tuple) -> int:
+def choose_action(self, state: tuple[int, int, int]) -> int:
     """Selectează acțiunea conform politicii epsilon-greedy."""
-    if np.random.random() < self.epsilon:
-        return np.random.randint(0, self.n_actions)  # Explorare
+    if random.random() < self.epsilon:
+        return random.randint(0, self.num_actions - 1)  # Explorare
     r, c, e = state
-    return int(np.argmax(self.q_table[r, c, e]))  # Exploatare
+    q_values = self.q_table[r, c, e]
+    max_q = np.max(q_values)
+    best_actions = np.where(q_values == max_q)[0]
+    return int(np.random.choice(best_actions))  # Exploatare cu tie-break aleator
 ```
 
 **Actualizarea Bellman** implementează ecuația Q-Learning standard:
@@ -524,56 +537,43 @@ def decay_epsilon(self):
     self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 ```
 
-**Persistența Q-table-ului** este implementată prin serializare NumPy (`np.save`/`np.load`), cu opțiune de export JSON pentru inspectare umană. Aceasta permite continuarea antrenamentului dintr-un checkpoint salvat, esențial pentru Scenariul C.
+**Persistența Q-table-ului** este implementată prin serializare NumPy (`np.save`/`np.load`). Aceasta permite continuarea antrenamentului dintr-un checkpoint salvat și replay-ul unei politici deja învățate.
 
 ### 4.5 Orchestratorul de Antrenament (trainer.py)
 
-Modulul `trainer.py` orchestrează bucla de antrenament, coordonând interacțiunile dintre mediu, agent și modulul Q-Learning. Structura centrală este `EpisodeResult`, un dataclass care încapsulează toată informația relevantă pentru un episod:
+Modulul `trainer.py` orchestrează bucla de antrenament, coordonând interacțiunile dintre mediu, agent și modulul Q-Learning. Structura centrală este `EpisodeResult`, care încapsulează toată informația relevantă pentru un episod:
 
 ```python
-@dataclass
 class EpisodeResult:
-    episode_id: int
-    steps: int
-    total_reward: float
-    epsilon: float
-    success: bool       # A ajuns la destinație?
-    died: bool          # A murit (energie epuizată sau celulă pericol)?
-    food_collected: int
-    min_energy: float
-    outcome: str        # "success", "died", "timeout"
+    __slots__ = ("episode_id", "total_steps", "total_reward", "epsilon",
+                 "outcome", "coverage", "energy_remaining")
 ```
 
 Metoda `run_episode()` execută un singur episod complet:
 
 ```python
-def run_episode(self, training: bool = True) -> EpisodeResult:
-    """Execută un episod complet. dacă training=False, folosește politică greedy pură."""
-    state = self.env.reset()
-    self.agent.reset()
-    
-    for step in range(MAX_STEPS):
-        action = self.ql.select_action(state) if training else self.ql.greedy_action(state)
-        reward, next_state, done, info = self.env.try_move(state, action)
-        
-        if training:
-            self.ql.update(state, action, reward, next_state, done)
-        
+def run_episode(self, episode_id, render_callback=None):
+    self._reset_environment_for_episode()
+    agent = Agent(start_pos=self.env.start_pos, energy=self.energy)
+    state = agent.get_state()
+
+    for step in range(self.max_steps):
+        action = self.q.choose_action(state)
+        result = self.env.try_move(agent.position, action)
+        reason = agent.apply_action_result(result)
+        next_state = agent.get_state()
+        done = reason is not None
+
+        self.q.update(state, action, result["reward"], next_state, done)
         state = next_state
-        self.agent.update(info)
-        
+
         if done:
             break
-    
-    if training:
-        self.ql.decay_epsilon()
-    
-    return EpisodeResult(...)
 ```
 
-Metoda `run_greedy_episode()` este utilizată pentru evaluarea politicii învățate, fără explorare — setând $\varepsilon = 0$ temporar.
+Metoda `run_greedy_episode()` este utilizată pentru evaluarea politicii învățate, fără explorare, folosind `QLearning.get_best_action()` pe aceeași hartă de bază a episodului.
 
-**Scenariul C** este implementat prin metoda `apply_environment_change()`, apelată la episodul 500: obstacolele sunt relocate aleatoriu (cu un nou seed), dar Q-table-ul este păstrat intact, simulând schimbarea bruscă a mediului fizic fără resetarea cunoașterii acumulate.
+**Scenariul C** este implementat prin relocarea controlată a unei fracțiuni din obstacole la episodul 500, urmată de păstrarea acelei configurații ca nouă hartă de bază pentru episoadele următoare. Astfel, Q-table-ul rămâne intact, iar mediul chiar se schimbă persistent după switch-ul experimental.
 
 ### 4.6 Interfața Grafică Pygame (renderer.py) — Heatmap Q-Values, Săgeți Politică
 
@@ -602,10 +602,10 @@ Modulul `renderer.py` implementează vizualizarea interactivă a simulării util
 Modulul `analytics.py` colectează și vizualizează datele de antrenament. La finalul fiecărui episod, un rând este adăugat în fișierul CSV:
 
 ```
-episode_id, steps, total_reward, epsilon, success, died, food_collected, min_energy, outcome
-1, 248, -152.0, 0.9950, False, True, 0, 0.0, "died"
+episode_id, steps, total_reward, epsilon, outcome, coverage_pct, energy_remaining
+1, 248, -152.0, 0.9950, DEATH_ENERGY, 18.50, 0.0
 ...
-1000, 31, 84.0, 0.0067, True, False, 1, 42.0, "success"
+1000, 31, 84.0, 0.0067, SUCCESS, 42.75, 42.0
 ```
 
 **Grafice generate automat** prin Matplotlib:

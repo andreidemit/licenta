@@ -44,6 +44,12 @@ class Analytics:
             f"{prefix}_{self.scenario}_{self.grid_size}_{self.seed}.{ext}"
         )
 
+    def _validated_window(self, history, window: int) -> int:
+        """Ajustează fereastra rolling la istoricul disponibil."""
+        if not history:
+            raise ValueError("Istoricul episoadelor este gol.")
+        return max(1, min(window, len(history)))
+
     # ------------------------------------------------------------------
     # Export CSV
     # ------------------------------------------------------------------
@@ -88,6 +94,7 @@ class Analytics:
         Returns:
             str — calea fișierului PNG generat
         """
+        window = self._validated_window(history, window)
         rewards = [ep.total_reward for ep in history]
         episodes = list(range(len(rewards)))
 
@@ -140,6 +147,7 @@ class Analytics:
         Returns:
             str — calea fișierului PNG generat
         """
+        window = self._validated_window(history, window)
         successes = [1 if ep.outcome == "target_reached" else 0 for ep in history]
 
         kernel = np.ones(window) / window
@@ -191,24 +199,28 @@ class Analytics:
         Returns:
             str — calea fișierului PNG generat
         """
+        if not histories:
+            raise ValueError("Nu există istorice pentru comparația alpha.")
+
         colors = ["#ff6b35", "#50c878", "#7fbfff", "#e74c3c", "#9b59b6"]
-        kernel = np.ones(window) / window
 
         fig, axes = plt.subplots(1, 2, figsize=(14, 5))
         ax_reward, ax_success = axes
 
         for i, (alpha, history) in enumerate(sorted(histories.items())):
+            window_for_history = self._validated_window(history, window)
+            kernel = np.ones(window_for_history) / window_for_history
             color = colors[i % len(colors)]
             label = f"α={alpha}"
 
             rewards = [ep.total_reward for ep in history]
             rolling_r = np.convolve(rewards, kernel, mode="valid")
-            rolling_rx = list(range(window - 1, len(rewards)))
+            rolling_rx = list(range(window_for_history - 1, len(rewards)))
             ax_reward.plot(rolling_rx, rolling_r, color=color, linewidth=1.8, label=label)
 
             successes = [1 if ep.outcome == "target_reached" else 0 for ep in history]
             rolling_s = np.convolve(successes, kernel, mode="valid") * 100
-            rolling_sx = list(range(window - 1, len(successes)))
+            rolling_sx = list(range(window_for_history - 1, len(successes)))
             ax_success.plot(rolling_sx, rolling_s, color=color, linewidth=1.8, label=label)
 
         ax_reward.set_xlabel("Episod")

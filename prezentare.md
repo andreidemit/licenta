@@ -40,7 +40,7 @@ style: |
 1. **Motivație** — De ce navigare autonomă?
 2. **Definirea problemei** — Agent, mediu, supraviețuire
 3. **Fundamente teoretice** — MDP, Q-Learning, Bellman
-4. **Arhitectura sistemului** — 6 module Python
+4. **Arhitectura sistemului** — 6 module de bază + 2 extensii
 5. **Detalii de implementare** — Environment, Agent, Q-Table
 6. **Scenariile experimentale** — A, B, C
 7. **Rezultate și analiză** — Convergență, hiperparametri
@@ -170,7 +170,7 @@ Episod  1000: ε = 0.010  ▏                    (exploatare maximă)
 
 # Arhitectura Sistemului 🏗️
 
-## 6 module Python cu responsabilități clare
+## 6 module de bază + 2 extensii de evaluare
 
 ```
 main.py ──────────────────────────────────────────
@@ -188,13 +188,15 @@ trainer.py ───────────────────────
     ▼
 renderer.py ─────────────────────────────────────
     Pygame GUI, heatmap Q-values, policy arrows
+analytics.py + warehouse_scenario.py ───────────
+    Export rezultate + scenariul industrial fix
 ```
 
 ### Fluxul de date per pas:
 1. **Renderer** desenează starea curentă
 2. **Agent** selectează acțiunea (ε-greedy din Q-table)
-3. **Environment.try_move()** procesează acțiunea → reward, s', terminal
-4. **Agent** actualizează poziția și energia
+3. **Environment.try_move()** procesează acțiunea → payload de tranziție
+4. **Agent.apply_action_result()** actualizează poziția și energia
 5. **QLearning** calculează actualizarea Bellman
 6. **Trainer** înregistrează statisticile episodului
 
@@ -231,7 +233,7 @@ def generate_grid(seed: int, rows: int, cols: int) -> Grid:
 | Pericol | 3% | ~12 | moarte |
 
 - **BFS** garantează existența unui drum liber de la start la țintă
-- `try_move()` returnează `(reward, new_state, is_terminal)` în O(1)
+- `try_move()` returnează un dicționar complet de tranziție în O(1)
 
 ---
 
@@ -250,9 +252,9 @@ $$\text{bucket}(e) = \begin{cases} 0 & \text{dacă } e < 25 \quad \text{(critic 
 - Tranziția între bucketuri creează **comportament emergent** de supraviețuire
 
 ### Statistici per episod urmărite:
-- Pași totali, recompensă cumulată, energie minimă atinsă
-- Număr de celule hrană colectate, cauza terminării (succes/moarte/timeout)
-- Distribuția acțiunilor (pentru analiza comportamentului)
+- Pași totali, recompensă cumulată, energie rămasă
+- Coverage (% celule unice vizitate), cauza terminării (succes/moarte/timeout)
+- Număr de intrări Q nenule și evoluția epsilon în antrenament
 
 ---
 
@@ -508,8 +510,8 @@ $$\text{Regula de aur: } \alpha \in [0.05, 0.15] \text{ pentru medii determinist
 | Bucket energetic | Nivel baterie: critic/scăzut/mediu/plin |
 
 ### WarehouseEnvironment — implementat în proiect:
-- Extinde `GridEnvironment` cu semantică specifică depozitelor
-- Stații de reîncărcare plasate strategic (colțuri + centru)
+- Extinde `Environment` cu semantică specifică depozitelor
+- Stații de reîncărcare plasate pe două culoare transversale
 - Simulează **problema Amazon Kiva** la scară redusă
 
 ---
@@ -644,29 +646,21 @@ Mecanismul de **discretizare a energiei în 4 bucketuri** este direct transferab
 
 ## Implementarea concretă a scenariului de depozit
 
-### Clasa `WarehouseEnvironment` — extensie a `GridEnvironment`:
+### Clasa `WarehouseEnvironment` — extensie a `Environment`:
 
 ```python
-class WarehouseEnvironment(GridEnvironment):
+class WarehouseEnvironment(Environment):
     """
     Modelează problema Amazon Kiva la scară redusă.
     Grid 20×20 cu semantică specifică depozitelor.
     """
-    CHARGING_STATIONS = [
-        (0, 0), (0, 19),   # colțuri superioare
-        (19, 0), (19, 19), # colțuri inferioare
-        (9, 9), (9, 10),   # centrul depozitului
-    ]
-    
-    def place_charging_stations(self):
-        for (r, c) in self.CHARGING_STATIONS:
-            self.grid[r][c] = FOOD  # reîncărcare = hrană
-    
-    def try_move(self, action) -> tuple[float, State, bool]:
-        reward, state, terminal = super().try_move(action)
-        if self.grid[state.row][state.col] == FOOD:
-            reward += 5  # bonus strategic pentru stație
-        return reward, state, terminal
+    def generate(self, seed=None):
+        self._build_warehouse_map()
+        if not self._validate_path():
+            raise RuntimeError("Layout invalid pentru depozit.")
+
+    def reset(self, seed=None):
+        self._build_warehouse_map()
 ```
 
 ### Rezultate WarehouseEnvironment (1000 episoade, date reale):
@@ -680,6 +674,25 @@ class WarehouseEnvironment(GridEnvironment):
 | Overhead vs. BFS optim | — | **+26 pași (+113%)** |
 
 *Overhead de 113% față de BFS se datorează detoururilor pentru stații de încărcare și evitarea zonei stivuitoare (DANGER la col. 0 și 19, rândul 17).*
+
+---
+
+# Demo sigur pentru susținere 🎬
+
+## Flux recomandat pentru evaluare live
+
+```bash
+# 1. Pachet complet de rezultate reproductibile
+python -m src.final_report --episodes 2000 --save-qtables
+
+# 2. Demo vizual scurt, sigur
+python -m src.main --train --scenario B --episodes 50 --visualize
+```
+
+### Fallback dacă timpul este scurt sau GUI-ul merge lent:
+- rulezi doar `python -m src.final_report --episodes 500 --skip-warehouse`
+- prezinți graficele și sumarul din `data/final_summary_*.csv/.json`
+- pentru replay folosești un Q-table deja salvat cu `--load-qtable`
 
 ---
 

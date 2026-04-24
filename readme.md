@@ -34,6 +34,20 @@ La finalul antrenamentului, agentul trebuie să fie capabil să:
 
 ---
 
+## Rulare recomandată pentru pachetul final
+
+```bash
+# regenerează experimentele standard și sumarul final
+python -m src.final_report --episodes 2000 --save-qtables
+
+# demo vizual scurt
+python -m src.main --train --scenario B --episodes 50 --visualize
+```
+
+Pentru evaluarea finală, fluxul recomandat este să regenerezi mai întâi artefactele standard din `data/`, apoi să folosești demo-ul scurt doar pentru ilustrare vizuală. Rulările sub 50 de episoade sunt utile pentru smoke checks, dar nu pentru raportarea rezultatelor finale.
+
+---
+
 ### I. Paradigma de Simulare Aleasă
 
 Pentru acest proiect, voi utiliza o **Arhitectură de Simulare cu Pași de Timp Discreți (Discrete Time Simulation / Time-Driven Simulation)**.

@@ -124,8 +124,10 @@ def test_scenario_b_more_food_visits_than_a():
     success_b = [r for r in history_b if r.outcome == "target_reached"]
 
     if len(success_a) > 10 and len(success_b) > 10:
-        avg_steps_a = sum(r.steps for r in success_a[-20:]) / 20
-        avg_steps_b = sum(r.steps for r in success_b[-20:]) / 20
+        sample_a = success_a[-min(20, len(success_a)):]
+        sample_b = success_b[-min(20, len(success_b)):]
+        avg_steps_a = sum(r.total_steps for r in sample_a) / len(sample_a)
+        avg_steps_b = sum(r.total_steps for r in sample_b) / len(sample_b)
         # Scenariul B ar trebui să aibă mai mulți pași (detour pentru hrană)
         print(f"✅ Scenariu B vs A: avg steps = {avg_steps_b:.1f} vs {avg_steps_a:.1f} (B > A = detour pentru hrană)")
     else:

@@ -17,5 +17,6 @@ __pycache__/
 
 # Generated training artifacts
 data/*.csv
+data/*.json
 data/*.png
 data/*.npy

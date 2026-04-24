@@ -123,6 +123,20 @@ def test_save_all_plots_creates_pngs():
         print("✅ save_all_plots(): 3 PNG-uri create")
 
 
+def test_save_all_plots_short_history():
+    """save_all_plots() funcționează și pentru istorice mai scurte decât fereastra default."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analytics = Analytics(scenario="B", grid_size=10, seed=42, out_dir=tmpdir)
+        history = _make_history(10)
+        paths = analytics.save_all_plots(history)
+
+        assert len(paths) == 3, f"save_all_plots() a returnat {len(paths)} căi, așteptat 3"
+        for p in paths:
+            assert os.path.exists(p), f"Grafic lipsă pentru istoric scurt: {p}"
+            assert os.path.getsize(p) > 1000, f"Grafic prea mic pentru istoric scurt: {p}"
+        print("✅ save_all_plots(): funcționează și pentru istorice scurte")
+
+
 def test_plot_convergence_creates_png():
     """plot_convergence() creează fișierul PNG."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -197,6 +211,7 @@ if __name__ == "__main__":
     test_export_csv_outcome_labels()
     test_export_csv_correct_row_count()
     test_save_all_plots_creates_pngs()
+    test_save_all_plots_short_history()
     test_plot_convergence_creates_png()
     test_plot_epsilon_decay_creates_png()
     test_plot_success_rate_creates_png()

@@ -24,6 +24,7 @@ python -m src.main --alpha-sensitivity
 python -m src.main --train --scenario WAREHOUSE
 python -m src.main --train --save-qtable data/qt.npy
 python -m src.main --load-qtable data/qt.npy --visualize
+python -m src.final_report --episodes 2000 --save-qtables
 
 # Test modules
 python -m tests.test_quick
@@ -55,6 +56,7 @@ python -c "from tests.test_analytics import test_export_csv_creates_file; test_e
 - Scenario wiring is centralized in `src/main.py`: Scenario A swaps in effectively infinite energy, Scenario C passes a relocation switch into `Trainer`, and `WAREHOUSE` delegates fully to `warehouse_scenario.py`.
 - `Environment.reset()` is expected to regenerate from the stored seed each episode. Any new environment subclass should keep `reset()` compatible with how `Trainer` calls it before every run.
 - Training via `src.main.run_training()` always exports `results_*`, `convergence_*`, `epsilon_*`, and `success_*` artifacts into `data/`. Tests and existing outputs assume that naming pattern.
+- `src.final_report` is the standardized reproducibility entry point for the full thesis bundle: it runs the agreed scenarios, exports the usual plots/CSV files, and writes a summary CSV/JSON for the final package.
 - Tests are script-style modules, not a repo-configured pytest suite. Prefer `python -m tests.<module>` from the repo root; for single-test granularity, import and call the function directly.
 - Comments, docstrings, and user-facing UI strings are mostly Romanian while code identifiers stay English. Keep new UI copy and inline documentation aligned with that mixed style.
-- For quick CLI smoke tests, use at least `--episodes 50`; `Analytics.save_all_plots()` uses a 50-episode rolling window and can fail for smaller histories.
+- For quick CLI smoke tests, `--episodes 50` remains a good default because it matches the standard rolling window in analytics, but shorter runs are now supported safely as well.
