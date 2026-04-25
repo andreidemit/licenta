@@ -161,7 +161,8 @@ def print_warehouse_map(env: WarehouseEnvironment) -> None:
     print("Legendă: ◉=Start  ★=Target  █=Raft  ⚡=Încărcare  ≈=Zonă aglomerată  ✖=Pericol  ·=Culoar")
 
 
-def run_warehouse_training(num_episodes=2000, visualize=False):
+def run_warehouse_training(num_episodes=2000, visualize=False, out_dir="data",
+                           export_visuals=False, export_trajectory=False):
     """
     Rulează antrenamentul Q-Learning pe scenariul de depozit.
 
@@ -198,7 +199,7 @@ def run_warehouse_training(num_episodes=2000, visualize=False):
         import sys
         from src.renderer import Renderer
 
-        renderer = Renderer(rows=20, cols=20)
+        renderer = Renderer(rows=20, cols=20, human_paced=True)
 
         def render_cb(env, agent, info):
             for event in pygame.event.get():
@@ -208,11 +209,11 @@ def run_warehouse_training(num_episodes=2000, visualize=False):
                     renderer.close()
                     sys.exit()
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_h:
-                        renderer.show_heatmap = not renderer.show_heatmap
-                    elif event.key == pygame.K_p:
-                        renderer.show_policy = not renderer.show_policy
+                    renderer.handle_ui_event(event)
             renderer.draw(env, agent, info, q_learner=q)
+            if not renderer.wait_for_playback(env, agent, info, q_learner=q):
+                renderer.close()
+                sys.exit()
 
     history = trainer.train(
         num_episodes=num_episodes,
@@ -223,7 +224,7 @@ def run_warehouse_training(num_episodes=2000, visualize=False):
     # Evaluare greedy finală
     print()
     print("=== Evaluare Greedy — Robot de Depozit ===")
-    agent, outcome = trainer.run_greedy_episode()
+    agent, outcome, greedy_trajectory = trainer.run_greedy_trajectory()
     print(f"Rezultat: {outcome}")
     print(f"Pași: {agent.total_steps}  (optim BFS: {stats['bfs_optimal_path']})")
     print(f"Reward: {agent.total_reward:.1f}  |  Energie rămasă: {agent.energy:.0f}")
@@ -231,15 +232,58 @@ def run_warehouse_training(num_episodes=2000, visualize=False):
     print(f"Overhead față de optim: +{overhead} pași ({overhead / stats['bfs_optimal_path'] * 100:.1f}%)")
 
     # Export analytics
-    analytics = Analytics(scenario="WAREHOUSE", grid_size=20, seed=0)
+    analytics = Analytics(scenario="WAREHOUSE", grid_size=20, seed=0, out_dir=out_dir)
+    artifacts = {}
     csv_path = analytics.export_csv(history)
+    artifacts["results_csv"] = csv_path
     plot_paths = analytics.save_all_plots(history)
-    q.save("data/qtable_WAREHOUSE_20_0.npy")
+    qtable_path = f"{out_dir}/qtable_WAREHOUSE_20_0.npy"
+    q.save(qtable_path)
+    artifacts.update({
+        "convergence_png": plot_paths[0],
+        "epsilon_png": plot_paths[1],
+        "success_png": plot_paths[2],
+        "qtable_path": qtable_path,
+    })
+    greedy_summary = {
+        "outcome": outcome,
+        "steps": agent.total_steps,
+        "reward": agent.total_reward,
+        "energy_remaining": agent.energy,
+        "bfs_distance": stats["bfs_optimal_path"],
+        "bfs_overhead": overhead,
+    }
+    if export_trajectory:
+        trajectory_csv, trajectory_json = analytics.export_greedy_trajectory(
+            greedy_trajectory,
+            summary=greedy_summary,
+        )
+        artifacts["greedy_trajectory_csv"] = trajectory_csv
+        artifacts["greedy_trajectory_json"] = trajectory_json
+    if export_visuals:
+        artifacts.update(analytics.save_visual_artifacts(
+            env,
+            q,
+            trajectory=greedy_trajectory,
+            energy_level=3,
+        ))
+    manifest_path = analytics.export_run_manifest(
+        history,
+        env,
+        q,
+        artifacts=artifacts,
+        greedy_summary=greedy_summary,
+        energy=ENERGY_MAX,
+    )
 
     print(f"\nCSV: {csv_path}")
     for p in plot_paths:
         print(f"Grafic: {p}")
-    print("Q-Table salvată: data/qtable_WAREHOUSE_20_0.npy")
+    for key, path in artifacts.items():
+        if key not in ("results_csv", "convergence_png", "epsilon_png", "success_png", "qtable_path"):
+            print(f"Artefact {key}: {path}")
+    print(f"Q-Table salvată: {qtable_path}")
+    print(f"Manifest rulare: {manifest_path}")
 
     if renderer:
         # Replay greedy vizual
@@ -257,6 +301,8 @@ def run_warehouse_training(num_episodes=2000, visualize=False):
                 ):
                     running = False
                     break
+                elif event.type == pygame.KEYDOWN:
+                    renderer.handle_ui_event(event)
             if not running:
                 break
             if agent2.is_alive and not agent2.reached_target:
@@ -265,6 +311,8 @@ def run_warehouse_training(num_episodes=2000, visualize=False):
                 agent2.apply_action_result(result)
                 state = agent2.get_state()
             renderer.draw(env, agent2, {"Mod": "Replay Greedy Depozit"}, q_learner=q)
+            if not renderer.wait_for_playback(env, agent2, {"Mod": "Replay Greedy Depozit"}, q_learner=q):
+                running = False
         renderer.close()
 
     return history, q
@@ -275,5 +323,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Simulare Robot de Depozit")
     parser.add_argument("--episodes", type=int, default=2000)
     parser.add_argument("--visualize", action="store_true")
+    parser.add_argument("--out-dir", default="data")
+    parser.add_argument("--export-visuals", action="store_true")
+    parser.add_argument("--export-trajectory", action="store_true")
     args = parser.parse_args()
-    run_warehouse_training(num_episodes=args.episodes, visualize=args.visualize)
+    run_warehouse_training(
+        num_episodes=args.episodes,
+        visualize=args.visualize,
+        out_dir=args.out_dir,
+        export_visuals=args.export_visuals,
+        export_trajectory=args.export_trajectory,
+    )

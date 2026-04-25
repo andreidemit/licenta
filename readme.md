@@ -40,11 +40,48 @@ La finalul antrenamentului, agentul trebuie să fie capabil să:
 # regenerează experimentele standard și sumarul final
 python -m src.final_report --episodes 2000 --save-qtables
 
+# exportă și artefacte de observabilitate pentru o rulare scurtă
+python -m src.main --train --episodes 50 --export-visuals --export-trajectory
+
+# UI web experimental: backend FastAPI + frontend React
+python -m pip install -r web/backend/requirements.txt
+python -m web.backend
+
+cd web/frontend
+npm install
+npm run dev
+
 # demo vizual scurt
 python -m src.main --train --scenario B --episodes 50 --visualize
 ```
 
 Pentru evaluarea finală, fluxul recomandat este să regenerezi mai întâi artefactele standard din `data/`, apoi să folosești demo-ul scurt doar pentru ilustrare vizuală. Rulările sub 50 de episoade sunt utile pentru smoke checks, dar nu pentru raportarea rezultatelor finale.
+
+Artefactele de observabilitate includ manifest JSON reproductibil, traseu lacom CSV/JSON și imagini PNG pentru hartă, politică, max-Q, vizite, eroare TD și traseul lacom final. Directorul de ieșire poate fi schimbat cu `--out-dir`.
+
+În modul `--visualize`, feedback-ul în timp real este limitat intenționat la o viteză ușor de urmărit și include controale de redare: `SPACE` pauză/reluare, `.` avansează un singur pas când simularea este în pauză, iar `-`/`+` schimbă viteza. Panoul lateral este organizat pe carduri pentru agent, ultimul pas, progresul învățării, suprapuneri vizuale și controale. Indicatorul de pe grid arată ultima acțiune, recompensa pasului, delta de energie și eroarea TD. Suprapunerile pot fi schimbate cu `H/P/V/T/K/L/E`.
+
+UI-ul web din `web/` este direcția recomandată pentru demo pe tot ecranul și fluxul complet: antrenare din browser, transmitere în timp real, panou React, salvare tabel Q și evaluare lacomă pe medii JSON noi. Backend-ul reutilizează motorul Python existent, deci algoritmul Q-Learning nu este rescris în JavaScript.
+
+Frontend-ul folosește React Router cu pagini dedicate pentru fiecare flux:
+
+- `/` — panoul de start cu acces rapid la toate funcțiile;
+- `/antrenare` — formular cu previzualizare hartă, plus mod live fullscreen cu HUD pentru episodul curent;
+- `/rulari` — listă filtrabilă de experimente (carduri sau tabel);
+- `/rulari/:id` — detaliu cu sumar, grafice PNG, manifest JSON și descărcare artefacte;
+- `/evaluare` — flux în 3 pași (alege tabel Q → alege scenariu → urmărește replay-ul cu HUD, timeline scrubable și viteză 0.5×–4×);
+- `/editor-mediu` — pictează celule cu unealta selectată, validează drumul cu BFS, salvează ca JSON;
+- `/comparatie` — selectează până la 4 rulări pentru comparație multi-run;
+- `/legacy` — UI-ul vechi este păstrat ca fallback până la validarea utilizatorului.
+
+Stack-ul UI: Tailwind CSS 3 + componente shadcn-style peste primitive Radix, framer-motion pentru animații, recharts pentru grafice, react-router pentru navigare. Toate animațiile respectă `prefers-reduced-motion`.
+
+În varianta web, rulările finalizate sunt indexate în `data/runs/index.json`, tabelele Q pot fi selectate direct din browser, iar artefactele unei rulări pot fi descărcate din panou. Editorul de medii permite vopsirea celulelor prin click pentru `Liber/Obstacol/Noroi/Hrană/Pericol/Pornire/Țintă`, validare BFS prin backend și salvare ca JSON sub `data/environments/`. Evaluarea acceptă fie un singur mediu JSON, fie o listă JSON de medii pentru comparații pe lot; traseul lacom selectat este suprapus pe grid.
+
+```bash
+# teste API web
+python -m tests.test_web_api
+```
 
 ---
 

@@ -8,7 +8,7 @@ GRID_COLS = 20
 
 # --- Dimensiuni Fereastră ---
 CELL_SIZE = 32          # pixeli per celulă
-SIDEBAR_WIDTH = 250     # lățime panel lateral
+SIDEBAR_WIDTH = 360     # lățime panel lateral pentru dashboard
 WINDOW_WIDTH = GRID_COLS * CELL_SIZE + SIDEBAR_WIDTH
 WINDOW_HEIGHT = GRID_ROWS * CELL_SIZE
 FPS = 60

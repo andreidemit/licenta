@@ -56,6 +56,11 @@ class Environment:
         """Generează o hartă validă (cu drum garantat start→țintă)."""
         if seed is not None:
             self.seed = seed
+        if self.rows + self.cols - 2 < MIN_MANHATTAN_DISTANCE:
+            raise ValueError(
+                "Gridul este prea mic pentru distanța minimă start→țintă "
+                f"({MIN_MANHATTAN_DISTANCE})."
+            )
 
         for attempt in range(1000):
             current_seed = (self.seed or 0) + attempt
@@ -195,6 +200,7 @@ class Environment:
 
         result = {
             "new_pos": position,
+            "cell_type": self.get_cell(row, col),
             "energy_cost": ENERGY_COST_NORMAL,
             "energy_gain": 0,
             "reward": REWARD_STEP,
@@ -209,10 +215,12 @@ class Environment:
 
         # Verificare limite și obstacole
         if not (0 <= nr < self.rows and 0 <= nc < self.cols):
+            result["cell_type"] = CellType.OBSTACLE
             result["reward"] = REWARD_COLLISION
             return result
 
         cell = self.grid[nr][nc]
+        result["cell_type"] = cell
 
         if cell == CellType.OBSTACLE:
             result["reward"] = REWARD_COLLISION

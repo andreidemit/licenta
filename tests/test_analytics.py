@@ -11,6 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.analytics import Analytics
 from src.trainer import EpisodeResult
+from src.environment import Environment
+from src.q_learning import QLearning
+from src.trainer import Trainer
 
 
 def _make_history(n=100):
@@ -47,7 +50,11 @@ def test_export_csv_correct_columns():
     """export_csv() produce CSV cu coloanele corecte."""
     expected_cols = {
         "episode_id", "steps", "total_reward", "epsilon",
-        "outcome", "coverage_pct", "energy_remaining"
+        "outcome", "coverage_pct", "energy_remaining",
+        "collisions", "food_collected", "mud_steps", "danger_entries",
+        "energy_spent", "energy_gained", "action_up", "action_down",
+        "action_left", "action_right", "action_stay", "mean_abs_td",
+        "q_nonzero", "q_fill_pct"
     }
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -106,6 +113,42 @@ def test_export_csv_correct_row_count():
 
         assert row_count == n, f"CSV are {row_count} rânduri, așteptat {n}"
         print(f"✅ export_csv(): {row_count} rânduri corecte")
+
+
+def test_export_csv_extended_metrics_values():
+    """export_csv() include valorile de observabilitate extinsă."""
+    history = [
+        EpisodeResult(
+            episode_id=0,
+            total_steps=7,
+            total_reward=12.5,
+            epsilon=0.5,
+            outcome="target_reached",
+            coverage=15.0,
+            energy_remaining=83.0,
+            collisions=2,
+            food_collected=1,
+            mud_steps=3,
+            danger_entries=0,
+            energy_spent=9.0,
+            energy_gained=20.0,
+            action_counts=[1, 2, 3, 0, 1],
+            mean_abs_td=4.25,
+            q_nonzero=17,
+            q_fill_pct=8.5,
+        )
+    ]
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analytics = Analytics(scenario="B", grid_size=10, seed=42, out_dir=tmpdir)
+        path = analytics.export_csv(history)
+        with open(path, newline="") as f:
+            row = next(csv.DictReader(f))
+        assert row["collisions"] == "2"
+        assert row["food_collected"] == "1"
+        assert row["action_left"] == "3"
+        assert row["mean_abs_td"] == "4.2500"
+        assert row["q_fill_pct"] == "8.50"
+        print("✅ export_csv(): metrici extinse corecte")
 
 
 def test_save_all_plots_creates_pngs():
@@ -189,6 +232,82 @@ def test_plot_alpha_comparison_creates_png():
         print(f"✅ plot_alpha_comparison(): {os.path.basename(path)}")
 
 
+def _trained_small_run(tmpdir):
+    env = Environment(rows=10, cols=10, seed=7)
+    q = QLearning(rows=10, cols=10)
+    trainer = Trainer(env, q)
+    history = trainer.train(num_episodes=5, print_every=0)
+    agent, outcome, trajectory = trainer.run_greedy_trajectory()
+    analytics = Analytics(scenario="B", grid_size=10, seed=7, out_dir=tmpdir)
+    summary = {
+        "outcome": outcome,
+        "steps": agent.total_steps,
+        "reward": agent.total_reward,
+        "energy_remaining": agent.energy,
+        "bfs_distance": env.bfs(env.start_pos, env.target_pos),
+    }
+    return analytics, env, q, history, trajectory, summary
+
+
+def test_export_run_manifest_creates_json():
+    """export_run_manifest() salvează metadata reproductibilă."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analytics, env, q, history, _, summary = _trained_small_run(tmpdir)
+        path = analytics.export_run_manifest(
+            history,
+            env,
+            q,
+            artifacts={"results_csv": "dummy.csv"},
+            greedy_summary=summary,
+            energy=100,
+        )
+        assert os.path.exists(path), f"Manifest lipsă: {path}"
+        assert os.path.getsize(path) > 100, "Manifest suspect gol"
+        print(f"✅ manifest JSON: {os.path.basename(path)}")
+
+
+def test_static_visual_artifacts_create_pngs():
+    """save_visual_artifacts() creează harta, policy și heatmap-urile."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analytics, env, q, _, trajectory, _ = _trained_small_run(tmpdir)
+        paths = analytics.save_visual_artifacts(env, q, trajectory=trajectory)
+        expected = {
+            "map_png", "policy_png", "q_heatmap_png",
+            "visit_heatmap_png", "td_heatmap_png", "greedy_path_png",
+        }
+        assert expected.issubset(paths.keys()), f"Artefacte lipsă: {expected - set(paths.keys())}"
+        for path in paths.values():
+            assert os.path.exists(path), f"PNG lipsă: {path}"
+            assert os.path.getsize(path) > 1000, f"PNG prea mic: {path}"
+        print("✅ save_visual_artifacts(): PNG-uri create")
+
+
+def test_export_greedy_trajectory_creates_files():
+    """export_greedy_trajectory() creează CSV + JSON."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analytics, _, _, _, trajectory, summary = _trained_small_run(tmpdir)
+        csv_path, json_path = analytics.export_greedy_trajectory(trajectory, summary=summary)
+        assert os.path.exists(csv_path), f"CSV traseu lipsă: {csv_path}"
+        assert os.path.exists(json_path), f"JSON traseu lipsă: {json_path}"
+        with open(csv_path, newline="") as f:
+            fieldnames = set(csv.DictReader(f).fieldnames or [])
+        assert {"step", "row", "col", "energy", "action_name", "terminal_reason"}.issubset(fieldnames)
+        print("✅ export_greedy_trajectory(): CSV + JSON create")
+
+
+def test_plot_scenario_comparison_creates_png():
+    """plot_scenario_comparison() creează dashboard comparativ."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        analytics = Analytics(scenario="ALL", grid_size=10, seed=42, out_dir=tmpdir)
+        path = analytics.plot_scenario_comparison({
+            "A": _make_history(20),
+            "B": _make_history(20),
+        })
+        assert os.path.exists(path), f"PNG scenario comparison lipsă: {path}"
+        assert os.path.getsize(path) > 1000, "PNG scenario comparison prea mic"
+        print(f"✅ scenario comparison: {os.path.basename(path)}")
+
+
 def test_filename_convention():
     """Fișierele generate respectă convenția de denumire."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -210,11 +329,16 @@ if __name__ == "__main__":
     test_export_csv_correct_columns()
     test_export_csv_outcome_labels()
     test_export_csv_correct_row_count()
+    test_export_csv_extended_metrics_values()
     test_save_all_plots_creates_pngs()
     test_save_all_plots_short_history()
     test_plot_convergence_creates_png()
     test_plot_epsilon_decay_creates_png()
     test_plot_success_rate_creates_png()
     test_plot_alpha_comparison_creates_png()
+    test_export_run_manifest_creates_json()
+    test_static_visual_artifacts_create_pngs()
+    test_export_greedy_trajectory_creates_files()
+    test_plot_scenario_comparison_creates_png()
     test_filename_convention()
     print("\n✅ Toate testele analytics au trecut!")

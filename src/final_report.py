@@ -62,6 +62,16 @@ def _write_summary_files(summaries, out_dir, grid_size, seed, num_episodes):
         "convergence_png",
         "epsilon_png",
         "success_png",
+        "manifest_json",
+        "map_png",
+        "policy_png",
+        "q_heatmap_png",
+        "visit_heatmap_png",
+        "td_heatmap_png",
+        "greedy_path_png",
+        "greedy_trajectory_csv",
+        "greedy_trajectory_json",
+        "scenario_comparison_png",
         "qtable_path",
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
@@ -106,7 +116,45 @@ def _run_standard_scenario(scenario, seed, grid_size, num_episodes, out_dir, sav
 
     results_csv = analytics.export_csv(history)
     convergence_png, epsilon_png, success_png = analytics.save_all_plots(history)
-    greedy_agent, greedy_outcome = trainer.run_greedy_episode()
+    greedy_agent, greedy_outcome, greedy_trajectory = trainer.run_greedy_trajectory()
+    bfs_dist = env.bfs(env.start_pos, env.target_pos)
+    greedy_summary = {
+        "outcome": greedy_outcome,
+        "steps": greedy_agent.total_steps,
+        "reward": greedy_agent.total_reward,
+        "energy_remaining": greedy_agent.energy,
+        "bfs_distance": bfs_dist,
+        "bfs_overhead": greedy_agent.total_steps - bfs_dist if bfs_dist is not None else None,
+    }
+    visual_artifacts = analytics.save_visual_artifacts(
+        env,
+        q,
+        trajectory=greedy_trajectory,
+        energy_level=3,
+    )
+    trajectory_csv, trajectory_json = analytics.export_greedy_trajectory(
+        greedy_trajectory,
+        summary=greedy_summary,
+    )
+    artifacts = {
+        "results_csv": results_csv,
+        "convergence_png": convergence_png,
+        "epsilon_png": epsilon_png,
+        "success_png": success_png,
+        "greedy_trajectory_csv": trajectory_csv,
+        "greedy_trajectory_json": trajectory_json,
+        **visual_artifacts,
+    }
+    if qtable_path:
+        artifacts["qtable_path"] = qtable_path
+    manifest_json = analytics.export_run_manifest(
+        history,
+        env,
+        q,
+        artifacts=artifacts,
+        greedy_summary=greedy_summary,
+        energy=ENERGY_INFINITE if scenario == "A" else ENERGY_MAX,
+    )
 
     summary = {
         "scenario": scenario,
@@ -125,9 +173,18 @@ def _run_standard_scenario(scenario, seed, grid_size, num_episodes, out_dir, sav
         "convergence_png": convergence_png,
         "epsilon_png": epsilon_png,
         "success_png": success_png,
+        "manifest_json": manifest_json,
+        "map_png": visual_artifacts["map_png"],
+        "policy_png": visual_artifacts["policy_png"],
+        "q_heatmap_png": visual_artifacts["q_heatmap_png"],
+        "visit_heatmap_png": visual_artifacts["visit_heatmap_png"],
+        "td_heatmap_png": visual_artifacts["td_heatmap_png"],
+        "greedy_path_png": visual_artifacts["greedy_path_png"],
+        "greedy_trajectory_csv": trajectory_csv,
+        "greedy_trajectory_json": trajectory_json,
         "qtable_path": qtable_path,
     }
-    return summary
+    return summary, history
 
 
 def run_final_report(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
@@ -140,18 +197,28 @@ def run_final_report(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
         scenarios.append("WAREHOUSE")
 
     summaries = []
+    histories = {}
     for scenario in scenarios:
         print(f"\n=== Pachet final — Scenariul {scenario} ===")
-        summaries.append(
-            _run_standard_scenario(
-                scenario=scenario,
-                seed=seed,
-                grid_size=grid_size,
-                num_episodes=num_episodes,
-                out_dir=out_dir,
-                save_qtables=save_qtables,
-            )
+        summary, history = _run_standard_scenario(
+            scenario=scenario,
+            seed=seed,
+            grid_size=grid_size,
+            num_episodes=num_episodes,
+            out_dir=out_dir,
+            save_qtables=save_qtables,
         )
+        summaries.append(summary)
+        histories[scenario] = history
+
+    comparison_path = Analytics(
+        scenario="ALL",
+        grid_size=grid_size,
+        seed=seed,
+        out_dir=out_dir,
+    ).plot_scenario_comparison(histories)
+    for summary in summaries:
+        summary["scenario_comparison_png"] = comparison_path
 
     csv_path, json_path = _write_summary_files(
         summaries=summaries,

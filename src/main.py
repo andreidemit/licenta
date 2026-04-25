@@ -82,17 +82,8 @@ def run_manual(seed=42, grid_size=20):
                     last_feedback = None
                     renderer.reset_visual_state()
 
-                elif event.key == pygame.K_e:
-                    renderer.cycle_policy_level()
-
-                elif event.key == pygame.K_v:
-                    renderer.toggle_visits()
-                elif event.key == pygame.K_t:
-                    renderer.toggle_td()
-                elif event.key == pygame.K_k:
-                    renderer.toggle_knowledge_mask()
-                elif event.key == pygame.K_l:
-                    renderer.toggle_trail()
+                elif renderer.handle_overlay_event(event):
+                    pass
 
                 elif event.key in KEY_TO_ACTION and not episode_over:
                     action = KEY_TO_ACTION[event.key]
@@ -104,7 +95,10 @@ def run_manual(seed=42, grid_size=20):
                         "reward": result["reward"],
                         "energy_cost": result["energy_cost"],
                         "energy_gain": result["energy_gain"],
+                        "energy_delta": result["energy_gain"] - result["energy_cost"],
+                        "previous_pos": previous_pos,
                         "new_pos": result["new_pos"],
+                        "cell_type": result.get("cell_type").name if hasattr(result.get("cell_type"), "name") else str(result.get("cell_type")),
                         "terminal_reason": reason,
                         "is_collision": (
                             action != 4
@@ -128,8 +122,9 @@ def run_manual(seed=42, grid_size=20):
 
 
 def run_training(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
-                 visualize=False, energy=ENERGY_MAX, scenario="B",
-                 save_qtable=None, alpha=None):
+                  visualize=False, energy=ENERGY_MAX, scenario="B",
+                  save_qtable=None, alpha=None, out_dir="data",
+                  export_visuals=False, export_trajectory=False):
     """
     Mod antrenament Q-Learning pentru un singur alpha.
 
@@ -148,7 +143,7 @@ def run_training(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
     overlay_frames = [0]
 
     if visualize:
-        renderer = Renderer(rows=grid_size, cols=grid_size)
+        renderer = Renderer(rows=grid_size, cols=grid_size, human_paced=True)
 
         def render_cb(env, agent, info):
             nonlocal overlay_frames
@@ -160,29 +155,19 @@ def run_training(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
                         renderer.close()
                     sys.exit()
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_h:
-                        renderer.show_heatmap = not renderer.show_heatmap
-                    elif event.key == pygame.K_p:
-                        renderer.show_policy = not renderer.show_policy
-                    elif event.key == pygame.K_e:
-                        renderer.cycle_policy_level()
-                    elif event.key == pygame.K_v:
-                        renderer.toggle_visits()
-                    elif event.key == pygame.K_t:
-                        renderer.toggle_td()
-                    elif event.key == pygame.K_k:
-                        renderer.toggle_knowledge_mask()
-                    elif event.key == pygame.K_l:
-                        renderer.toggle_trail()
+                    renderer.handle_ui_event(event)
 
             renderer.draw(env, agent, info, q_learner=q)
+            if not renderer.wait_for_playback(env, agent, info, q_learner=q):
+                renderer.close()
+                sys.exit()
 
             # End-of-episode overlay
             done = not agent.is_alive or agent.reached_target
             if done and info.get("_episode_done"):
                 if overlay_frames[0] < 90:
-                    outcome = "target_reached" if agent.reached_target else (
-                        "danger" if agent.reached_target is False else "energy_depleted"
+                    outcome = info.get("_terminal_reason") or (
+                        "target_reached" if agent.reached_target else "energy_depleted"
                     )
                     renderer.draw_episode_end_overlay(outcome)
                     overlay_frames[0] += 1
@@ -209,7 +194,7 @@ def run_training(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
     # Evaluare finală — episod greedy
     print()
     print("=== Evaluare Greedy (fără explorare) ===")
-    agent, outcome = trainer.run_greedy_episode()
+    agent, outcome, greedy_trajectory = trainer.run_greedy_trajectory()
     print(f"Rezultat: {outcome}")
     print(f"Pași: {agent.total_steps} | Reward: {agent.total_reward:.1f} | "
           f"Energie rămasă: {agent.energy:.0f}")
@@ -229,12 +214,59 @@ def run_training(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
         print(f"\nQ-Table salvată: {save_qtable}")
 
     # Export CSV + grafice
-    analytics = Analytics(scenario=scenario, grid_size=grid_size, seed=seed)
+    analytics = Analytics(scenario=scenario, grid_size=grid_size, seed=seed, out_dir=out_dir)
+    artifacts = {}
+    if save_qtable:
+        artifacts["qtable_path"] = save_qtable
     csv_path = analytics.export_csv(history)
+    artifacts["results_csv"] = csv_path
     print(f"CSV exportat: {csv_path}")
     plot_paths = analytics.save_all_plots(history)
     for p in plot_paths:
         print(f"Grafic salvat: {p}")
+    artifacts.update({
+        "convergence_png": plot_paths[0],
+        "epsilon_png": plot_paths[1],
+        "success_png": plot_paths[2],
+    })
+
+    bfs_dist = env.bfs(env.start_pos, env.target_pos)
+    greedy_summary = {
+        "outcome": outcome,
+        "steps": agent.total_steps,
+        "reward": agent.total_reward,
+        "energy_remaining": agent.energy,
+        "bfs_distance": bfs_dist,
+        "bfs_overhead": agent.total_steps - bfs_dist if bfs_dist is not None else None,
+    }
+    if export_trajectory:
+        trajectory_csv, trajectory_json = analytics.export_greedy_trajectory(
+            greedy_trajectory,
+            summary=greedy_summary,
+        )
+        artifacts["greedy_trajectory_csv"] = trajectory_csv
+        artifacts["greedy_trajectory_json"] = trajectory_json
+        print(f"Traseu greedy CSV: {trajectory_csv}")
+        print(f"Traseu greedy JSON: {trajectory_json}")
+    if export_visuals:
+        visual_paths = analytics.save_visual_artifacts(
+            env,
+            q,
+            trajectory=greedy_trajectory,
+            energy_level=3,
+        )
+        artifacts.update(visual_paths)
+        for p in visual_paths.values():
+            print(f"Vizualizare salvată: {p}")
+    manifest_path = analytics.export_run_manifest(
+        history,
+        env,
+        q,
+        artifacts=artifacts,
+        greedy_summary=greedy_summary,
+        energy=energy,
+    )
+    print(f"Manifest rulare: {manifest_path}")
 
     # Replay greedy vizual
     if renderer:
@@ -260,20 +292,7 @@ def _run_greedy_replay(env, q, energy, renderer):
                 running = False
                 break
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_h:
-                    renderer.show_heatmap = not renderer.show_heatmap
-                elif event.key == pygame.K_p:
-                    renderer.show_policy = not renderer.show_policy
-                elif event.key == pygame.K_e:
-                    renderer.cycle_policy_level()
-                elif event.key == pygame.K_v:
-                    renderer.toggle_visits()
-                elif event.key == pygame.K_t:
-                    renderer.toggle_td()
-                elif event.key == pygame.K_k:
-                    renderer.toggle_knowledge_mask()
-                elif event.key == pygame.K_l:
-                    renderer.toggle_trail()
+                renderer.handle_ui_event(event)
 
         if not running:
             break
@@ -289,7 +308,10 @@ def _run_greedy_replay(env, q, energy, renderer):
                 "reward": result["reward"],
                 "energy_cost": result["energy_cost"],
                 "energy_gain": result["energy_gain"],
+                "energy_delta": result["energy_gain"] - result["energy_cost"],
+                "previous_pos": previous_pos,
                 "new_pos": result["new_pos"],
+                "cell_type": result.get("cell_type").name if hasattr(result.get("cell_type"), "name") else str(result.get("cell_type")),
                 "terminal_reason": reason,
                 "is_collision": (
                     action != 4
@@ -313,6 +335,8 @@ def _run_greedy_replay(env, q, energy, renderer):
             info["_feedback"] = last_feedback
 
         renderer.draw(env, agent, info, q_learner=q)
+        if not renderer.wait_for_playback(env, agent, info, q_learner=q):
+            running = False
 
     renderer.close()
 
@@ -343,7 +367,7 @@ def run_load_and_visualize(qtable_path, seed=42, grid_size=20, energy=ENERGY_MAX
     q = QLearning(rows=grid_size, cols=grid_size)
     q.load(qtable_path)
     print(f"Q-Table încărcată din: {qtable_path}")
-    renderer = Renderer(rows=grid_size, cols=grid_size)
+    renderer = Renderer(rows=grid_size, cols=grid_size, human_paced=True)
     _run_greedy_replay(env, q, energy, renderer)
 
 
@@ -366,6 +390,12 @@ def main():
                         help="Încarcă Q-Table din fișier și rulează replay greedy")
     parser.add_argument("--alpha-sensitivity", action="store_true",
                         help="Analiză sensibilitate alpha pentru Scenariul C")
+    parser.add_argument("--out-dir", default="data",
+                        help="Directorul unde se salvează artefactele")
+    parser.add_argument("--export-visuals", action="store_true",
+                        help="Exportă harta, policy, Q heatmap, visits, TD și traseu greedy ca PNG")
+    parser.add_argument("--export-trajectory", action="store_true",
+                        help="Exportă traseul greedy final ca CSV + JSON")
     args = parser.parse_args()
 
     # Scenariul A = energie infinită
@@ -382,6 +412,9 @@ def main():
         run_warehouse_training(
             num_episodes=args.episodes,
             visualize=args.visualize,
+            out_dir=args.out_dir,
+            export_visuals=args.export_visuals,
+            export_trajectory=args.export_trajectory,
         )
         return
 
@@ -413,6 +446,9 @@ def main():
             energy=energy,
             scenario=args.scenario,
             save_qtable=args.save_qtable,
+            out_dir=args.out_dir,
+            export_visuals=args.export_visuals,
+            export_trajectory=args.export_trajectory,
         )
     else:
         run_manual(seed=args.seed, grid_size=args.grid)

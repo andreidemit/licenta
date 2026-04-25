@@ -116,6 +116,7 @@ class QLearning:
         self._td_history_idx = (self._td_history_idx + 1) % self._td_history_size
         if self._td_history_filled < self._td_history_size:
             self._td_history_filled += 1
+        return float(td_error)
 
     # ------------------------------------------------------------------
     # Decay Epsilon

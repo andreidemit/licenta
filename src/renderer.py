@@ -28,25 +28,43 @@ CELL_COLORS = {
     CellType.START: COLOR_START,
 }
 
+DASHBOARD_PANEL = (36, 39, 48)
+DASHBOARD_PANEL_ALT = (44, 48, 58)
+DASHBOARD_ACCENT = (92, 170, 255)
+DASHBOARD_MUTED = (155, 163, 178)
+DASHBOARD_SUCCESS = (86, 222, 151)
+DASHBOARD_WARNING = (255, 205, 86)
+DASHBOARD_DANGER = (255, 101, 117)
+
 
 class Renderer:
     """
     Randare Pygame a simulării.
     """
 
-    def __init__(self, rows=GRID_ROWS, cols=GRID_COLS):
+    def __init__(self, rows=GRID_ROWS, cols=GRID_COLS, human_paced=False):
         pygame.init()
         self.rows = rows
         self.cols = cols
         self.window_width = cols * CELL_SIZE + SIDEBAR_WIDTH
-        self.window_height = max(rows * CELL_SIZE, 400)
+        self.window_height = max(rows * CELL_SIZE, 700)
         self.screen = pygame.display.set_mode((self.window_width, self.window_height))
         pygame.display.set_caption("Q-Learning: Navigare Autonomă")
         self.clock = pygame.time.Clock()
+        self.font_title = pygame.font.SysFont("arial", 22, bold=True)
+        self.font_metric = pygame.font.SysFont("arial", 20, bold=True)
+        self.font_label = pygame.font.SysFont("arial", 12)
         self.font_large = pygame.font.SysFont("monospace", 18, bold=True)
         self.font_small = pygame.font.SysFont("monospace", 14)
         self.font_tiny = pygame.font.SysFont("monospace", 12)
         self.font_xl = pygame.font.SysFont("monospace", 36, bold=True)
+
+        # Playback pentru vizualizare umană în training/replay.
+        self.human_paced = human_paced
+        self.speed_levels = [1, 2, 4, 8, 15, 30, 60]
+        self.speed_index = 2 if human_paced else len(self.speed_levels) - 1
+        self.paused = False
+        self._step_requested = False
 
         # Toggle overlay-uri
         self.show_heatmap = False
@@ -87,6 +105,89 @@ class Renderer:
     def toggle_trail(self):
         self.show_trail = not self.show_trail
 
+    @property
+    def target_fps(self):
+        return self.speed_levels[self.speed_index]
+
+    def _speed_label(self):
+        return f"{self.target_fps} pas/s"
+
+    def _playback_status(self):
+        if self.paused:
+            return "PAUZA"
+        return f"PLAY {self._speed_label()}"
+
+    def handle_playback_event(self, event):
+        """Taste pentru ritmul vizualizării: pauză, step, mai lent/rapid."""
+        if event.type != pygame.KEYDOWN:
+            return False
+        if event.key == pygame.K_SPACE:
+            self.paused = not self.paused
+        elif event.key == pygame.K_PERIOD:
+            self._step_requested = True
+            self.paused = True
+        elif event.key in (pygame.K_MINUS, getattr(pygame, "K_LEFTBRACKET", pygame.K_MINUS)):
+            self.speed_index = max(0, self.speed_index - 1)
+        elif event.key in (
+            pygame.K_EQUALS,
+            getattr(pygame, "K_PLUS", pygame.K_EQUALS),
+            getattr(pygame, "K_RIGHTBRACKET", pygame.K_EQUALS),
+        ):
+            self.speed_index = min(len(self.speed_levels) - 1, self.speed_index + 1)
+        else:
+            return False
+        return True
+
+    def handle_ui_event(self, event):
+        """Procesează controalele UI comune pentru training/replay."""
+        return self.handle_playback_event(event) or self.handle_overlay_event(event)
+
+    def handle_overlay_event(self, event):
+        """Procesează tastele comune pentru overlay-uri. Returnează True dacă a gestionat event-ul."""
+        if event.type != pygame.KEYDOWN:
+            return False
+        if event.key == pygame.K_h:
+            self.show_heatmap = not self.show_heatmap
+        elif event.key == pygame.K_p:
+            self.show_policy = not self.show_policy
+        elif event.key == pygame.K_e:
+            self.cycle_policy_level()
+        elif event.key == pygame.K_v:
+            self.toggle_visits()
+        elif event.key == pygame.K_t:
+            self.toggle_td()
+        elif event.key == pygame.K_k:
+            self.toggle_knowledge_mask()
+        elif event.key == pygame.K_l:
+            self.toggle_trail()
+        else:
+            return False
+        return True
+
+    def wait_for_playback(self, environment, agent, info=None, q_learner=None):
+        """
+        Blochează avansarea simulării cât timp vizualizarea este în pauză.
+
+        Returns:
+            bool — False dacă utilizatorul a cerut închiderea ferestrei.
+        """
+        if not self.paused:
+            return True
+
+        while self.paused and not self._step_requested:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or (
+                    event.type == pygame.KEYDOWN and event.key == pygame.K_q
+                ):
+                    return False
+                self.handle_ui_event(event)
+            self.draw(environment, agent, info, q_learner=q_learner)
+
+        if self._step_requested:
+            self._step_requested = False
+            return True
+        return True
+
     def reset_visual_state(self):
         """Curăță efectele tranzitorii între episoade sau reset-uri manuale."""
         self._active_effects = []
@@ -104,6 +205,16 @@ class Renderer:
         if self.policy_energy_level is None:
             return f"curent ({agent.get_energy_level()})"
         return f"fix ({self.policy_energy_level})"
+
+    def _reward_color(self, reward):
+        """Culoare semantică pentru feedback-ul de recompensă."""
+        if reward > 0:
+            return (80, 230, 120)
+        if reward <= -50:
+            return (255, 60, 70)
+        if reward < 0:
+            return (255, 190, 80)
+        return COLOR_TEXT
 
     def _push_cell_flash(self, row, col, color, ttl=16):
         self._active_effects.append({
@@ -126,6 +237,28 @@ class Renderer:
             "max_ttl": ttl,
         })
 
+    def _push_action_arrow(self, previous_pos, new_pos, color, ttl=18):
+        if previous_pos == new_pos:
+            return
+        self._active_effects.append({
+            "kind": "arrow",
+            "previous_pos": previous_pos,
+            "new_pos": new_pos,
+            "color": color,
+            "ttl": ttl,
+            "max_ttl": ttl,
+        })
+
+    def _push_collision_cross(self, row, col, color, ttl=18):
+        self._active_effects.append({
+            "kind": "cross",
+            "row": row,
+            "col": col,
+            "color": color,
+            "ttl": ttl,
+            "max_ttl": ttl,
+        })
+
     def _queue_feedback_effects(self, agent, info):
         """Generează efecte vizuale scurte pentru ultimul pas al agentului."""
         if not info or "_feedback" not in info:
@@ -138,6 +271,8 @@ class Renderer:
             feedback.get("reward"),
             feedback.get("energy_cost"),
             feedback.get("energy_gain"),
+            feedback.get("energy_delta"),
+            feedback.get("previous_pos"),
             feedback.get("new_pos"),
             feedback.get("terminal_reason"),
         )
@@ -148,6 +283,11 @@ class Renderer:
         row, col = feedback.get("new_pos", agent.position)
         reward = feedback.get("reward", 0)
         terminal_reason = feedback.get("terminal_reason")
+        previous_pos = feedback.get("previous_pos")
+        reward_color = self._reward_color(reward)
+
+        if previous_pos is not None and not feedback.get("is_collision"):
+            self._push_action_arrow(previous_pos, (row, col), reward_color)
 
         # Pulse de învățare: flash subtil pe celula unde s-a actualizat Q-ul.
         learning = info.get("_learning") if info else None
@@ -161,6 +301,7 @@ class Renderer:
 
         if feedback.get("is_collision"):
             self._push_cell_flash(row, col, (255, 80, 80))
+            self._push_collision_cross(row, col, (255, 60, 60))
             self._push_floating_text(row, col, f"{reward:.0f}", (255, 120, 120))
             return
 
@@ -188,17 +329,21 @@ class Renderer:
         next_effects = []
         for effect in self._active_effects:
             ratio = effect["ttl"] / effect["max_ttl"]
-            row = effect["row"]
-            col = effect["col"]
-            x = col * CELL_SIZE
-            y = row * CELL_SIZE
 
             if effect["kind"] == "flash":
+                row = effect["row"]
+                col = effect["col"]
+                x = col * CELL_SIZE
+                y = row * CELL_SIZE
                 surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
                 alpha = max(0, min(180, int(190 * ratio)))
                 surf.fill((*effect["color"], alpha))
                 self.screen.blit(surf, (x, y))
             elif effect["kind"] == "text":
+                row = effect["row"]
+                col = effect["col"]
+                x = col * CELL_SIZE
+                y = row * CELL_SIZE
                 text = self.font_small.render(effect["text"], True, effect["color"])
                 offset = int((1 - ratio) * 18)
                 text_rect = text.get_rect(center=(
@@ -206,6 +351,35 @@ class Renderer:
                     y + CELL_SIZE // 2 - 8 - offset,
                 ))
                 self.screen.blit(text, text_rect)
+            elif effect["kind"] == "arrow":
+                pr, pc = effect["previous_pos"]
+                nr, nc = effect["new_pos"]
+                start = (pc * CELL_SIZE + CELL_SIZE // 2, pr * CELL_SIZE + CELL_SIZE // 2)
+                end = (nc * CELL_SIZE + CELL_SIZE // 2, nr * CELL_SIZE + CELL_SIZE // 2)
+                color = effect["color"]
+                width = max(2, int(5 * ratio))
+                pygame.draw.line(self.screen, color, start, end, width)
+                pygame.draw.circle(self.screen, color, end, max(4, int(8 * ratio)))
+            elif effect["kind"] == "cross":
+                row = effect["row"]
+                col = effect["col"]
+                x = col * CELL_SIZE
+                y = row * CELL_SIZE
+                margin = max(5, int(8 * ratio))
+                color = effect["color"]
+                width = max(2, int(4 * ratio))
+                pygame.draw.line(
+                    self.screen, color,
+                    (x + margin, y + margin),
+                    (x + CELL_SIZE - margin, y + CELL_SIZE - margin),
+                    width,
+                )
+                pygame.draw.line(
+                    self.screen, color,
+                    (x + CELL_SIZE - margin, y + margin),
+                    (x + margin, y + CELL_SIZE - margin),
+                    width,
+                )
 
             effect["ttl"] -= 1
             if effect["ttl"] > 0:
@@ -242,10 +416,12 @@ class Renderer:
         if self.show_trail:
             self._draw_trail()
         self._draw_active_effects()
+        self._draw_live_hud(info)
+        self._draw_playback_banner()
         self._draw_agent(agent)
         self._draw_sidebar(agent, environment, info, q_learner=q_learner)
         pygame.display.flip()
-        self.clock.tick(FPS)
+        self.clock.tick(self.target_fps)
 
     def _draw_grid(self, environment):
         """Desenează celulele gridului."""
@@ -475,158 +651,391 @@ class Renderer:
             pygame.draw.line(self.screen, (90, 90, 90), (x, zy), (x + width - 1, zy), 1)
         return y + height + 2
 
+    def _draw_progress_bar(self, x, y, width, value, label, color):
+        """Desenează o bară compactă de progres și returnează y-ul următor."""
+        value = max(0.0, min(1.0, value))
+        text = self.font_tiny.render(label, True, (180, 180, 180))
+        self.screen.blit(text, (x, y))
+        y += 14
+        rect = pygame.Rect(x, y, width, 10)
+        pygame.draw.rect(self.screen, (45, 45, 45), rect)
+        fill = pygame.Rect(x, y, int(width * value), 10)
+        pygame.draw.rect(self.screen, color, fill)
+        pygame.draw.rect(self.screen, COLOR_GRID_LINE, rect, 1)
+        return y + 14
+
+    def _draw_action_distribution(self, x, y, action_counts, width=None):
+        """Afișează distribuția acțiunilor din episodul curent."""
+        if width is None:
+            width = SIDEBAR_WIDTH - 30
+        total = max(1, sum(action_counts))
+        header = self.font_tiny.render("Actiuni episod curent", True, (180, 180, 180))
+        self.screen.blit(header, (x, y))
+        y += 16
+        colors = {
+            0: (120, 180, 255),
+            1: (120, 220, 180),
+            2: (210, 170, 255),
+            3: (255, 210, 120),
+            4: (180, 180, 180),
+        }
+        for action in range(min(len(action_counts), len(ACTIONS))):
+            label = ACTIONS.get(action, str(action))[:5]
+            count = action_counts[action]
+            ratio = count / total
+            surf = self.font_tiny.render(f"{label:>5}", True, COLOR_TEXT)
+            self.screen.blit(surf, (x, y))
+            bar_x = x + 44
+            bar_w = width - 78
+            rect = pygame.Rect(bar_x, y + 3, bar_w, 8)
+            pygame.draw.rect(self.screen, (45, 45, 45), rect)
+            pygame.draw.rect(
+                self.screen,
+                colors.get(action, COLOR_TEXT),
+                pygame.Rect(bar_x, y + 3, int(bar_w * ratio), 8),
+            )
+            count_text = self.font_tiny.render(str(count), True, (170, 170, 170))
+            self.screen.blit(count_text, (bar_x + bar_w + 5, y - 1))
+            y += 13
+        return y + 4
+
+    def _draw_live_event_card(self, x, y, info, width=None):
+        """Card compact cu ultimul pas: acțiune, reward, energie și TD-error."""
+        if not info or "_feedback" not in info:
+            return y
+        if width is None:
+            width = SIDEBAR_WIDTH - 30
+        feedback = info["_feedback"]
+        learning = info.get("_learning", {})
+        last_update = learning.get("last_update")
+        reward = feedback.get("reward", 0)
+        energy_delta = feedback.get("energy_delta", 0)
+        action = feedback.get("action")
+        terminal = feedback.get("terminal_reason")
+        td = last_update[4] if last_update is not None else 0.0
+
+        height = 58
+        rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(self.screen, (38, 38, 38), rect)
+        pygame.draw.rect(self.screen, self._reward_color(reward), rect, 2)
+
+        title = f"{ACTIONS.get(action, action)} | R {reward:+.1f} | E {energy_delta:+.0f}"
+        title_surf = self.font_tiny.render(title, True, self._reward_color(reward))
+        self.screen.blit(title_surf, (x + 8, y + 7))
+
+        td_color = (80, 140, 255) if td >= 0 else (180, 80, 220)
+        td_surf = self.font_tiny.render(f"TD {td:+.2f}", True, td_color)
+        self.screen.blit(td_surf, (x + 8, y + 24))
+
+        cell = feedback.get("cell_type", "")
+        detail = f"Cell: {cell}"
+        if terminal:
+            detail = f"Final: {terminal}"
+        detail_surf = self.font_tiny.render(detail, True, COLOR_TEXT)
+        self.screen.blit(detail_surf, (x + 8, y + 41))
+        return y + height + 8
+
+    def _draw_live_hud(self, info):
+        """HUD pe grid pentru feedback imediat în timpul antrenamentului live."""
+        if not info or "_feedback" not in info:
+            return
+        feedback = info["_feedback"]
+        learning = info.get("_learning", {})
+        last_update = learning.get("last_update")
+        reward = feedback.get("reward", 0)
+        energy_delta = feedback.get("energy_delta", 0)
+        action = feedback.get("action")
+        td = last_update[4] if last_update is not None else 0.0
+
+        x, y = 10, 10
+        width, height = 260, 74
+        surf = pygame.Surface((width, height), pygame.SRCALPHA)
+        surf.fill((20, 20, 20, 185))
+        self.screen.blit(surf, (x, y))
+        pygame.draw.rect(self.screen, self._reward_color(reward), (x, y, width, height), 2)
+
+        title = self.font_small.render(
+            f"{ACTIONS.get(action, action)}  reward {reward:+.1f}",
+            True,
+            self._reward_color(reward),
+        )
+        self.screen.blit(title, (x + 10, y + 8))
+
+        energy_color = COLOR_ENERGY_BAR if energy_delta >= 0 else COLOR_ENERGY_LOW
+        energy = self.font_tiny.render(f"Energie pas: {energy_delta:+.0f}", True, energy_color)
+        self.screen.blit(energy, (x + 10, y + 32))
+
+        td_color = (100, 165, 255) if td >= 0 else (210, 120, 240)
+        td_text = self.font_tiny.render(f"TD-error: {td:+.2f}", True, td_color)
+        self.screen.blit(td_text, (x + 10, y + 50))
+
+    def _draw_playback_banner(self):
+        """Afișează starea playback-ului direct pe grid."""
+        if not self.human_paced:
+            return
+        grid_w = self.cols * CELL_SIZE
+        y = self.rows * CELL_SIZE - 36
+        width = min(360, grid_w - 20)
+        x = 10
+        surf = pygame.Surface((width, 26), pygame.SRCALPHA)
+        surf.fill((15, 15, 15, 175))
+        self.screen.blit(surf, (x, y))
+        color = (255, 210, 80) if self.paused else (100, 220, 140)
+        label = (
+            f"{self._playback_status()}   SPACE pauza   . pas   +/- viteza"
+        )
+        text = self.font_tiny.render(label, True, color)
+        self.screen.blit(text, (x + 8, y + 7))
+
+    def _draw_card(self, x, y, width, height, title=None, accent=DASHBOARD_ACCENT):
+        """Desenează un card de dashboard și returnează coordonata y a conținutului."""
+        rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(self.screen, DASHBOARD_PANEL, rect, border_radius=12)
+        pygame.draw.rect(self.screen, (60, 66, 78), rect, 1, border_radius=12)
+        pygame.draw.rect(
+            self.screen,
+            accent,
+            pygame.Rect(x, y, 4, height),
+            border_radius=2,
+        )
+        if title:
+            surf = self.font_label.render(title.upper(), True, DASHBOARD_MUTED)
+            self.screen.blit(surf, (x + 14, y + 10))
+            return y + 31
+        return y + 12
+
+    def _draw_pill(self, x, y, text, color, width=None):
+        """Badge rotunjit pentru status/shortcut-uri."""
+        if width is None:
+            width = max(54, self.font_label.size(text)[0] + 18)
+        rect = pygame.Rect(x, y, width, 22)
+        pygame.draw.rect(self.screen, color, rect, border_radius=11)
+        surf = self.font_label.render(text, True, (16, 18, 22))
+        self.screen.blit(surf, surf.get_rect(center=rect.center))
+        return width
+
+    def _draw_metric_tile(self, x, y, width, label, value, color):
+        """Card mic pentru o metrică importantă."""
+        rect = pygame.Rect(x, y, width, 46)
+        pygame.draw.rect(self.screen, DASHBOARD_PANEL_ALT, rect, border_radius=10)
+        pygame.draw.rect(self.screen, (62, 68, 80), rect, 1, border_radius=10)
+        label_surf = self.font_label.render(label, True, DASHBOARD_MUTED)
+        value_surf = self.font_metric.render(str(value), True, color)
+        self.screen.blit(label_surf, (x + 10, y + 7))
+        self.screen.blit(value_surf, (x + 10, y + 22))
+
+    def _draw_energy_gauge(self, x, y, width, agent):
+        """Bară de energie mai lizibilă, cu praguri vizuale."""
+        pct = max(0.0, min(1.0, agent.energy_percent))
+        color = COLOR_ENERGY_BAR if pct > 0.5 else DASHBOARD_WARNING if pct > 0.25 else DASHBOARD_DANGER
+        label = self.font_label.render("ENERGIE", True, DASHBOARD_MUTED)
+        self.screen.blit(label, (x, y))
+        value = self.font_metric.render(f"{agent.energy:.0f}/{agent.energy_max}", True, color)
+        self.screen.blit(value, (x + width - value.get_width(), y - 4))
+        y += 24
+        rect = pygame.Rect(x, y, width, 18)
+        pygame.draw.rect(self.screen, (54, 58, 68), rect, border_radius=9)
+        fill = pygame.Rect(x, y, int(width * pct), 18)
+        pygame.draw.rect(self.screen, color, fill, border_radius=9)
+        for threshold in (0.25, 0.5, 0.75):
+            tx = x + int(width * threshold)
+            pygame.draw.line(self.screen, (25, 27, 32), (tx, y), (tx, y + 18), 1)
+        pygame.draw.rect(self.screen, (76, 82, 96), rect, 1, border_radius=9)
+        return y + 28
+
+    def _draw_overlay_badges(self, x, y):
+        """Badges ON/OFF pentru overlay-uri."""
+        badges = [
+            ("Q", self.show_heatmap),
+            ("POL", self.show_policy),
+            ("VIS", self.show_visits),
+            ("TD", self.show_td),
+            ("MASK", self.show_knowledge_mask),
+            ("TRAIL", self.show_trail),
+        ]
+        cur_x = x
+        for label, enabled in badges:
+            color = DASHBOARD_SUCCESS if enabled else (75, 80, 92)
+            width = self._draw_pill(cur_x, y, label, color)
+            cur_x += width + 6
+        return y + 26
+
+    def _draw_terrain_legend(self, x, y, width):
+        """Legendă vizuală pentru celulele din hartă."""
+        items = [
+            ("Start", CellType.START),
+            ("Țintă", CellType.TARGET),
+            ("Hrană", CellType.FOOD),
+            ("Noroi", CellType.MUD),
+            ("Pericol", CellType.DANGER),
+            ("Zid", CellType.OBSTACLE),
+        ]
+        col_w = width // 2
+        for idx, (label, cell) in enumerate(items):
+            lx = x + (idx % 2) * col_w
+            ly = y + (idx // 2) * 20
+            pygame.draw.rect(
+                self.screen,
+                CELL_COLORS[cell],
+                pygame.Rect(lx, ly + 3, 12, 12),
+                border_radius=3,
+            )
+            surf = self.font_label.render(label, True, COLOR_TEXT)
+            self.screen.blit(surf, (lx + 18, ly))
+        return y + 62
+
+    def _draw_controls_footer(self, x, y, width):
+        """Footer fix cu tastele principale, grupate vizual."""
+        rect = pygame.Rect(x, y, width, 68)
+        pygame.draw.rect(self.screen, (28, 31, 38), rect, border_radius=12)
+        lines = [
+            ("PLAYBACK", "SPACE pauză · . pas · -/+ viteză"),
+            ("OVERLAY", "H Q-map · P policy · V vizite · T TD"),
+            ("CONTROL", "E nivel energie · K mask · L trail · Q quit"),
+        ]
+        cur_y = y + 9
+        for label, text in lines:
+            label_surf = self.font_label.render(label, True, DASHBOARD_ACCENT)
+            text_surf = self.font_label.render(text, True, DASHBOARD_MUTED)
+            self.screen.blit(label_surf, (x + 12, cur_y))
+            self.screen.blit(text_surf, (x + 86, cur_y))
+            cur_y += 18
+
     def _draw_sidebar(self, agent, environment, info, q_learner=None):
         """Desenează panoul lateral cu informații."""
-        x_start = self.cols * CELL_SIZE + 10
-        y = 15
+        x_start = self.cols * CELL_SIZE
+        panel_x = x_start + 14
+        panel_w = SIDEBAR_WIDTH - 28
+        y = 14
 
-        # Titlu
-        title = self.font_large.render("SIMULARE Q-LEARNING", True, COLOR_TEXT)
-        self.screen.blit(title, (x_start, y))
-        y += 30
-
-        # Separator
-        pygame.draw.line(
-            self.screen, COLOR_GRID_LINE,
-            (x_start, y), (x_start + SIDEBAR_WIDTH - 20, y)
+        pygame.draw.rect(
+            self.screen,
+            (24, 27, 34),
+            pygame.Rect(x_start, 0, SIDEBAR_WIDTH, self.window_height),
         )
-        y += 15
 
-        # Energie
-        energy_label = self.font_small.render(
-            f"Energie: {agent.energy:.0f}/{agent.energy_max}", True, COLOR_TEXT
-        )
-        self.screen.blit(energy_label, (x_start, y))
-        y += 20
-
-        # Bară energie
-        bar_width = SIDEBAR_WIDTH - 30
-        bar_height = 16
-        bar_bg = pygame.Rect(x_start, y, bar_width, bar_height)
-        pygame.draw.rect(self.screen, (50, 50, 50), bar_bg)
-        fill_width = int(bar_width * agent.energy_percent)
-        bar_color = COLOR_ENERGY_BAR if agent.energy_percent > 0.25 else COLOR_ENERGY_LOW
-        bar_fill = pygame.Rect(x_start, y, fill_width, bar_height)
-        pygame.draw.rect(self.screen, bar_color, bar_fill)
-        pygame.draw.rect(self.screen, COLOR_GRID_LINE, bar_bg, 1)
-        y += 30
-
-        # Poziție
-        pos_text = self.font_small.render(
-            f"Pozitie: ({agent.position[0]}, {agent.position[1]})", True, COLOR_TEXT
-        )
-        self.screen.blit(pos_text, (x_start, y))
-        y += 22
-
-        # Nivel energie discrete
-        level_text = self.font_small.render(
-            f"Nivel energie: {agent.get_energy_level()}/3", True, COLOR_TEXT
-        )
-        self.screen.blit(level_text, (x_start, y))
-        y += 22
-
-        # Pași / Reward
-        steps_text = self.font_small.render(
-            f"Pasi: {agent.total_steps}", True, COLOR_TEXT
-        )
-        self.screen.blit(steps_text, (x_start, y))
-        y += 22
-
-        reward_text = self.font_small.render(
-            f"Reward: {agent.total_reward:.1f}", True, COLOR_TEXT
-        )
-        self.screen.blit(reward_text, (x_start, y))
-        y += 22
-
-        coverage_text = self.font_small.render(
-            f"Celule vizitate: {agent.coverage}", True, COLOR_TEXT
-        )
-        self.screen.blit(coverage_text, (x_start, y))
-        y += 30
-
-        overlay_text = self.font_small.render(
-            f"Policy nivel: {self._overlay_level_label(agent)}", True, COLOR_TEXT
-        )
-        self.screen.blit(overlay_text, (x_start, y))
-        y += 22
-
-        # --- Cunoaștere (instrumentare Q-Learning) ---
-        if q_learner is not None:
-            stats = q_learner.get_knowledge_stats()
-            pygame.draw.line(
-                self.screen, COLOR_GRID_LINE,
-                (x_start, y), (x_start + SIDEBAR_WIDTH - 20, y)
-            )
-            y += 10
-            header = self.font_small.render("CUNOASTERE", True, (180, 200, 255))
-            self.screen.blit(header, (x_start, y))
-            y += 20
-            lines = [
-                f"Q nenule: {stats['nonzero']}/{stats['total']} ({stats['fill_pct']:.1f}%)",
-                f"Celule expl.: {stats['visited_cells']}/{stats['total_cells']} ({stats['coverage_pct']:.1f}%)",
-                f"Mean |Q|: {stats['mean_abs_q']:.2f}",
-                f"Mean |TD| 200: {stats['mean_recent_td']:.2f}",
-            ]
-            for line in lines:
-                surf = self.font_tiny.render(line, True, COLOR_TEXT)
-                self.screen.blit(surf, (x_start, y))
-                y += 16
-
-            # Sparkline reward rolling (din history)
-            history = info.get("_learning", {}).get("history", []) if info else []
-            if len(history) >= 2:
-                y = self._draw_sparkline(
-                    x_start, y + 4,
-                    values=[ep.total_reward for ep in history[-150:]],
-                    color=(100, 220, 120),
-                    label="Reward / episod",
-                )
-            y += 6
-
-        # Informații adiționale
-        if info:
-            pygame.draw.line(
-                self.screen, COLOR_GRID_LINE,
-                (x_start, y), (x_start + SIDEBAR_WIDTH - 20, y)
-            )
-            y += 15
-            for key, value in info.items():
-                if key.startswith("_") or value in (None, ""):
-                    continue
-                if key == "Actiune" and isinstance(value, int):
-                    value = ACTIONS.get(value, value)
-                line = self.font_small.render(f"{key}: {value}", True, COLOR_TEXT)
-                self.screen.blit(line, (x_start, y))
-                y += 20
-
-        # Stare agent
-        y = self.window_height - 80
-        pygame.draw.line(
-            self.screen, COLOR_GRID_LINE,
-            (x_start, y), (x_start + SIDEBAR_WIDTH - 20, y)
-        )
-        y += 10
+        # Header
+        title = self.font_title.render("Q-Learning Lab", True, (245, 248, 255))
+        subtitle = self.font_label.render("Observabilitate training live", True, DASHBOARD_MUTED)
+        self.screen.blit(title, (panel_x, y))
+        self.screen.blit(subtitle, (panel_x, y + 27))
 
         if not agent.is_alive:
-            status = self.font_large.render("DECEDAT", True, COLOR_ENERGY_LOW)
+            status_text, status_color = "DECEDAT", DASHBOARD_DANGER
         elif agent.reached_target:
-            status = self.font_large.render("VICTORIE!", True, (50, 255, 50))
+            status_text, status_color = "VICTORIE", DASHBOARD_SUCCESS
         else:
-            status = self.font_large.render("IN VIATA", True, COLOR_ENERGY_BAR)
-        self.screen.blit(status, (x_start, y))
-        y += 25
+            status_text, status_color = "ACTIV", DASHBOARD_SUCCESS
+        self._draw_pill(panel_x + panel_w - 86, y + 4, status_text, status_color, width=76)
+        y += 58
 
-        # Scurtături tastatură
-        shortcuts = [
-            "[H] Heatmap   [P] Policy",
-            "[V] Vizite    [T] TD-err",
-            "[K] Mask      [L] Trail",
-            "[E] Nivel     [R] Reset  [Q] Quit",
-        ]
-        for line in shortcuts:
-            surf = self.font_tiny.render(line, True, (150, 150, 150))
-            self.screen.blit(surf, (x_start, y))
-            y += 18
+        # Agent card
+        card_h = 156
+        content_y = self._draw_card(panel_x, y, panel_w, card_h, title="Agent", accent=status_color)
+        content_y = self._draw_energy_gauge(panel_x + 14, content_y, panel_w - 28, agent)
+        tile_w = (panel_w - 38) // 2
+        self._draw_metric_tile(panel_x + 14, content_y, tile_w, "Pași", agent.total_steps, DASHBOARD_ACCENT)
+        self._draw_metric_tile(
+            panel_x + 24 + tile_w,
+            content_y,
+            tile_w,
+            "Reward",
+            f"{agent.total_reward:.1f}",
+            self._reward_color(agent.total_reward),
+        )
+        content_y += 52
+        self._draw_metric_tile(
+            panel_x + 14,
+            content_y,
+            tile_w,
+            "Poziție",
+            f"{agent.position[0]},{agent.position[1]}",
+            COLOR_TEXT,
+        )
+        self._draw_metric_tile(
+            panel_x + 24 + tile_w,
+            content_y,
+            tile_w,
+            "Celule",
+            agent.coverage,
+            DASHBOARD_SUCCESS,
+        )
+        y += card_h + 10
+
+        # Playback + live step card
+        live = info.get("_live", {}) if info else {}
+        content_y = self._draw_card(panel_x, y, panel_w, 214, title="Live step", accent=DASHBOARD_ACCENT)
+        if self.human_paced:
+            play_color = DASHBOARD_WARNING if self.paused else DASHBOARD_SUCCESS
+            self._draw_pill(panel_x + 14, content_y, self._playback_status(), play_color)
+            content_y += 28
+        if live:
+            content_y = self._draw_progress_bar(
+                panel_x + 14,
+                content_y,
+                panel_w - 28,
+                live.get("progress", 0.0),
+                f"Episod {live.get('step', 0) + 1}/{live.get('max_steps', 0)}",
+                DASHBOARD_ACCENT,
+            )
+        content_y = self._draw_live_event_card(panel_x + 14, content_y + 4, info, width=panel_w - 28)
+        if live:
+            chip_y = content_y
+            chip_w = (panel_w - 44) // 3
+            self._draw_metric_tile(panel_x + 14, chip_y, chip_w, "Coliziuni", live.get("collisions", 0), DASHBOARD_DANGER)
+            self._draw_metric_tile(panel_x + 22 + chip_w, chip_y, chip_w, "Hrană", live.get("food_collected", 0), DASHBOARD_WARNING)
+            self._draw_metric_tile(panel_x + 30 + chip_w * 2, chip_y, chip_w, "Noroi", live.get("mud_steps", 0), (205, 160, 115))
+        y += 224
+
+        # Learning card
+        if q_learner is not None:
+            stats = q_learner.get_knowledge_stats()
+            content_y = self._draw_card(panel_x, y, panel_w, 176, title="Învățare", accent=(180, 120, 255))
+            content_y = self._draw_progress_bar(
+                panel_x + 14,
+                content_y,
+                panel_w - 28,
+                stats["fill_pct"] / 100,
+                f"Q-table completat: {stats['fill_pct']:.1f}%",
+                (180, 120, 255),
+            )
+            content_y = self._draw_progress_bar(
+                panel_x + 14,
+                content_y + 5,
+                panel_w - 28,
+                stats["coverage_pct"] / 100,
+                f"Celule explorate: {stats['coverage_pct']:.1f}%",
+                DASHBOARD_SUCCESS,
+            )
+            tile_w = (panel_w - 38) // 2
+            self._draw_metric_tile(panel_x + 14, content_y + 6, tile_w, "Mean |Q|", f"{stats['mean_abs_q']:.2f}", COLOR_TEXT)
+            self._draw_metric_tile(panel_x + 24 + tile_w, content_y + 6, tile_w, "TD recent", f"{stats['mean_recent_td']:.2f}", DASHBOARD_WARNING)
+            history = info.get("_learning", {}).get("history", []) if info else []
+            if len(history) >= 2:
+                self._draw_sparkline(
+                    panel_x + 14,
+                    content_y + 58,
+                    values=[ep.total_reward for ep in history[-120:]],
+                    color=DASHBOARD_SUCCESS,
+                    label="Reward / episod",
+                    width=panel_w - 28,
+                    height=24,
+                )
+            y += 186
+
+        # Overlay + legend card
+        bottom_reserved = 84
+        remaining = self.window_height - y - bottom_reserved - 12
+        if remaining >= 120:
+            content_y = self._draw_card(panel_x, y, panel_w, remaining, title="Hartă & overlay", accent=DASHBOARD_WARNING)
+            level = self.font_label.render(f"Policy energie: {self._overlay_level_label(agent)}", True, COLOR_TEXT)
+            self.screen.blit(level, (panel_x + 14, content_y))
+            content_y += 20
+            content_y = self._draw_overlay_badges(panel_x + 14, content_y)
+            content_y += 8
+            self._draw_terrain_legend(panel_x + 14, content_y, panel_w - 28)
+
+        self._draw_controls_footer(panel_x, self.window_height - 78, panel_w)
 
     def draw_episode_end_overlay(self, outcome: str) -> None:
         """

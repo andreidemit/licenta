@@ -16,10 +16,16 @@ from src.constants import (
 class EpisodeResult:
     """Rezultatul unui singur episod de antrenament."""
     __slots__ = ("episode_id", "total_steps", "total_reward", "epsilon",
-                 "outcome", "coverage", "energy_remaining")
+                 "outcome", "coverage", "energy_remaining",
+                 "collisions", "food_collected", "mud_steps",
+                 "danger_entries", "energy_spent", "energy_gained",
+                 "action_counts", "mean_abs_td", "q_nonzero", "q_fill_pct")
 
     def __init__(self, episode_id, total_steps, total_reward, epsilon,
-                 outcome, coverage, energy_remaining):
+                 outcome, coverage, energy_remaining, collisions=0,
+                 food_collected=0, mud_steps=0, danger_entries=0,
+                 energy_spent=0.0, energy_gained=0.0, action_counts=None,
+                 mean_abs_td=0.0, q_nonzero=0, q_fill_pct=0.0):
         self.episode_id = episode_id
         self.total_steps = total_steps
         self.total_reward = total_reward
@@ -27,6 +33,16 @@ class EpisodeResult:
         self.outcome = outcome
         self.coverage = coverage
         self.energy_remaining = energy_remaining
+        self.collisions = collisions
+        self.food_collected = food_collected
+        self.mud_steps = mud_steps
+        self.danger_entries = danger_entries
+        self.energy_spent = energy_spent
+        self.energy_gained = energy_gained
+        self.action_counts = list(action_counts) if action_counts is not None else [0, 0, 0, 0, 0]
+        self.mean_abs_td = mean_abs_td
+        self.q_nonzero = q_nonzero
+        self.q_fill_pct = q_fill_pct
 
 
 class Trainer:
@@ -49,7 +65,8 @@ class Trainer:
         self._reset_target_pos = None
         self.last_training_event = None
 
-    def _build_render_info(self, episode_id, step, agent, action, result, reason):
+    def _build_render_info(self, episode_id, step, agent, action, result, reason,
+                           live_metrics=None):
         """Construiește payload-ul trimis renderer-ului pentru feedback live."""
         previous_pos = result["previous_pos"]
         recent = self.history[-50:]
@@ -63,13 +80,18 @@ class Trainer:
         )
         last_update = self.q.get_last_update()
         knowledge = self.q.get_knowledge_stats()
+        live_metrics = live_metrics or {}
+        energy_delta = result["energy_gain"] - result["energy_cost"]
+        cell_type = result.get("cell_type")
 
         return {
             "Episod": episode_id,
             "Pas": step,
+            "Progres ep": f"{min(100, (step + 1) / self.max_steps * 100):.0f}%",
             "Epsilon": f"{self.q.epsilon:.3f}",
             "Actiune": action,
             "Reward pas": f"{result['reward']:.1f}",
+            "Delta energie": f"{energy_delta:+.0f}",
             "Medie 50 ep": f"{avg_reward:.1f}",
             "Success 50 ep": f"{success_rate:.1f}%",
             "Eveniment": self.last_training_event,
@@ -78,7 +100,10 @@ class Trainer:
                 "reward": result["reward"],
                 "energy_cost": result["energy_cost"],
                 "energy_gain": result["energy_gain"],
+                "energy_delta": energy_delta,
+                "previous_pos": previous_pos,
                 "new_pos": result["new_pos"],
+                "cell_type": cell_type.name if hasattr(cell_type, "name") else str(cell_type),
                 "terminal_reason": reason,
                 "is_collision": (
                     action != 4
@@ -91,6 +116,19 @@ class Trainer:
                 "knowledge": knowledge,
                 "history": self.history,
             },
+            "_live": {
+                "step": step,
+                "max_steps": self.max_steps,
+                "progress": min(1.0, (step + 1) / self.max_steps),
+                "action_counts": live_metrics.get("action_counts", [0, 0, 0, 0, 0]),
+                "collisions": live_metrics.get("collisions", 0),
+                "food_collected": live_metrics.get("food_collected", 0),
+                "mud_steps": live_metrics.get("mud_steps", 0),
+                "energy_spent": live_metrics.get("energy_spent", 0.0),
+                "energy_gained": live_metrics.get("energy_gained", 0.0),
+            },
+            "_episode_done": reason is not None,
+            "_terminal_reason": reason,
         }
 
     def _reset_environment_for_episode(self):
@@ -126,14 +164,40 @@ class Trainer:
 
         state = agent.get_state()
         outcome = "timeout"
+        action_counts = [0 for _ in range(self.q.num_actions)]
+        collisions = 0
+        food_collected = 0
+        mud_steps = 0
+        danger_entries = 0
+        energy_spent = 0.0
+        energy_gained = 0.0
+        td_abs_total = 0.0
+        q_updates = 0
 
         for step in range(self.max_steps):
             # 1. Alege acțiune (epsilon-greedy)
             action = self.q.choose_action(state)
+            action_counts[action] += 1
 
             # 2. Execută acțiunea în mediu
             previous_pos = agent.position
             result = self.env.try_move(agent.position, action)
+            cell_type = result.get("cell_type")
+            is_collision = (
+                action != 4
+                and result["reward"] < 0
+                and result["new_pos"] == previous_pos
+            )
+            if is_collision:
+                collisions += 1
+            if cell_type == CellType.FOOD and result["energy_gain"] > 0:
+                food_collected += 1
+            if cell_type == CellType.MUD and result["new_pos"] != previous_pos:
+                mud_steps += 1
+            if result["terminal_reason"] == "danger":
+                danger_entries += 1
+            energy_spent += result["energy_cost"]
+            energy_gained += result["energy_gain"]
 
             # 3. Aplică rezultatul asupra agentului
             reason = agent.apply_action_result(result)
@@ -145,7 +209,9 @@ class Trainer:
             done = reason is not None
 
             # 6. Q-update (Bellman)
-            self.q.update(state, action, result["reward"], next_state, done)
+            td_error = self.q.update(state, action, result["reward"], next_state, done)
+            td_abs_total += abs(td_error)
+            q_updates += 1
 
             # Opțional: render
             if render_callback is not None:
@@ -156,6 +222,14 @@ class Trainer:
                     action=action,
                     result={**result, "previous_pos": previous_pos},
                     reason=reason,
+                    live_metrics={
+                        "action_counts": action_counts,
+                        "collisions": collisions,
+                        "food_collected": food_collected,
+                        "mud_steps": mud_steps,
+                        "energy_spent": energy_spent,
+                        "energy_gained": energy_gained,
+                    },
                 )
                 render_callback(self.env, agent, info)
 
@@ -171,6 +245,9 @@ class Trainer:
         # Construiește rezultatul
         total_cells = self.env.rows * self.env.cols
         coverage = agent.coverage / total_cells * 100
+        q_nonzero = self.q.get_nonzero_count()
+        q_total = self.q.q_table.size
+        mean_abs_td = td_abs_total / q_updates if q_updates else 0.0
 
         result = EpisodeResult(
             episode_id=episode_id,
@@ -180,6 +257,16 @@ class Trainer:
             outcome=outcome,
             coverage=coverage,
             energy_remaining=agent.energy,
+            collisions=collisions,
+            food_collected=food_collected,
+            mud_steps=mud_steps,
+            danger_entries=danger_entries,
+            energy_spent=energy_spent,
+            energy_gained=energy_gained,
+            action_counts=action_counts,
+            mean_abs_td=mean_abs_td,
+            q_nonzero=q_nonzero,
+            q_fill_pct=(q_nonzero / q_total * 100) if q_total else 0.0,
         )
         self.history.append(result)
         return result
@@ -298,15 +385,43 @@ class Trainer:
         Returns:
             (Agent, str) — agentul final și outcome
         """
+        agent, outcome, _ = self.run_greedy_trajectory()
+        return agent, outcome
+
+    def run_greedy_trajectory(self):
+        """
+        Rulează un episod greedy și returnează și traseul pas-cu-pas.
+
+        Returns:
+            (Agent, str, list[dict]) — agentul final, outcome și tranzițiile greedy
+        """
         self._reset_environment_for_episode()
         agent = Agent(start_pos=self.env.start_pos, energy=self.energy)
         state = agent.get_state()
         outcome = "timeout"
+        trajectory = []
 
         for step in range(self.max_steps):
             action = self.q.get_best_action(state)
+            previous_pos = agent.position
             result = self.env.try_move(agent.position, action)
             reason = agent.apply_action_result(result)
+            row, col = agent.position
+            prev_row, prev_col = previous_pos
+            cell_type = result.get("cell_type")
+            trajectory.append({
+                "step": step,
+                "previous_row": prev_row,
+                "previous_col": prev_col,
+                "row": row,
+                "col": col,
+                "energy": agent.energy,
+                "reward": result["reward"],
+                "total_reward": agent.total_reward,
+                "action": action,
+                "cell_type": cell_type.name if hasattr(cell_type, "name") else str(cell_type),
+                "terminal_reason": reason,
+            })
 
             if reason is not None:
                 outcome = reason
@@ -314,4 +429,4 @@ class Trainer:
 
             state = agent.get_state()
 
-        return agent, outcome
+        return agent, outcome, trajectory

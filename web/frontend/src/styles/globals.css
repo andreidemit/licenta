@@ -1,0 +1,94 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-canvas: 222 47% 6%;
+    --bg-surface: 222 40% 11%;
+    --bg-elevated: 222 32% 16%;
+    --border-subtle: 222 24% 24%;
+    --text-primary: 210 40% 98%;
+    --text-muted: 215 20% 70%;
+    --text-subtle: 215 16% 50%;
+    --accent-primary: 217 91% 60%;
+    --accent-secondary: 38 92% 60%;
+    --accent-success: 152 67% 50%;
+    --accent-danger: 350 80% 60%;
+    --accent-info: 199 89% 60%;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    background-image:
+      radial-gradient(ellipse at top left, hsl(var(--accent-primary) / 0.08), transparent 55%),
+      radial-gradient(ellipse at bottom right, hsl(var(--accent-secondary) / 0.05), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-serif tracking-tight;
+  }
+
+  ::selection {
+    background: hsl(var(--accent-primary) / 0.4);
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-canvas rounded-md;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply bg-surface/80 backdrop-blur border border-border/60 rounded-xl shadow-soft;
+  }
+  .surface-elevated {
+    @apply bg-elevated border border-border/60 rounded-xl;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium
+           bg-elevated/60 border border-border/60 text-ink-muted;
+  }
+  .stat-number {
+    @apply font-mono text-2xl font-medium text-ink;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2
+           text-sm font-medium transition-all
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-canvas hover:shadow-glow hover:-translate-y-px;
+  }
+  .btn-secondary {
+    @apply btn bg-elevated/80 border border-border text-ink hover:bg-elevated;
+  }
+  .btn-ghost {
+    @apply btn text-ink-muted hover:bg-elevated/60 hover:text-ink;
+  }
+  .input {
+    @apply w-full rounded-lg bg-elevated/60 border border-border/60 px-3 py-2
+           text-sm text-ink placeholder:text-ink-subtle
+           focus:border-accent focus:ring-0;
+  }
+  .label {
+    @apply text-xs font-medium uppercase tracking-wider text-ink-muted;
+  }
+  .card {
+    @apply surface p-5 animate-slide-up;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
