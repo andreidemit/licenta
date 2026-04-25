@@ -55,6 +55,7 @@ def run_manual(seed=42, grid_size=20):
         "Seed": seed,
         "Grid": f"{env.rows}x{env.cols}",
     }
+    last_feedback = None
 
     while running:
         for event in pygame.event.get():
@@ -69,6 +70,8 @@ def run_manual(seed=42, grid_size=20):
                     env.reset(seed=seed)
                     agent.reset(start_pos=env.start_pos)
                     episode_over = False
+                    last_feedback = None
+                    renderer.reset_visual_state()
 
                 elif event.key == pygame.K_n:
                     seed += 1
@@ -76,17 +79,50 @@ def run_manual(seed=42, grid_size=20):
                     agent.reset(start_pos=env.start_pos)
                     info["Seed"] = seed
                     episode_over = False
+                    last_feedback = None
+                    renderer.reset_visual_state()
+
+                elif event.key == pygame.K_e:
+                    renderer.cycle_policy_level()
+
+                elif event.key == pygame.K_v:
+                    renderer.toggle_visits()
+                elif event.key == pygame.K_t:
+                    renderer.toggle_td()
+                elif event.key == pygame.K_k:
+                    renderer.toggle_knowledge_mask()
+                elif event.key == pygame.K_l:
+                    renderer.toggle_trail()
 
                 elif event.key in KEY_TO_ACTION and not episode_over:
                     action = KEY_TO_ACTION[event.key]
+                    previous_pos = agent.position
                     result = env.try_move(agent.position, action)
                     reason = agent.apply_action_result(result)
+                    last_feedback = {
+                        "action": action,
+                        "reward": result["reward"],
+                        "energy_cost": result["energy_cost"],
+                        "energy_gain": result["energy_gain"],
+                        "new_pos": result["new_pos"],
+                        "terminal_reason": reason,
+                        "is_collision": (
+                            action != 4
+                            and result["reward"] < 0
+                            and result["new_pos"] == previous_pos
+                        ),
+                    }
+                    info["Reward pas"] = f"{result['reward']:.1f}"
+                    info["Actiune"] = action
 
                     if reason is not None:
                         episode_over = True
                         info["Rezultat"] = reason
 
-        renderer.draw(env, agent, info)
+        render_info = dict(info)
+        if last_feedback is not None:
+            render_info["_feedback"] = last_feedback
+        renderer.draw(env, agent, render_info)
 
     renderer.close()
 
@@ -128,6 +164,16 @@ def run_training(seed=42, grid_size=20, num_episodes=DEFAULT_EPISODES,
                         renderer.show_heatmap = not renderer.show_heatmap
                     elif event.key == pygame.K_p:
                         renderer.show_policy = not renderer.show_policy
+                    elif event.key == pygame.K_e:
+                        renderer.cycle_policy_level()
+                    elif event.key == pygame.K_v:
+                        renderer.toggle_visits()
+                    elif event.key == pygame.K_t:
+                        renderer.toggle_td()
+                    elif event.key == pygame.K_k:
+                        renderer.toggle_knowledge_mask()
+                    elif event.key == pygame.K_l:
+                        renderer.toggle_trail()
 
             renderer.draw(env, agent, info, q_learner=q)
 
@@ -204,6 +250,7 @@ def _run_greedy_replay(env, q, energy, renderer):
     agent = Agent(start_pos=env.start_pos, energy=energy)
     state = agent.get_state()
     running = True
+    last_feedback = None
 
     while running:
         for event in pygame.event.get():
@@ -217,15 +264,39 @@ def _run_greedy_replay(env, q, energy, renderer):
                     renderer.show_heatmap = not renderer.show_heatmap
                 elif event.key == pygame.K_p:
                     renderer.show_policy = not renderer.show_policy
+                elif event.key == pygame.K_e:
+                    renderer.cycle_policy_level()
+                elif event.key == pygame.K_v:
+                    renderer.toggle_visits()
+                elif event.key == pygame.K_t:
+                    renderer.toggle_td()
+                elif event.key == pygame.K_k:
+                    renderer.toggle_knowledge_mask()
+                elif event.key == pygame.K_l:
+                    renderer.toggle_trail()
 
         if not running:
             break
 
         if agent.is_alive and not agent.reached_target:
             action = q.get_best_action(state)
+            previous_pos = agent.position
             result = env.try_move(agent.position, action)
             reason = agent.apply_action_result(result)
             state = agent.get_state()
+            last_feedback = {
+                "action": action,
+                "reward": result["reward"],
+                "energy_cost": result["energy_cost"],
+                "energy_gain": result["energy_gain"],
+                "new_pos": result["new_pos"],
+                "terminal_reason": reason,
+                "is_collision": (
+                    action != 4
+                    and result["reward"] < 0
+                    and result["new_pos"] == previous_pos
+                ),
+            }
 
         info = {
             "Mod": "Replay Greedy",
@@ -236,6 +307,10 @@ def _run_greedy_replay(env, q, energy, renderer):
             info["Status"] = "VICTORIE!"
         elif not agent.is_alive:
             info["Status"] = "DECEDAT"
+        if last_feedback is not None:
+            info["Actiune"] = last_feedback["action"]
+            info["Reward pas"] = f"{last_feedback['reward']:.1f}"
+            info["_feedback"] = last_feedback
 
         renderer.draw(env, agent, info, q_learner=q)
 

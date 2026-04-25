@@ -47,6 +47,51 @@ class Trainer:
         self._reset_grid = None
         self._reset_start_pos = None
         self._reset_target_pos = None
+        self.last_training_event = None
+
+    def _build_render_info(self, episode_id, step, agent, action, result, reason):
+        """Construiește payload-ul trimis renderer-ului pentru feedback live."""
+        previous_pos = result["previous_pos"]
+        recent = self.history[-50:]
+        avg_reward = (
+            sum(item.total_reward for item in recent) / len(recent)
+            if recent else agent.total_reward
+        )
+        success_rate = (
+            sum(1 for item in recent if item.outcome == "target_reached") / len(recent) * 100
+            if recent else 0.0
+        )
+        last_update = self.q.get_last_update()
+        knowledge = self.q.get_knowledge_stats()
+
+        return {
+            "Episod": episode_id,
+            "Pas": step,
+            "Epsilon": f"{self.q.epsilon:.3f}",
+            "Actiune": action,
+            "Reward pas": f"{result['reward']:.1f}",
+            "Medie 50 ep": f"{avg_reward:.1f}",
+            "Success 50 ep": f"{success_rate:.1f}%",
+            "Eveniment": self.last_training_event,
+            "_feedback": {
+                "action": action,
+                "reward": result["reward"],
+                "energy_cost": result["energy_cost"],
+                "energy_gain": result["energy_gain"],
+                "new_pos": result["new_pos"],
+                "terminal_reason": reason,
+                "is_collision": (
+                    action != 4
+                    and result["reward"] < 0
+                    and result["new_pos"] == previous_pos
+                ),
+            },
+            "_learning": {
+                "last_update": last_update,
+                "knowledge": knowledge,
+                "history": self.history,
+            },
+        }
 
     def _reset_environment_for_episode(self):
         """
@@ -87,6 +132,7 @@ class Trainer:
             action = self.q.choose_action(state)
 
             # 2. Execută acțiunea în mediu
+            previous_pos = agent.position
             result = self.env.try_move(agent.position, action)
 
             # 3. Aplică rezultatul asupra agentului
@@ -103,12 +149,14 @@ class Trainer:
 
             # Opțional: render
             if render_callback is not None:
-                info = {
-                    "Episod": episode_id,
-                    "Pas": step,
-                    "Epsilon": f"{self.q.epsilon:.3f}",
-                    "Actiune": action,
-                }
+                info = self._build_render_info(
+                    episode_id=episode_id,
+                    step=step,
+                    agent=agent,
+                    action=action,
+                    result={**result, "previous_pos": previous_pos},
+                    reason=reason,
+                )
                 render_callback(self.env, agent, info)
 
             if done:
@@ -206,6 +254,7 @@ class Trainer:
             list[EpisodeResult] — istoricul complet
         """
         obstacle_relocated = False
+        self.last_training_event = None
 
         for ep in range(num_episodes):
             # Scenariul C: relocă obstacolele o singură dată după episodul N
@@ -215,8 +264,10 @@ class Trainer:
                 success = self._relocate_obstacles(self.env)
                 obstacle_relocated = True
                 if success:
+                    self.last_training_event = f"Obstacole relocate la ep. {ep}"
                     print(f"[Scenariul C] Obstacole relocate după episodul {ep}.")
                 else:
+                    self.last_training_event = f"Relocare eșuată la ep. {ep}"
                     print(f"[Scenariul C] Relocare eșuată după {ep} episoade — harta rămâne neschimbată.")
 
             result = self.run_episode(ep, render_callback=render_callback)

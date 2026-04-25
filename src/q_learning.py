@@ -39,6 +39,20 @@ class QLearning:
         # Q-Table inițializată cu zero
         self.q_table = np.zeros((rows, cols, energy_levels, num_actions))
 
+        # --- Instrumentare pentru vizualizare învățare ---
+        # Contor vizite per (row, col) — acumulat pe toate episoadele
+        self.visit_counts = np.zeros((rows, cols), dtype=np.int64)
+        # Magnitudine TD-error decăzută per (row, col) — pentru heatmap "unde se învață"
+        self.td_error_map = np.zeros((rows, cols), dtype=np.float64)
+        self._td_decay = 0.97  # factor de decădere per pas
+        # Ultimul pas de actualizare: (row, col, energy_level, action, td_error)
+        self.last_update = None
+        # Ring buffer pentru sparkline-uri (mean |TD| pe ultimii N pași)
+        self._td_history_size = 200
+        self._td_history = np.zeros(self._td_history_size, dtype=np.float64)
+        self._td_history_idx = 0
+        self._td_history_filled = 0
+
     # ------------------------------------------------------------------
     # Selecție acțiune — Epsilon-Greedy
     # ------------------------------------------------------------------
@@ -89,7 +103,19 @@ class QLearning:
         else:
             target = reward + self.gamma * np.max(self.q_table[nr, nc, ne])
 
-        self.q_table[r, c, e, action] += self.alpha * (target - current_q)
+        td_error = target - current_q
+        self.q_table[r, c, e, action] += self.alpha * td_error
+
+        # --- Instrumentare ---
+        self.visit_counts[r, c] += 1
+        # Decădere globală + injectare în celula curentă (mărimea TD-error)
+        self.td_error_map *= self._td_decay
+        self.td_error_map[r, c] += abs(td_error)
+        self.last_update = (r, c, e, action, float(td_error))
+        self._td_history[self._td_history_idx] = abs(td_error)
+        self._td_history_idx = (self._td_history_idx + 1) % self._td_history_size
+        if self._td_history_filled < self._td_history_size:
+            self._td_history_filled += 1
 
     # ------------------------------------------------------------------
     # Decay Epsilon
@@ -127,6 +153,46 @@ class QLearning:
         return int(np.count_nonzero(self.q_table))
 
     # ------------------------------------------------------------------
+    # Instrumentare — getteri pentru vizualizare
+    # ------------------------------------------------------------------
+
+    def get_visit_counts(self):
+        """Returnează matricea (rows, cols) cu numărul de vizite per celulă."""
+        return self.visit_counts
+
+    def get_td_error_map(self):
+        """Returnează harta TD-error decăzută per celulă."""
+        return self.td_error_map
+
+    def get_last_update(self):
+        """Returnează (row, col, energy_level, action, td_error) sau None."""
+        return self.last_update
+
+    def get_recent_mean_td(self):
+        """Media |TD-error| pe fereastra recentă."""
+        if self._td_history_filled == 0:
+            return 0.0
+        return float(np.mean(self._td_history[:self._td_history_filled]))
+
+    def get_knowledge_stats(self):
+        """Returnează un dict cu metrici sintetice de cunoaștere."""
+        nonzero = int(np.count_nonzero(self.q_table))
+        total = self.q_table.size
+        visited_cells = int(np.count_nonzero(self.visit_counts))
+        total_cells = self.visit_counts.size
+        mean_abs_q = float(np.mean(np.abs(self.q_table))) if nonzero > 0 else 0.0
+        return {
+            "nonzero": nonzero,
+            "total": total,
+            "fill_pct": (nonzero / total * 100) if total else 0.0,
+            "visited_cells": visited_cells,
+            "total_cells": total_cells,
+            "coverage_pct": (visited_cells / total_cells * 100) if total_cells else 0.0,
+            "mean_abs_q": mean_abs_q,
+            "mean_recent_td": self.get_recent_mean_td(),
+        }
+
+    # ------------------------------------------------------------------
     # Persistență Q-Table
     # ------------------------------------------------------------------
 
@@ -149,3 +215,10 @@ class QLearning:
             )
         self.q_table = loaded
         self.epsilon = self.epsilon_min
+        # Resetăm instrumentarea — datele de runtime nu sunt persistate
+        self.visit_counts = np.zeros((self.rows, self.cols), dtype=np.int64)
+        self.td_error_map = np.zeros((self.rows, self.cols), dtype=np.float64)
+        self.last_update = None
+        self._td_history = np.zeros(self._td_history_size, dtype=np.float64)
+        self._td_history_idx = 0
+        self._td_history_filled = 0
