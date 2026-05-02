@@ -10,8 +10,8 @@ param containerImage string = 'mcr.microsoft.com/azuredocs/containerapps-hellowo
 @description('Runtime data root inside the backend container. Azure Files is mounted here.')
 param dataRoot string = '/app/data'
 
-@description('Backend container port.')
-param containerPort int = 8000
+@description('Initial placeholder container port. The backend workflow switches ingress to 8000 for the FastAPI image.')
+param containerPort int = 80
 
 @description('CPU assigned to the backend container.')
 param containerCpu string = '1.0'
@@ -172,12 +172,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         transport: 'auto'
         allowInsecure: false
       }
-      registries: [
-        {
-          server: acr.properties.loginServer
-          identity: 'system'
-        }
-      ]
     }
     template: {
       scale: {

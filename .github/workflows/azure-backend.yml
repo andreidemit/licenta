@@ -67,7 +67,9 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Show Azure account
-        run: az account show --query "{name:name, tenantId:tenantId, subscriptionId:id}" --output table
+        run: |
+          az config set extension.use_dynamic_install=yes_without_prompt
+          az account show --query "{name:name, tenantId:tenantId, subscriptionId:id}" --output table
 
       - name: Login to Azure Container Registry
         run: az acr login --name "${{ vars.AZURE_CONTAINER_REGISTRY }}"
@@ -82,12 +84,26 @@ jobs:
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
+      - name: Configure Container App registry
+        run: |
+          az containerapp registry set \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+            --server "${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io" \
+            --identity system
+
       - name: Update Container App image
         run: |
+          az containerapp ingress update \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+            --target-port 8000
+
           az containerapp update \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
             --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
-            --image "${{ steps.image.outputs.image }}"
+            --image "${{ steps.image.outputs.image }}" \
+            --set-env-vars APP_ENV=production HOST=0.0.0.0 PORT=8000 DATA_ROOT=/app/data
 
       - name: Smoke test backend health
         shell: bash
