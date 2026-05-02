@@ -20,6 +20,7 @@ permissions:
 
 env:
   IMAGE_NAME: q-learning-backend
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID || vars.AZURE_SUBSCRIPTION_ID }}
@@ -103,6 +104,8 @@ jobs:
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
             --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
             --image "${{ steps.image.outputs.image }}" \
+            --min-replicas 1 \
+            --max-replicas 1 \
             --set-env-vars APP_ENV=production HOST=0.0.0.0 PORT=8000 DATA_ROOT=/app/data
 
       - name: Smoke test backend health

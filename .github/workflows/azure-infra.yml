@@ -24,6 +24,9 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   provision:
     name: Deploy Bicep infrastructure
@@ -80,17 +83,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          outputs="$(
-            az deployment group create \
+          deployment_name="main"
+          if ! outputs="$(
+              az deployment group create \
+                --name "$deployment_name" \
+                --resource-group "${{ inputs.resource_group }}" \
+                --template-file infra/main.bicep \
+                --parameters \
+                  location="${{ inputs.location }}" \
+                  namePrefix="${{ inputs.name_prefix }}" \
+                  containerImage="${{ inputs.container_image }}" \
+                --query properties.outputs \
+                --output json
+            )"; then
+            echo "::error::Infrastructure deployment failed. Listing failed deployment operations."
+            az deployment operation group list \
               --resource-group "${{ inputs.resource_group }}" \
-              --template-file infra/main.bicep \
-              --parameters \
-                location="${{ inputs.location }}" \
-                namePrefix="${{ inputs.name_prefix }}" \
-                containerImage="${{ inputs.container_image }}" \
-              --query properties.outputs \
-              --output json
-          )"
+              --name "$deployment_name" \
+              --query "[?properties.provisioningState=='Failed'].{resource:properties.targetResource.resourceName,type:properties.targetResource.resourceType,message:properties.statusMessage.error.message}" \
+              --output table || true
+            exit 1
+          fi
           echo "$outputs" > deployment-outputs.json
           echo "backend_url=$(jq -r '.backendUrl.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
           echo "acr_name=$(jq -r '.acrName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"

@@ -228,10 +228,11 @@ Nu mai trebuie să creezi manual Azure Static Web Apps și nu mai trebuie să co
 
 ### Constrângeri operaționale
 
-- Container App este configurat inițial cu `minReplicas=1` și `maxReplicas=1`.
-- Această limitare este intenționată: joburile de training și SSE sunt ținute în memorie, iar `index.json` este scris în Azure Files.
+- Container App este creat inițial cu `minReplicas=0` și `maxReplicas=1`, ca provisioning-ul infrastructurii să nu depindă de o revizie placeholder pornită cu succes.
+- Workflow-ul de backend schimbă aplicația la `minReplicas=1` și `maxReplicas=1` când publică imaginea FastAPI reală.
+- Limitarea la o singură replică pentru backend-ul real este intenționată: joburile de training și SSE sunt ținute în memorie, iar `index.json` este scris în Azure Files.
 - Pentru scalare reală la mai multe replici, mută starea joburilor într-un serviciu extern (de exemplu Redis/Cosmos/Table Storage) și artefactele în Blob Storage.
-- Infrastructura pornește Container App-ul cu imagine placeholder pe portul 80. Workflow-ul de backend schimbă ingress-ul la portul 8000 când publică imaginea FastAPI reală.
+- Infrastructura definește Container App-ul cu imagine placeholder pe portul 80, dar fără replica pornită. Workflow-ul de backend schimbă ingress-ul la portul 8000 când publică imaginea FastAPI reală.
 
 ### Smoke test Azure
 

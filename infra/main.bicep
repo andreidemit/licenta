@@ -175,7 +175,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
     }
     template: {
       scale: {
-        minReplicas: 1
+        minReplicas: 0
         maxReplicas: 1
       }
       containers: [
@@ -229,9 +229,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       ]
     }
   }
-  dependsOn: [
-    envStorage
-  ]
 }
 
 resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
