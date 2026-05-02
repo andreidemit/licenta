@@ -17,7 +17,7 @@ import {
   SkipBack,
   SkipForward,
 } from 'lucide-react';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { RewardAreaChart } from './components/common/SimpleCharts';
 
 type GridPayload = {
   id?: string | null;
@@ -639,6 +639,7 @@ export function App() {
   const totalActions = Math.max(1, actionCounts.reduce((sum, value) => sum + value, 0));
   const progressPct = Math.round((job?.progress ?? 0) * 100);
   const maxReplayStep = Math.max(0, (selectedEvaluation?.trajectory?.length ?? 1) - 1);
+  const chartWidth = Math.max(340, chart.length * 8);
 
   const statusLabel = useMemo(() => {
     if (!job) return 'Inactiv';
@@ -1018,20 +1019,15 @@ export function App() {
             <SectionTitle tip="Graficul urmărește recompensa agentului în ultimele momente transmise de backend.">
               Evoluție în timp real
             </SectionTitle>
-            <ResponsiveContainer width="100%" height={170}>
-              <AreaChart data={chart}>
-                <defs>
-                  <linearGradient id="reward" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="#5eead4" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#5eead4" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="step" hide />
-                <YAxis hide />
-                <Tooltip />
-                <Area type="monotone" dataKey="reward" stroke="#5eead4" fill="url(#reward)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="chart-scroll">
+              <RewardAreaChart
+                data={chart}
+                width={chartWidth}
+                height={170}
+                stroke="#5eead4"
+                fill="#5eead4"
+              />
+            </div>
           </div>
 
           <div className="panel-card dashboard-card">

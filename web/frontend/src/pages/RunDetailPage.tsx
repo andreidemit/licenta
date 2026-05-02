@@ -19,10 +19,18 @@ export function RunDetailPage() {
 
   useEffect(() => {
     if (!runId) return;
+    let cancelled = false;
     api
       .getRun(runId)
-      .then(setRun)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Eroare'));
+      .then((r) => {
+        if (!cancelled) setRun(r);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Eroare');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [runId]);
 
   if (error) {

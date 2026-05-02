@@ -1,8 +1,7 @@
 """FastAPI app pentru training/evaluare Q-Learning."""
 
-import glob
 import json
-import os
+import logging
 import re
 import uuid
 from dataclasses import asdict
@@ -21,20 +20,38 @@ from src.simulation_service import (
 )
 from src.warehouse_scenario import WarehouseEnvironment
 from web.backend.job_store import JobStore, stream_job
+from web.backend.logging_config import configure_logging, log_event
 from web.backend.models import EnvironmentPayload, EvaluateRequest, TrainRequest
+from web.backend.settings import settings
 
 
+configure_logging()
+logger = logging.getLogger(__name__)
 app = FastAPI(title="API Laborator Q-Learning", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.cors_origins,
+    allow_credentials=settings.allow_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-jobs = JobStore()
-RUNS_ROOT = Path("data/runs").resolve()
-ENVIRONMENTS_ROOT = Path("data/environments").resolve()
+RUNS_ROOT = settings.runs_root
+ENVIRONMENTS_ROOT = settings.environments_root
+jobs = JobStore(index_path=RUNS_ROOT / "index.json")
+
+
+@app.on_event("startup")
+def log_startup():
+    log_event(
+        logger,
+        "backend_startup",
+        app_env=settings.app_env,
+        data_root=str(settings.data_root),
+        runs_root=str(RUNS_ROOT),
+        environments_root=str(ENVIRONMENTS_ROOT),
+        cors_origins=settings.cors_origins,
+        application_insights_enabled=bool(settings.applicationinsights_connection_string),
+    )
 
 
 def artifact_items(job_id: str, artifacts: dict[str, str]) -> list[dict[str, object]]:
@@ -58,13 +75,28 @@ def safe_artifact_path(job_id: str, artifact_key: str) -> Path:
         raise HTTPException(status_code=404, detail="Rularea nu a fost găsită")
     path_value = job.snapshot()["artifacts"].get(artifact_key)
     if path_value is None:
+        log_event(logger, "artifact_download_missing_key", run_id=job_id, artifact_key=artifact_key)
         raise HTTPException(status_code=404, detail="Artefactul nu a fost găsit")
     path = Path(path_value).resolve()
     try:
         path.relative_to(RUNS_ROOT)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Calea artefactului este în afara data/runs") from exc
+        log_event(
+            logger,
+            "artifact_download_rejected_path",
+            run_id=job_id,
+            artifact_key=artifact_key,
+            path=str(path),
+        )
+        raise HTTPException(status_code=400, detail="Calea artefactului este în afara directorului de rulări") from exc
     if not path.is_file():
+        log_event(
+            logger,
+            "artifact_download_missing_file",
+            run_id=job_id,
+            artifact_key=artifact_key,
+            path=str(path),
+        )
         raise HTTPException(status_code=404, detail="Fișierul artefactului nu a fost găsit")
     return path
 
@@ -239,8 +271,18 @@ def save_environment(environment: EnvironmentPayload):
 
 @app.post("/api/train")
 def start_training(request: TrainRequest):
-    config = SimulationConfig(**request.model_dump())
+    config = SimulationConfig(**request.model_dump(), out_dir=str(RUNS_ROOT))
     job = jobs.create(config)
+    log_event(
+        logger,
+        "training_job_created",
+        run_id=job.id,
+        scenario=config.scenario,
+        rows=config.rows,
+        cols=config.cols,
+        episodes=config.episodes,
+        out_dir=config.out_dir,
+    )
     return job.snapshot()
 
 
@@ -277,13 +319,13 @@ def download_run_artifact(job_id: str, artifact_key: str):
 
 @app.get("/api/qtables")
 def list_qtables():
-    paths = sorted(glob.glob(os.path.join("data", "runs", "*", "qtable.npy")))
+    paths = sorted(RUNS_ROOT.glob("*/qtable.npy"))
     return {
         "qtables": [
             {
-                "path": path,
-                "run_id": os.path.basename(os.path.dirname(path)),
-                "download_url": f"/api/runs/{os.path.basename(os.path.dirname(path))}/artifacts/qtable_path/download",
+                "path": str(path),
+                "run_id": path.parent.name,
+                "download_url": f"/api/runs/{path.parent.name}/artifacts/qtable_path/download",
             }
             for path in paths
         ]
@@ -310,6 +352,13 @@ def evaluate(request: EvaluateRequest):
             for environment in request.environments
         ]
     except Exception as exc:
+        log_event(
+            logger,
+            "evaluation_failed",
+            qtable_path=request.qtable_path,
+            environment_count=len(request.environments),
+            error=str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"results": results}
 

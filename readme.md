@@ -74,7 +74,7 @@ Frontend-ul folosește React Router cu pagini dedicate pentru fiecare flux:
 - `/comparatie` — selectează până la 4 rulări pentru comparație multi-run;
 - `/legacy` — UI-ul vechi este păstrat ca fallback până la validarea utilizatorului.
 
-Stack-ul UI: Tailwind CSS 3 + componente shadcn-style peste primitive Radix, framer-motion pentru animații, recharts pentru grafice, react-router pentru navigare. Toate animațiile respectă `prefers-reduced-motion`.
+Stack-ul UI: Tailwind CSS 3 + componente shadcn-style peste primitive Radix, framer-motion pentru animații, grafice SVG interne, react-router pentru navigare. Toate animațiile respectă `prefers-reduced-motion`.
 
 În varianta web, rulările finalizate sunt indexate în `data/runs/index.json`, tabelele Q pot fi selectate direct din browser, iar artefactele unei rulări pot fi descărcate din panou. Editorul de medii permite vopsirea celulelor prin click pentru `Liber/Obstacol/Noroi/Hrană/Pericol/Pornire/Țintă`, validare BFS prin backend și salvare ca JSON sub `data/environments/`. Evaluarea acceptă fie un singur mediu JSON, fie o listă JSON de medii pentru comparații pe lot; traseul lacom selectat este suprapus pe grid.
 
@@ -82,6 +82,141 @@ Stack-ul UI: Tailwind CSS 3 + componente shadcn-style peste primitive Radix, fra
 # teste API web
 python -m tests.test_web_api
 ```
+
+## Deployment Azure recomandat
+
+Pentru publicarea online a aplicației web, arhitectura recomandată este:
+
+```text
+Azure Static Web Apps
+  React/Vite frontend din web/frontend
+
+Azure Container Apps
+  FastAPI backend din web/backend
+  SSE live stream + training/evaluare Q-Learning
+
+Azure Files
+  mount la /app/data pentru runs, qtables, CSV/PNG/JSON, environments
+
+Azure Container Registry
+  imagine Docker backend
+
+Azure Monitor + Application Insights + Log Analytics
+  loguri backend, erori, lifecycle training job, health/cost visibility
+```
+
+### Fișiere de deployment incluse
+
+| Fișier | Rol |
+|---|---|
+| `Dockerfile` | Construiește backend-ul FastAPI cu `src/` și `web/backend/` în aceeași imagine |
+| `.dockerignore` | Exclude `data/`, `node_modules`, build outputs și fișiere locale din imagine |
+| `infra/main.bicep` | Definește ACR, Storage Account/File Share, Log Analytics, Application Insights, Container Apps Environment și Container App |
+| `infra/main.parameters.example.json` | Exemplu de parametri pentru infrastructură |
+| `web/frontend/staticwebapp.config.json` | Fallback pentru React Router și headers pentru Static Web Apps |
+| `web/frontend/.env.example` | Exemplu local pentru `VITE_API_URL` |
+| `.github/workflows/azure-infra.yml` | Provisioning Bicep din GitHub Actions, fără Azure CLI local |
+| `.github/workflows/azure-backend.yml` | Build/push imagine backend în ACR și update Container App |
+| `.github/workflows/azure-frontend.yml` | Build React și deploy în Azure Static Web Apps |
+| `scripts/validate_azure_local.sh` | Rulează testele locale, build frontend și smoke Docker când există Docker |
+| `scripts/azure_smoke_test.sh` | Verifică health, CORS și rutele frontend după deployment |
+
+### Variabile backend
+
+| Variabilă | Local implicit | Azure recomandat |
+|---|---:|---|
+| `APP_ENV` | `development` | `production` |
+| `HOST` | `127.0.0.1` | `0.0.0.0` |
+| `PORT` | `8000` | `8000` |
+| `DATA_ROOT` | `data` | `/app/data` |
+| `CORS_ORIGINS` | `*` | URL-ul Azure Static Web Apps |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | absent | din Application Insights |
+
+### Comenzi locale Docker
+
+```bash
+./scripts/validate_azure_local.sh
+
+# sau manual:
+docker build -t qlearning-backend .
+docker run --rm -p 8000:8000 \
+  -e APP_ENV=production \
+  -e HOST=0.0.0.0 \
+  -e PORT=8000 \
+  -e DATA_ROOT=/app/data \
+  -v "$(pwd)/data:/app/data" \
+  qlearning-backend
+
+curl http://127.0.0.1:8000/api/health
+```
+
+### Provisioning Azure cu Bicep
+
+Poți face provisioning-ul direct din GitHub Actions cu workflow-ul **Provision Azure infrastructure**. Este varianta recomandată dacă nu vrei să rulezi Azure CLI local.
+
+Pași:
+
+1. Configurează în GitHub secrets OIDC: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
+2. Rulează manual workflow-ul `.github/workflows/azure-infra.yml`.
+3. Copiază output-urile din workflow summary în GitHub variables:
+   - `AZURE_RESOURCE_GROUP`
+   - `AZURE_CONTAINER_APP_NAME`
+   - `AZURE_CONTAINER_REGISTRY`
+   - `VITE_API_URL`
+
+Notă: identitatea Azure folosită de GitHub Actions trebuie să poată crea resource group-ul sau să aibă acces Contributor pe resource group-ul existent.
+
+Alternativ, dacă vrei să rulezi local:
+
+```bash
+az group create --name rg-qlearning-lab --location westeurope
+
+az deployment group create \
+  --resource-group rg-qlearning-lab \
+  --template-file infra/main.bicep \
+  --parameters @infra/main.parameters.example.json
+```
+
+După crearea Azure Static Web Apps, actualizează:
+
+1. `frontendOrigin` / `CORS_ORIGINS` cu URL-ul real al frontendului.
+2. GitHub variable `VITE_API_URL` cu output-ul `backendUrl`.
+3. GitHub variables pentru backend: `AZURE_RESOURCE_GROUP`, `AZURE_CONTAINER_APP_NAME`, `AZURE_CONTAINER_REGISTRY`.
+4. GitHub secrets pentru Azure OIDC: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
+5. GitHub secret `AZURE_STATIC_WEB_APPS_API_TOKEN`.
+
+### Constrângeri operaționale
+
+- Container App este configurat inițial cu `minReplicas=1` și `maxReplicas=1`.
+- Această limitare este intenționată: joburile de training și SSE sunt ținute în memorie, iar `index.json` este scris în Azure Files.
+- Pentru scalare reală la mai multe replici, mută starea joburilor într-un serviciu extern (de exemplu Redis/Cosmos/Table Storage) și artefactele în Blob Storage.
+
+### Smoke test Azure
+
+După deployment:
+
+```bash
+FRONTEND_URL=https://<app>.azurestaticapps.net \
+BACKEND_URL=https://<api>.azurecontainerapps.io \
+./scripts/azure_smoke_test.sh
+```
+
+Checklist manual:
+
+1. Deschide frontendul și rutele directe `/antrenare`, `/evaluare`, `/rulari`, `/comparatie`.
+2. Verifică `https://<backend>/api/health`.
+3. Pornește o rulare scurtă de training.
+4. Confirmă că SSE live update apare în UI.
+5. Confirmă că Q-table-ul și artefactele apar în `data/runs` prin Azure Files.
+6. Descarcă un artefact din UI.
+7. Repornește Container App și confirmă că rulările finalizate se reîncarcă din `index.json`.
+
+### Cost control
+
+- Creează un buget în Azure Cost Management sub limita abonamentului lunar.
+- Păstrează Log Analytics retention redus (ex. 30 zile) pentru demo.
+- Menține `maxReplicas=1` cât timp backend-ul păstrează job state in-memory.
+- Monitorizează Container Apps, Storage și Log Analytics; acestea sunt principalele surse de cost pentru acest proiect.
 
 ---
 

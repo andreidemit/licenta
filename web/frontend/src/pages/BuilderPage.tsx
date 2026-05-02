@@ -36,13 +36,18 @@ export function BuilderPage() {
   const { items: stored, reload } = useStoredEnvironments();
 
   useEffect(() => {
+    let cancelled = false;
     api
       .previewEnvironment({ scenario, rows: 20, cols: 20, seed })
       .then((p) => {
+        if (cancelled) return;
         setEnv(fromGrid(p, 'Mediu de previzualizare'));
         setBfs(p.bfs_distance);
       })
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [scenario, seed]);
 
   const paint = (r: number, c: number) => {

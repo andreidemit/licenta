@@ -1,6 +1,7 @@
 """Job manager in-process pentru training web."""
 
 import json
+import logging
 import os
 import threading
 import time
@@ -15,9 +16,11 @@ from src.simulation_service import (
     export_bundle,
     train_bundle,
 )
+from web.backend.logging_config import log_event
 
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+logger = logging.getLogger(__name__)
 
 
 def utc_now() -> str:
@@ -96,8 +99,8 @@ class TrainingJob:
 
 
 class JobStore:
-    def __init__(self, index_path: str = os.path.join("data", "runs", "index.json")):
-        self.index_path = index_path
+    def __init__(self, index_path: str | os.PathLike[str] = os.path.join("data", "runs", "index.json")):
+        self.index_path = os.fspath(index_path)
         self.jobs: dict[str, TrainingJob] = {}
         self._lock = threading.RLock()
         self._load_index()
@@ -124,10 +127,19 @@ class JobStore:
             return self.jobs.get(job_id)
 
     def _run_job(self, job: TrainingJob) -> None:
+        started_at = time.monotonic()
         try:
             job.status = "running"
             job.message = "Antrenare pornită"
             job.updated_at = utc_now()
+            log_event(
+                logger,
+                "training_job_started",
+                run_id=job.id,
+                scenario=job.config.scenario,
+                episodes=job.config.episodes,
+                out_dir=job.config.out_dir,
+            )
             bundle = create_training_bundle(job.id, job.config)
             job.bundle = bundle
             train_bundle(bundle, on_event=job.append_event)
@@ -135,11 +147,26 @@ class JobStore:
             job.status = "completed"
             job.progress = 1.0
             job.message = "Finalizat"
+            log_event(
+                logger,
+                "training_job_completed",
+                run_id=job.id,
+                scenario=job.config.scenario,
+                episodes=job.config.episodes,
+                duration_seconds=round(time.monotonic() - started_at, 3),
+                artifact_keys=sorted(job.artifacts.keys()),
+            )
         except Exception as exc:
             job.status = "failed"
             job.error = str(exc)
             job.message = "Eșuat"
             job.append_event({"type": "error", "message": str(exc)})
+            logger.exception(
+                "training_job_failed run_id=%s scenario=%s duration_seconds=%.3f",
+                job.id,
+                job.config.scenario,
+                time.monotonic() - started_at,
+            )
         finally:
             job.updated_at = utc_now()
             with self._lock:

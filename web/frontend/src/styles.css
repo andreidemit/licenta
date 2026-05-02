@@ -644,6 +644,11 @@ textarea {
   min-height: 240px;
 }
 
+.chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .muted {
   color: #94a3b8;
 }

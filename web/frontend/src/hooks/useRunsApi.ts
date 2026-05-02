@@ -52,7 +52,13 @@ export function useStoredEnvironments() {
 export function useEvaluationScenarios() {
   const [items, setItems] = useState<EvaluationScenario[]>([]);
   useEffect(() => {
-    void api.evaluationScenarios().then((payload) => setItems(payload.scenarios ?? []));
+    let cancelled = false;
+    void api.evaluationScenarios().then((payload) => {
+      if (!cancelled) setItems(payload.scenarios ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
   return items;
 }

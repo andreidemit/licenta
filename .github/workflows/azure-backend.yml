@@ -1,0 +1,69 @@
+name: Deploy backend to Azure Container Apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements.txt
+      - src/**
+      - web/backend/**
+      - .github/workflows/azure-backend.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  IMAGE_NAME: q-learning-backend
+
+jobs:
+  deploy:
+    name: Build and deploy backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to Azure Container Registry
+        run: az acr login --name "${{ vars.AZURE_CONTAINER_REGISTRY }}"
+
+      - name: Build and push backend image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${IMAGE_NAME}:${GITHUB_SHA}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Update Container App image
+        run: |
+          az containerapp update \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+            --image "${{ steps.image.outputs.image }}"
+
+      - name: Smoke test backend health
+        shell: bash
+        run: |
+          set -euo pipefail
+          FQDN="$(az containerapp show \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)"
+          curl --fail --retry 12 --retry-delay 5 "https://${FQDN}/api/health"

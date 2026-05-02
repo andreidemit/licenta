@@ -1,0 +1,99 @@
+name: Provision Azure infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Azure resource group name
+        required: true
+        default: rg-qlearning-lab
+      location:
+        description: Azure region
+        required: true
+        default: westeurope
+      name_prefix:
+        description: Short lowercase prefix for resource names
+        required: true
+        default: qlearning
+      frontend_origin:
+        description: Allowed frontend origin for backend CORS
+        required: true
+        default: http://localhost:5173
+      container_image:
+        description: Initial backend image. Backend workflow will replace this after ACR push.
+        required: true
+        default: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  provision:
+    name: Deploy Bicep infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Bicep
+        run: az bicep install
+
+      - name: Ensure resource group exists
+        run: |
+          az group create \
+            --name "${{ inputs.resource_group }}" \
+            --location "${{ inputs.location }}"
+
+      - name: Deploy infrastructure
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          outputs="$(
+            az deployment group create \
+              --resource-group "${{ inputs.resource_group }}" \
+              --template-file infra/main.bicep \
+              --parameters \
+                location="${{ inputs.location }}" \
+                namePrefix="${{ inputs.name_prefix }}" \
+                frontendOrigin="${{ inputs.frontend_origin }}" \
+                containerImage="${{ inputs.container_image }}" \
+              --query properties.outputs \
+              --output json
+          )"
+          echo "$outputs" > deployment-outputs.json
+          echo "backend_url=$(jq -r '.backendUrl.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "acr_name=$(jq -r '.acrName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "acr_login_server=$(jq -r '.acrLoginServer.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "container_app_name=$(jq -r '.containerAppName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "storage_account_name=$(jq -r '.storageAccountName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Write deployment summary
+        run: |
+          {
+            echo "## Azure infrastructure outputs"
+            echo ""
+            echo "| Output | Value |"
+            echo "|---|---|"
+            echo "| Backend URL | ${{ steps.deploy.outputs.backend_url }} |"
+            echo "| ACR name | ${{ steps.deploy.outputs.acr_name }} |"
+            echo "| ACR login server | ${{ steps.deploy.outputs.acr_login_server }} |"
+            echo "| Container App | ${{ steps.deploy.outputs.container_app_name }} |"
+            echo "| Storage Account | ${{ steps.deploy.outputs.storage_account_name }} |"
+            echo ""
+            echo "Set these GitHub variables after the first run:"
+            echo ""
+            echo "- \`AZURE_RESOURCE_GROUP=${{ inputs.resource_group }}\`"
+            echo "- \`AZURE_CONTAINER_APP_NAME=${{ steps.deploy.outputs.container_app_name }}\`"
+            echo "- \`AZURE_CONTAINER_REGISTRY=${{ steps.deploy.outputs.acr_name }}\`"
+            echo "- \`VITE_API_URL=${{ steps.deploy.outputs.backend_url }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

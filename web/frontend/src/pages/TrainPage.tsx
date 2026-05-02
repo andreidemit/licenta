@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { PageHeader } from '../components/common/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -19,6 +18,7 @@ import { Input, Label, Select } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { StatCard } from '../components/common/StatCard';
 import { InfoTip } from '../components/common/InfoTip';
+import { RewardAreaChart } from '../components/common/SimpleCharts';
 import { GridCanvas } from '../features/grid/GridCanvas';
 import { GridLegend } from '../features/grid/GridLegend';
 import { useTrainingStream } from '../hooks/useTrainingStream';
@@ -255,6 +255,7 @@ function TrainingLiveView({
 }) {
   const meta = scenarioMeta[scenario] ?? scenarioMeta.B;
   const grid = live?.environment ?? previewGrid;
+  const chartWidth = Math.max(320, chart.length * 8);
   const agent = live?.agent
     ? {
         row: live.agent.position[0],
@@ -386,34 +387,8 @@ function TrainingLiveView({
                 transition={{ duration: 0.2 }}
               >
                 <CardContent className="pt-0 pb-4">
-                  <div style={{ width: '100%', height: 140 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chart}>
-                        <defs>
-                          <linearGradient id="rwd" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stopColor="hsl(217 91% 60%)" stopOpacity={0.7} />
-                            <stop offset="100%" stopColor="hsl(217 91% 60%)" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="step" hide />
-                        <YAxis hide />
-                        <Tooltip
-                          contentStyle={{
-                            background: 'hsl(222 32% 16%)',
-                            border: '1px solid hsl(222 24% 24%)',
-                            borderRadius: 8,
-                            fontSize: 12,
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="reward"
-                          stroke="hsl(217 91% 70%)"
-                          fill="url(#rwd)"
-                          strokeWidth={2}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                  <div className="overflow-x-auto overflow-y-hidden">
+                    <RewardAreaChart data={chart} width={chartWidth} height={140} />
                   </div>
                 </CardContent>
               </motion.div>

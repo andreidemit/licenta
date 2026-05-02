@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PageHeader } from '../components/common/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { MultiLineChart } from '../components/common/SimpleCharts';
 import { useRuns } from '../hooks/useRunsApi';
 import { fmt, scenarioMeta, translateStatus } from '../lib/formatters';
 import { EmptyState } from '../components/common/EmptyState';
@@ -25,6 +25,7 @@ export function ComparePage() {
   const chosen = selected
     .map((id) => runs.find((r) => r.id === id))
     .filter((r): r is NonNullable<typeof r> => Boolean(r));
+  const chartWidth = 920;
 
   // Synthetic data: real per-episode CSV reading would require backend support;
   // here we render placeholder progression based on `progress` to give a
@@ -95,37 +96,19 @@ export function ComparePage() {
                 <CardTitle className="text-sm">Progresul rulărilor selectate</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart data={series}>
-                    <CartesianGrid stroke="hsl(222 24% 24%)" strokeDasharray="3 3" />
-                    <XAxis dataKey="episode" stroke="hsl(215 16% 50%)" fontSize={11} />
-                    <YAxis stroke="hsl(215 16% 50%)" fontSize={11} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'hsl(222 32% 16%)',
-                        border: '1px solid hsl(222 24% 24%)',
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11 }}
-                      formatter={(v) =>
-                        chosen.find((r) => r.id === v)?.id.slice(0, 18) ?? v
-                      }
-                    />
-                    {chosen.map((r, i) => (
-                      <Line
-                        key={r.id}
-                        type="monotone"
-                        dataKey={r.id}
-                        stroke={palette[i]}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="overflow-x-auto overflow-y-hidden">
+                  <MultiLineChart
+                    data={series}
+                    xKey="episode"
+                    width={chartWidth}
+                    height={320}
+                    series={chosen.map((r, i) => ({
+                      key: r.id,
+                      label: r.id.slice(0, 18),
+                      color: palette[i],
+                    }))}
+                  />
+                </div>
                 <p className="mt-3 text-xs text-ink-subtle">
                   Notă: graficul folosește progresul agregat al fiecărei rulări.
                   Pentru convergența detaliată per episod, deschide pagina de detaliu a rulării.
