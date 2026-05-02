@@ -5,9 +5,6 @@
     "namePrefix": {
       "value": "qlearning"
     },
-    "frontendOrigin": {
-      "value": "https://<your-static-web-app>.azurestaticapps.net"
-    },
     "containerImage": {
       "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
     },

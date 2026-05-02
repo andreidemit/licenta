@@ -111,9 +111,9 @@ Azure Monitor + Application Insights + Log Analytics
 |---|---|
 | `Dockerfile` | Construiește backend-ul FastAPI cu `src/` și `web/backend/` în aceeași imagine |
 | `.dockerignore` | Exclude `data/`, `node_modules`, build outputs și fișiere locale din imagine |
-| `infra/main.bicep` | Definește ACR, Storage Account/File Share, Log Analytics, Application Insights, Container Apps Environment și Container App |
+| `infra/main.bicep` | Definește Static Web App, ACR, Storage Account/File Share, Log Analytics, Application Insights, Container Apps Environment și Container App |
 | `infra/main.parameters.example.json` | Exemplu de parametri pentru infrastructură |
-| `web/frontend/staticwebapp.config.json` | Fallback pentru React Router și headers pentru Static Web Apps |
+| `web/frontend/public/staticwebapp.config.json` | Fallback pentru React Router și headers pentru Static Web Apps |
 | `web/frontend/.env.example` | Exemplu local pentru `VITE_API_URL` |
 | `.github/workflows/azure-infra.yml` | Provisioning Bicep din GitHub Actions, fără Azure CLI local |
 | `.github/workflows/azure-backend.yml` | Build/push imagine backend în ACR și update Container App |
@@ -162,9 +162,50 @@ Pași:
    - `AZURE_RESOURCE_GROUP`
    - `AZURE_CONTAINER_APP_NAME`
    - `AZURE_CONTAINER_REGISTRY`
+   - `AZURE_STATIC_WEB_APP_NAME`
    - `VITE_API_URL`
 
 Notă: identitatea Azure folosită de GitHub Actions trebuie să poată crea resource group-ul sau să aibă acces Contributor pe resource group-ul existent.
+
+### Configurare OIDC pentru GitHub Actions
+
+Dacă workflow-ul eșuează la pasul **Azure login**, cauza este aproape întotdeauna una dintre acestea:
+
+1. `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` sau `AZURE_SUBSCRIPTION_ID` lipsește ori este copiat greșit.
+2. App Registration-ul din Azure nu are federated credential pentru repository/branch.
+3. Identitatea nu are rolurile Azure necesare.
+
+Configurare recomandată în Azure Portal:
+
+1. Intră în **Microsoft Entra ID → App registrations → New registration**.
+2. Copiază:
+   - **Application (client) ID** → `AZURE_CLIENT_ID`
+   - **Directory (tenant) ID** → `AZURE_TENANT_ID`
+   - Subscription ID din Azure subscription → `AZURE_SUBSCRIPTION_ID`
+3. În App Registration: **Certificates & secrets → Federated credentials → Add credential**.
+4. Alege **GitHub Actions deploying Azure resources**.
+5. Setează repository-ul și branch-ul folosit la deploy (`main` sau `master`).
+6. Subject-ul trebuie să arate așa:
+
+```text
+repo:<owner>/<repo>:ref:refs/heads/main
+```
+
+Pentru branch `master`:
+
+```text
+repo:<owner>/<repo>:ref:refs/heads/master
+```
+
+Workflow-urile afișează acum subject-ul așteptat înainte de `azure/login`, ca să îl poți copia exact.
+
+Roluri Azure necesare:
+
+- Pentru provisioning complet din workflow: **Contributor** pe subscription sau resource group.
+- Pentru role assignment-ul ACR Pull creat de Bicep: identitatea are nevoie și de **Owner** sau **User Access Administrator** la scope-ul relevant.
+- Pentru deploy ulterior backend: permisiuni pe ACR și Container App.
+
+După provisioning, poți reduce permisiunile identității folosite de deploy dacă vrei separare mai strictă între provisioning și deploy.
 
 Alternativ, dacă vrei să rulezi local:
 
@@ -177,13 +218,13 @@ az deployment group create \
   --parameters @infra/main.parameters.example.json
 ```
 
-După crearea Azure Static Web Apps, actualizează:
+După provisioning, actualizează:
 
-1. `frontendOrigin` / `CORS_ORIGINS` cu URL-ul real al frontendului.
-2. GitHub variable `VITE_API_URL` cu output-ul `backendUrl`.
-3. GitHub variables pentru backend: `AZURE_RESOURCE_GROUP`, `AZURE_CONTAINER_APP_NAME`, `AZURE_CONTAINER_REGISTRY`.
-4. GitHub secrets pentru Azure OIDC: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
-5. GitHub secret `AZURE_STATIC_WEB_APPS_API_TOKEN`.
+1. GitHub variable `VITE_API_URL` cu output-ul `backendUrl`.
+2. GitHub variables: `AZURE_RESOURCE_GROUP`, `AZURE_CONTAINER_APP_NAME`, `AZURE_CONTAINER_REGISTRY`, `AZURE_STATIC_WEB_APP_NAME`.
+3. GitHub secrets pentru Azure OIDC: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
+
+Nu mai trebuie să creezi manual Azure Static Web Apps și nu mai trebuie să copiezi `AZURE_STATIC_WEB_APPS_API_TOKEN`: frontend workflow-ul citește tokenul din Azure cu OIDC.
 
 ### Constrângeri operaționale
 

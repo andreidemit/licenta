@@ -12,15 +12,73 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   deploy:
     name: Build and deploy frontend
     runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: ${{ vars.VITE_API_URL }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID || vars.AZURE_SUBSCRIPTION_ID }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Check Static Web Apps configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing ${name}. Add it as a GitHub secret or repository variable."
+              missing=1
+            fi
+          done
+          if [[ -z "${VITE_API_URL:-}" ]]; then
+            echo "::error::Missing repository variable VITE_API_URL."
+            missing=1
+          fi
+          if [[ -z "${{ vars.AZURE_RESOURCE_GROUP }}" ]]; then
+            echo "::error::Missing repository variable AZURE_RESOURCE_GROUP."
+            missing=1
+          fi
+          if [[ -z "${{ vars.AZURE_STATIC_WEB_APP_NAME }}" ]]; then
+            echo "::error::Missing repository variable AZURE_STATIC_WEB_APP_NAME."
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read Static Web Apps deployment token
+        id: swa-token
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt
+          token="$(
+            az staticwebapp secrets list \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ vars.AZURE_STATIC_WEB_APP_NAME }}" \
+              --query properties.apiKey \
+              --output tsv
+          )"
+          if [[ -z "$token" ]]; then
+            echo "::error::Could not read Azure Static Web Apps deployment token."
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,16 +93,13 @@ jobs:
 
       - name: Build frontend
         working-directory: web/frontend
-        env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: npm run build
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          azure_static_web_apps_api_token: ${{ steps.swa-token.outputs.token }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
-          app_location: web/frontend
-          output_location: dist
+          app_location: web/frontend/dist
           skip_app_build: true

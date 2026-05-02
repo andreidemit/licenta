@@ -20,6 +20,9 @@ permissions:
 
 env:
   IMAGE_NAME: q-learning-backend
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID || vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
   deploy:
@@ -30,12 +33,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check Azure deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing ${name}. Add it as a GitHub secret or repository variable."
+              missing=1
+            fi
+          done
+          if [[ -z "${{ vars.AZURE_CONTAINER_REGISTRY }}" ]]; then
+            echo "::error::Missing repository variable AZURE_CONTAINER_REGISTRY."
+            missing=1
+          fi
+          if [[ -z "${{ vars.AZURE_RESOURCE_GROUP }}" ]]; then
+            echo "::error::Missing repository variable AZURE_RESOURCE_GROUP."
+            missing=1
+          fi
+          if [[ -z "${{ vars.AZURE_CONTAINER_APP_NAME }}" ]]; then
+            echo "::error::Missing repository variable AZURE_CONTAINER_APP_NAME."
+            missing=1
+          fi
+          echo "Expected Azure federated credential subject: repo:${GITHUB_REPOSITORY}:ref:${GITHUB_REF}"
+          exit "$missing"
+
       - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Show Azure account
+        run: az account show --query "{name:name, tenantId:tenantId, subscriptionId:id}" --output table
 
       - name: Login to Azure Container Registry
         run: az acr login --name "${{ vars.AZURE_CONTAINER_REGISTRY }}"

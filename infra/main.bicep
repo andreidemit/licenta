@@ -7,9 +7,6 @@ param namePrefix string = 'qlearning'
 @description('Container image used for the initial Container App revision. CI/CD will update this value after pushing to ACR.')
 param containerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
-@description('External frontend origin allowed by CORS. Replace with the Azure Static Web Apps URL after creation.')
-param frontendOrigin string = 'http://localhost:5173'
-
 @description('Runtime data root inside the backend container. Azure Files is mounted here.')
 param dataRoot string = '/app/data'
 
@@ -25,6 +22,13 @@ param containerMemory string = '2.0Gi'
 @description('Azure Files share quota in GiB.')
 param fileShareQuota int = 20
 
+@description('SKU for Azure Static Web Apps.')
+@allowed([
+  'Free'
+  'Standard'
+])
+param staticWebAppSku string = 'Free'
+
 @description('Common tags for all resources.')
 param tags object = {
   project: 'q-learning-lab'
@@ -39,10 +43,12 @@ var logAnalyticsName = '${namePrefix}-${uniqueSuffix}-logs'
 var appInsightsName = '${namePrefix}-${uniqueSuffix}-appi'
 var containerEnvName = '${namePrefix}-${uniqueSuffix}-cae'
 var containerAppName = '${namePrefix}-${uniqueSuffix}-api'
+var staticWebAppName = '${namePrefix}-${uniqueSuffix}-web'
 var fileShareName = 'qlearning-data'
 var envStorageName = 'qlearningdata'
 var dataVolumeName = 'data'
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+var frontendOrigin = 'https://${staticWebApp.properties.defaultHostname}'
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
@@ -104,6 +110,20 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   properties: {
     Application_Type: 'web'
     WorkspaceResourceId: logAnalytics.id
+  }
+}
+
+resource staticWebApp 'Microsoft.Web/staticSites@2022-09-01' = {
+  name: staticWebAppName
+  location: location
+  tags: tags
+  sku: {
+    name: staticWebAppSku
+    tier: staticWebAppSku
+  }
+  properties: {
+    allowConfigFileUpdates: true
+    stagingEnvironmentPolicy: 'Enabled'
   }
 }
 
@@ -237,5 +257,7 @@ output backendUrl string = 'https://${containerApp.properties.configuration.ingr
 output containerAppName string = containerApp.name
 output containerAppsEnvironmentName string = containerEnv.name
 output fileShareName string = fileShare.name
+output frontendUrl string = frontendOrigin
 output logAnalyticsWorkspaceName string = logAnalytics.name
+output staticWebAppName string = staticWebApp.name
 output storageAccountName string = storage.name
