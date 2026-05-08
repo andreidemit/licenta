@@ -58,7 +58,7 @@ export function RunDetailPage() {
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild>
-        <Link to="/rulari">
+        <Link to="/lab/rulari">
           <ArrowLeft size={14} /> Înapoi la rulări
         </Link>
       </Button>
@@ -70,7 +70,7 @@ export function RunDetailPage() {
         actions={
           <>
             {artifacts.qtable_path ? (
-              <Button onClick={() => navigate('/evaluare')}>
+              <Button onClick={() => navigate('/lab/evaluare')}>
                 <Target size={16} /> Folosește pentru evaluare
               </Button>
             ) : null}

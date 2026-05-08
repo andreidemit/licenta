@@ -19,9 +19,27 @@ from src.simulation_service import (
     evaluate_qtable_on_environment,
 )
 from src.warehouse_scenario import WarehouseEnvironment
+from agents import (
+    AStarAgent,
+    FeatureBasedQLearningAgent,
+    RandomAgent,
+    RiskAwareAStarAgent,
+    RuleBasedAgent,
+    TabularQLearningAgent,
+)
+from environment.grid_world import RewardConfig
+from environment.map_generator import MapGenerator, SCENARIOS
+from experiments.compare_agents import create_agent, run_monte_carlo_experiment, run_training
+from simulation.simulator import Simulator
 from web.backend.job_store import JobStore, stream_job
 from web.backend.logging_config import configure_logging, log_event
-from web.backend.models import EnvironmentPayload, EvaluateRequest, TrainRequest
+from web.backend.models import (
+    EnvironmentPayload,
+    EvaluateRequest,
+    MonteCarloRequest,
+    SafeNavigationRequest,
+    TrainRequest,
+)
 from web.backend.settings import settings
 
 
@@ -119,6 +137,107 @@ def environment_path(environment_id_value: str) -> Path:
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+ALGORITHM_EXPLANATIONS = {
+    "random": RandomAgent().explain(),
+    "rule_based": RuleBasedAgent().explain(),
+    "astar": AStarAgent().explain(),
+    "risk_aware_astar": RiskAwareAStarAgent().explain(),
+    "tabular_q": TabularQLearningAgent(rows=5, cols=5).explain(),
+    "feature_q": FeatureBasedQLearningAgent().explain(),
+}
+
+
+def _safe_world_from_request(request: SafeNavigationRequest):
+    generator = MapGenerator()
+    preset = SCENARIOS.get(request.scenario)
+    rows = request.rows if request.scenario == "custom" else (preset.rows if preset else request.rows)
+    cols = request.cols if request.scenario == "custom" else (preset.cols if preset else request.cols)
+    wall_probability = (
+        request.wall_probability
+        if request.scenario == "custom"
+        else (preset.wall_probability if preset else request.wall_probability)
+    )
+    danger_probability = (
+        request.danger_probability
+        if request.scenario == "custom"
+        else (preset.danger_probability if preset else request.danger_probability)
+    )
+    return generator.generate(
+        rows=rows,
+        cols=cols,
+        wall_probability=wall_probability,
+        danger_probability=danger_probability,
+        random_seed=request.random_seed,
+        movement_noise=request.movement_noise,
+        reward_config=RewardConfig(risk_weight=0.0),
+    )
+
+
+@app.get("/api/safe-navigation/algorithms")
+def safe_navigation_algorithms():
+    return {
+        "algorithms": [
+            {"id": key, "name": key.replace("_", " ").title(), "explanation": value}
+            for key, value in ALGORITHM_EXPLANATIONS.items()
+        ],
+        "scenarios": [
+            {"id": key, **config.__dict__}
+            for key, config in SCENARIOS.items()
+        ],
+    }
+
+
+@app.post("/api/safe-navigation/preview")
+def safe_navigation_preview(request: SafeNavigationRequest):
+    try:
+        env = _safe_world_from_request(request)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"environment": env.to_payload(), "algorithm_explanation": ALGORITHM_EXPLANATIONS.get(request.algorithm, "")}
+
+
+@app.post("/api/safe-navigation/episode")
+def safe_navigation_episode(request: SafeNavigationRequest):
+    try:
+        env = _safe_world_from_request(request)
+        agent = create_agent(request.algorithm, env.rows, env.cols, request.risk_weight, request.random_seed)
+        training_history = []
+        if getattr(agent, "requires_training", False) and request.training_episodes > 0:
+            training_history = run_training(agent, env, max_steps=request.max_steps, episodes=request.training_episodes)
+        result = Simulator(env, agent, max_steps=request.max_steps).run_episode(training=False)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "environment": env.to_payload(),
+        "result": result.to_dict(),
+        "training_history": [item.to_dict() for item in training_history[-50:]],
+        "algorithm_explanation": agent.explain(),
+    }
+
+
+@app.post("/api/safe-navigation/monte-carlo")
+def safe_navigation_monte_carlo(request: MonteCarloRequest):
+    try:
+        result = run_monte_carlo_experiment(
+            agents=request.algorithms,
+            scenario=request.scenario,
+            number_of_maps=request.number_of_maps,
+            episodes_per_map=request.episodes_per_map,
+            training_episodes=request.training_episodes,
+            rows=request.rows if request.scenario == "custom" else None,
+            cols=request.cols if request.scenario == "custom" else None,
+            wall_probability=request.wall_probability if request.scenario == "custom" else None,
+            danger_probability=request.danger_probability if request.scenario == "custom" else None,
+            movement_noise=request.movement_noise,
+            risk_weight=request.risk_weight,
+            max_steps=request.max_steps,
+            random_seed=request.random_seed,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result
 
 
 @app.get("/api/scenarios")

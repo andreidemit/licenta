@@ -10,12 +10,12 @@ import {
 import { cn } from '../../lib/cn';
 
 const navItems = [
-  { to: '/', label: 'Acasă', icon: Home, end: true },
-  { to: '/antrenare', label: 'Antrenare', icon: Sparkles },
-  { to: '/rulari', label: 'Rulări', icon: Layers },
-  { to: '/evaluare', label: 'Evaluare', icon: Target },
-  { to: '/editor-mediu', label: 'Editor mediu', icon: PencilRuler },
-  { to: '/comparatie', label: 'Comparație', icon: GitCompareArrows },
+  { to: '/lab', label: 'Acasă lab', icon: Home, end: true },
+  { to: '/lab/antrenare', label: 'Antrenare', icon: Sparkles },
+  { to: '/lab/rulari', label: 'Rulări', icon: Layers },
+  { to: '/lab/evaluare', label: 'Evaluare', icon: Target },
+  { to: '/lab/editor-mediu', label: 'Editor mediu', icon: PencilRuler },
+  { to: '/lab/comparatie', label: 'Comparație', icon: GitCompareArrows },
 ];
 
 export function Sidebar() {

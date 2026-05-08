@@ -56,16 +56,22 @@ function RouteError() {
 
 const router = createBrowserRouter([
   {
+    path: '/',
+    element: <Suspense fallback={<PageFallback />}><LegacyApp /></Suspense>,
+    errorElement: <RouteError />,
+  },
+  {
+    path: '/lab',
     element: <AppShell />,
     errorElement: <RouteError />,
     children: [
-      { path: '/', element: <Suspense fallback={<PageFallback />}><HomePage /></Suspense> },
-      { path: '/antrenare', element: <Suspense fallback={<PageFallback />}><TrainPage /></Suspense> },
-      { path: '/rulari', element: <Suspense fallback={<PageFallback />}><RunsPage /></Suspense> },
-      { path: '/rulari/:runId', element: <Suspense fallback={<PageFallback />}><RunDetailPage /></Suspense> },
-      { path: '/evaluare', element: <Suspense fallback={<PageFallback />}><EvaluatePage /></Suspense> },
-      { path: '/editor-mediu', element: <Suspense fallback={<PageFallback />}><BuilderPage /></Suspense> },
-      { path: '/comparatie', element: <Suspense fallback={<PageFallback />}><ComparePage /></Suspense> },
+      { index: true, element: <Suspense fallback={<PageFallback />}><HomePage /></Suspense> },
+      { path: 'antrenare', element: <Suspense fallback={<PageFallback />}><TrainPage /></Suspense> },
+      { path: 'rulari', element: <Suspense fallback={<PageFallback />}><RunsPage /></Suspense> },
+      { path: 'rulari/:runId', element: <Suspense fallback={<PageFallback />}><RunDetailPage /></Suspense> },
+      { path: 'evaluare', element: <Suspense fallback={<PageFallback />}><EvaluatePage /></Suspense> },
+      { path: 'editor-mediu', element: <Suspense fallback={<PageFallback />}><BuilderPage /></Suspense> },
+      { path: 'comparatie', element: <Suspense fallback={<PageFallback />}><ComparePage /></Suspense> },
     ],
   },
   {

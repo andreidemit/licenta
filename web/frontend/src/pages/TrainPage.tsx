@@ -91,7 +91,7 @@ export function TrainPage() {
         previewGrid={preview}
         statusLabel={translateStatus(job?.status)}
         completed={job?.status === 'completed'}
-        onSeeRun={() => job && navigate(`/rulari/${job.id}`)}
+        onSeeRun={() => job && navigate(`/lab/rulari/${job.id}`)}
       />
     );
   }

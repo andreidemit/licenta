@@ -1,4 +1,102 @@
 # Simularea Comportamentului Inteligent și Navigare Autonomă
+
+## Direcția curentă: Safe Navigation Simulator
+
+**Titlu conceptual:** „Simularea și evaluarea strategiilor de navigare sigură pentru agenți autonomi în medii grid-based necunoscute”.
+
+Proiectul a fost extins dintr-un demo centrat pe Q-Learning într-un cadru modular de simulare. Q-Learning-ul rămâne disponibil, dar este acum doar una dintre strategiile comparate în același simulator, alături de agenți euristici și algoritmi de planificare.
+
+### Arhitectura nouă
+
+| Strat | Fișiere principale | Rol |
+|---|---|---|
+| Environment | `environment/grid_world.py`, `environment/map_generator.py`, `environment/cell_types.py`, `environment/risk_model.py` | Reprezentarea hărții, reward-ul, riscul și generarea procedurală BFS-validată |
+| Agents | `agents/base_agent.py`, `agents/random_agent.py`, `agents/rule_based_agent.py`, `agents/astar_agent.py`, `agents/q_learning_agent.py`, `agents/feature_q_learning_agent.py` | Strategii interschimbabile rulate de același simulator |
+| Simulation | `simulation/simulator.py`, `simulation/episode_result.py`, `simulation/actions.py`, `simulation/metrics.py` | Motor generic de episod, acțiuni comune, tranziții și metrici |
+| Experiments | `experiments/compare_agents.py`, `experiments/run_experiment.py`, `experiments/configs.py` | Evaluări Monte Carlo și comparații între algoritmi |
+| UI/API | `web/backend/app.py`, `web/frontend/src/features/safe-navigation/*` | Endpoint-uri și interfață React pentru simulatorul experimental |
+
+Separarea importantă este că reward-ul aparține mediului (`GridWorld.step()`), agenții aleg acțiuni printr-o interfață comună (`BaseAgent`), iar `Simulator` poate rula orice agent fără să știe dacă acesta învață sau planifică.
+
+### Algoritmi implementați
+
+- **RandomAgent** — baseline simplu, alege aleator.
+- **RuleBasedAgent** — evită pereți/pericole imediate și se apropie de goal.
+- **AStarAgent** — planifică rapid drumuri pe hărți noi cu euristică Manhattan.
+- **RiskAwareAStarAgent** — extinde A* cu hartă de risc; preferă trasee mai sigure chiar dacă sunt mai lungi.
+- **TabularQLearningAgent** — Q-table pe coordonate absolute; util pe harta de training, dar generalizează slab la hărți noi.
+- **FeatureBasedQLearningAgent** — Q-learning pe features locale: pereți, pericole, direcția goal-ului și bucket de distanță, pentru transfer mai bun pe hărți necunoscute.
+
+Nu există DQN sau rețele neuronale; scopul este simularea, comparația și evaluarea strategiilor, nu deep learning.
+
+### Metrici
+
+Pentru fiecare episod se colectează: `success`, `total_reward`, `steps`, `collisions`, `danger_entries`, `total_risk_exposure`, `path_length`, `timeout`, `reached_goal`, `computation_time_ms`.
+
+Pentru evaluări agregate se calculează: `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `collision_rate`, `average_danger_entries`, `danger_entry_rate`, `average_risk_exposure`, `average_total_cost`, `timeout_rate`, `average_computation_time_ms`.
+
+### Rulare simulator web
+
+```bash
+python -m pip install -r web/backend/requirements.txt
+python -m web.backend
+
+cd web/frontend
+npm install
+npm run dev
+```
+
+Pagina principală (`/`) este acum **Safe Navigation Simulator**. Laboratorul vechi Q-Learning rămâne disponibil sub `/lab`.
+
+În UI poți:
+
+- alege algoritmul;
+- genera hărți random easy/medium/hard/custom;
+- rula un episod și vedea traseul;
+- activa/dezactiva path, risk heatmap și coordonate;
+- compara A* cu Risk-Aware A*;
+- rula Tabular Q-Learning pe o hartă fixă și observa limitele pe hărți noi;
+- rula Monte Carlo comparison între agenți și vedea tabel/grafice simple.
+
+### Rulare Monte Carlo din CLI
+
+```bash
+PYTHONPATH=. python -m experiments.run_experiment \
+  --scenario medium \
+  --maps 5 \
+  --episodes-per-map 2 \
+  --training-episodes 100
+```
+
+### Poveste experimentală susținută
+
+1. Tabular Q-Learning învață bine o hartă fixă.
+2. Când harta se schimbă, performanța scade deoarece starea este coordonata absolută.
+3. A* găsește rapid drumuri pe hărți noi, dar optimizează mai ales distanța.
+4. Risk-Aware A* poate alege un traseu mai lung, dar cu expunere mai mică la risc.
+5. Feature-Based Q-Learning învață tipare locale de siguranță care pot fi reutilizate pe hărți nevăzute.
+6. Monte Carlo evaluation permite comparații statistice robuste între algoritmi și dificultăți de mediu.
+
+### Config exemplu
+
+```json
+{
+  "scenario": "medium",
+  "rows": 15,
+  "cols": 15,
+  "wall_probability": 0.2,
+  "danger_probability": 0.1,
+  "movement_noise": 0.0,
+  "max_steps": 300,
+  "risk_weight": 1.0,
+  "training_episodes": 500,
+  "test_episodes": 100,
+  "random_seed": 42
+}
+```
+
+---
+
 **Titlu**: Simularea comportamentului inteligent: Navigare și supraviețuire autonomă bazată pe interacțiunea cu mediul.
 
 **Descriere**: Această lucrare își propune dezvoltarea unei aplicații software pentru simularea și analiza proceselor cognitive de învățare într-un sistem bazat pe agenți autonomi. Spre deosebire de abordările clasice bazate pe seturi de date statice (Supervised Learning), proiectul se concentrează pe paradigma Învățării prin Consolidare (Reinforcement Learning). Agentul virtual va fi plasat într-un mediu necunoscut și va trebui să își dezvolte propria 'înțelegere' a lumii prin interacțiune directă (încercare și eroare). Obiectivul principal este implementarea algoritmului Q-Learning pentru a permite agentului să învețe relațiile cauzale dintre obiecte (obstacole, resurse) și consecințe (recompense, penalizări), simulând astfel procese cognitive fundamentale precum memoria, curiozitatea (explorarea) și planificarea. Aplicația va include o interfață grafică pentru vizualizarea în timp real a procesului de învățare și a evoluției performanței agentului în scenarii cu grade variate de complexitate.

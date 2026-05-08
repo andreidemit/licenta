@@ -87,7 +87,7 @@ export function RunsPage() {
           {filtered.map((r) => {
             const meta = scenarioMeta[r.scenario];
             return (
-              <Link key={r.id} to={`/rulari/${r.id}`}>
+              <Link key={r.id} to={`/lab/rulari/${r.id}`}>
                 <Card className="h-full hover:-translate-y-0.5 hover:shadow-glow transition-all">
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
@@ -151,7 +151,7 @@ export function RunsPage() {
                     className="border-b border-border/30 hover:bg-elevated/40 transition-colors"
                   >
                     <td className="px-4 py-3">
-                      <Link to={`/rulari/${r.id}`} className="font-mono text-xs hover:text-accent">
+                      <Link to={`/lab/rulari/${r.id}`} className="font-mono text-xs hover:text-accent">
                         {r.id}
                       </Link>
                     </td>

@@ -17,7 +17,7 @@ import { fmt, scenarioMeta, translateStatus } from '../lib/formatters';
 
 const shortcuts = [
   {
-    to: '/antrenare',
+    to: '/lab/antrenare',
     icon: Sparkles,
     title: 'Antrenează agentul',
     description:
@@ -25,7 +25,7 @@ const shortcuts = [
     accent: 'from-sky-400/20',
   },
   {
-    to: '/evaluare',
+    to: '/lab/evaluare',
     icon: Target,
     title: 'Pune agentul la probă',
     description:
@@ -33,7 +33,7 @@ const shortcuts = [
     accent: 'from-emerald-400/20',
   },
   {
-    to: '/editor-mediu',
+    to: '/lab/editor-mediu',
     icon: PencilRuler,
     title: 'Construiește un mediu',
     description:
@@ -41,7 +41,7 @@ const shortcuts = [
     accent: 'from-amber-400/20',
   },
   {
-    to: '/rulari',
+    to: '/lab/rulari',
     icon: Layers,
     title: 'Explorează rulările',
     description:
@@ -49,7 +49,7 @@ const shortcuts = [
     accent: 'from-violet-400/20',
   },
   {
-    to: '/comparatie',
+    to: '/lab/comparatie',
     icon: GitCompareArrows,
     title: 'Compară experimente',
     description:
@@ -110,7 +110,7 @@ export function HomePage() {
           <h2 className="font-serif text-xl text-ink flex items-center gap-2">
             <Brain size={18} className="text-accent" /> Ultima rulare
           </h2>
-          <Link to={`/rulari/${lastRun.id}`}>
+          <Link to={`/lab/rulari/${lastRun.id}`}>
             <Card className="hover:-translate-y-0.5 transition-transform">
               <CardContent className="flex flex-wrap items-center gap-4 justify-between">
                 <div className="space-y-1 min-w-0">
