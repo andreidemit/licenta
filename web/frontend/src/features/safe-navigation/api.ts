@@ -2,12 +2,32 @@ import type { MonteCarloResult, SafeEnvironment, SafeEpisodeResult, SafeNavigati
 
 const API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
 
+async function get<T>(path: string): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API}${path}`);
+  } catch (error) {
+    throw new Error(`Backend unavailable at ${API}. Start the FastAPI server and retry.`);
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = typeof data.detail === 'string' ? data.detail : `Request failed: ${path}`;
+    throw new Error(message);
+  }
+  return data as T;
+}
+
 async function post<T>(path: string, payload: unknown): Promise<T> {
-  const response = await fetch(`${API}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(`Backend unavailable at ${API}. Start the FastAPI server and retry.`);
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = typeof data.detail === 'string' ? data.detail : `Request failed: ${path}`;
@@ -17,6 +37,13 @@ async function post<T>(path: string, payload: unknown): Promise<T> {
 }
 
 export const safeNavigationApi = {
+  status: () =>
+    get<{
+      status: string;
+      algorithms: { id: string; name: string; explanation: string }[];
+      scenarios: { id: string; rows: number; cols: number; wall_probability: number; danger_probability: number }[];
+      defaults: SafeNavigationConfig;
+    }>('/api/safe-navigation/status'),
   preview: (config: SafeNavigationConfig) =>
     post<{ environment: SafeEnvironment; algorithm_explanation: string }>(
       '/api/safe-navigation/preview',

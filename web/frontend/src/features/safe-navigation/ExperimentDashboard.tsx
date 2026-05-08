@@ -9,7 +9,19 @@ function num(value: number) {
   return value.toFixed(1);
 }
 
-export function ExperimentDashboard({ result }: { result?: MonteCarloResult }) {
+export function ExperimentDashboard({ result, busy = false }: { result?: MonteCarloResult; busy?: boolean }) {
+  if (busy) {
+    return (
+      <section className="panel-card comparison-dashboard dashboard-loading">
+        <h2><BarChart3 size={18} /> Comparison Dashboard</h2>
+        <p className="dashboard-caption">
+          Monte Carlo is running across generated maps. This can take a few seconds when learning agents are included.
+        </p>
+        <div className="loading-row"><i /> Comparing agents...</div>
+      </section>
+    );
+  }
+
   if (!result) {
     return (
       <section className="panel-card comparison-dashboard">

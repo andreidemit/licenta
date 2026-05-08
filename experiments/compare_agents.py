@@ -81,7 +81,7 @@ def run_monte_carlo_experiment(
             danger_probability=values["danger_probability"],
             random_seed=seed,
             movement_noise=movement_noise,
-            reward_config=RewardConfig(risk_weight=0.0),
+            reward_config=RewardConfig(risk_weight=risk_weight),
         )
         for agent_spec in agents:
             if isinstance(agent_spec, str):
@@ -99,7 +99,7 @@ def run_monte_carlo_experiment(
                     danger_probability=values["danger_probability"],
                     random_seed=seed,
                     movement_noise=movement_noise,
-                    reward_config=RewardConfig(risk_weight=0.0),
+                    reward_config=RewardConfig(risk_weight=risk_weight),
                 )
                 run_training(agent, train_env, max_steps=max_steps, episodes=training_episodes)
 
@@ -111,7 +111,7 @@ def run_monte_carlo_experiment(
                     danger_probability=values["danger_probability"],
                     random_seed=seed,
                     movement_noise=movement_noise,
-                    reward_config=RewardConfig(risk_weight=0.0),
+                    reward_config=RewardConfig(risk_weight=risk_weight),
                 )
                 results.append(Simulator(eval_env, agent, max_steps=max_steps).run_episode(training=False))
 

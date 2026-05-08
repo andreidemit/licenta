@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Server, ShieldAlert, ShieldCheck } from 'lucide-react';
 import './styles.css';
 import { safeNavigationApi } from './features/safe-navigation/api';
 import { ControlPanel } from './features/safe-navigation/ControlPanel';
@@ -28,6 +28,8 @@ const initialConfig: SafeNavigationConfig = {
   random_seed: 42,
 };
 
+type BusyAction = 'map' | 'episode' | 'monte-carlo';
+
 export function App() {
   const [config, setConfig] = useState(initialConfig);
   const [environment, setEnvironment] = useState<SafeEnvironment>();
@@ -35,66 +37,115 @@ export function App() {
   const [monteCarlo, setMonteCarlo] = useState<MonteCarloResult>();
   const [explanation, setExplanation] = useState('');
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<BusyAction>();
   const [message, setMessage] = useState('Ready');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [showPath, setShowPath] = useState(true);
   const [showRisk, setShowRisk] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
+  const requestId = useRef(0);
 
-  async function generateMap() {
+  const runRequest = useCallback(async <T,>(
+    action: BusyAction,
+    statusMessage: string,
+    task: () => Promise<T>,
+    onSuccess: (response: T) => void,
+  ) => {
+    const id = ++requestId.current;
     setBusy(true);
-    setMessage('Generating solvable map...');
+    setBusyAction(action);
+    setMessage(statusMessage);
+    setErrorMessage('');
     try {
-      const response = await safeNavigationApi.preview(config);
-      setEnvironment(response.environment);
-      setEpisodeResult(undefined);
-      setExplanation(response.algorithm_explanation);
-      setMessage('Map generated');
+      const response = await task();
+      if (id !== requestId.current) return;
+      setBackendStatus('online');
+      onSuccess(response);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Map generation failed');
+      if (id !== requestId.current) return;
+      const detail = error instanceof Error ? error.message : 'Unexpected request failure';
+      setBackendStatus('offline');
+      setErrorMessage(detail);
+      setMessage('Backend connection problem');
     } finally {
-      setBusy(false);
+      if (id === requestId.current) {
+        setBusy(false);
+        setBusyAction(undefined);
+      }
     }
-  }
+  }, []);
 
-  async function runEpisode() {
-    setBusy(true);
-    setMessage('Running episode...');
-    try {
-      const response = await safeNavigationApi.runEpisode(config);
-      setEnvironment(response.environment);
-      setEpisodeResult(response.result);
-      setExplanation(response.algorithm_explanation);
-      setMessage(response.result.success ? 'Episode succeeded' : 'Episode finished without success');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Episode failed');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const generateMap = useCallback(async () => {
+    await runRequest(
+      'map',
+      'Generating solvable map...',
+      () => safeNavigationApi.preview(config),
+      (response) => {
+        setEnvironment(response.environment);
+        setEpisodeResult(undefined);
+        setExplanation(response.algorithm_explanation);
+        setMessage('Map generated');
+      },
+    );
+  }, [config, runRequest]);
 
-  async function runMonteCarlo() {
-    setBusy(true);
-    setMessage('Running Monte Carlo comparison...');
-    try {
-      const response = await safeNavigationApi.monteCarlo(config, [
+  const runEpisode = useCallback(async () => {
+    await runRequest(
+      'episode',
+      'Running episode...',
+      () => safeNavigationApi.runEpisode(config),
+      (response) => {
+        setEnvironment(response.environment);
+        setEpisodeResult(response.result);
+        setExplanation(response.algorithm_explanation);
+        setMessage(response.result.success ? 'Episode succeeded' : 'Episode finished without success');
+      },
+    );
+  }, [config, runRequest]);
+
+  const runMonteCarlo = useCallback(async () => {
+    await runRequest(
+      'monte-carlo',
+      'Running Monte Carlo comparison...',
+      () => safeNavigationApi.monteCarlo(config, [
         'random',
         'rule_based',
         'astar',
         'risk_aware_astar',
         'tabular_q',
         'feature_q',
-      ]);
-      setMonteCarlo(response);
-      setMessage(`Compared ${response.summary.episode_count} episodes`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Monte Carlo failed');
-    } finally {
-      setBusy(false);
-    }
-  }
+      ]),
+      (response) => {
+        setMonteCarlo(response);
+        setMessage(`Compared ${response.summary.episode_count} episodes`);
+      },
+    );
+  }, [config, runRequest]);
 
   useEffect(() => {
-    generateMap();
+    let cancelled = false;
+    async function bootstrap() {
+      setBackendStatus('checking');
+      try {
+        const status = await safeNavigationApi.status();
+        if (cancelled) return;
+        setBackendStatus('online');
+        setErrorMessage('');
+        setExplanation(status.algorithms.find((item) => item.id === config.algorithm)?.explanation ?? '');
+        await generateMap();
+      } catch (error) {
+        if (cancelled) return;
+        setBackendStatus('offline');
+        setMessage('Backend connection problem');
+        setErrorMessage(error instanceof Error ? error.message : 'Could not reach the backend');
+      }
+    }
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+    // Let React development StrictMode rerun this effect; the cleanup cancels stale responses.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -105,11 +156,21 @@ export function App() {
           <p className="eyebrow">Safe Navigation Simulator</p>
           <h1>Simulation and evaluation of autonomous agents in unknown grid-based environments</h1>
         </div>
-        <div className="run-status">
-          <ShieldCheck size={18} />
+        <div className={`run-status backend-${backendStatus}`}>
+          {backendStatus === 'offline' ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
           <span>{busy ? 'Working' : message}</span>
         </div>
       </header>
+      {errorMessage && (
+        <section className="backend-alert">
+          <Server size={17} />
+          <div>
+            <strong>Backend unavailable or returned an error.</strong>
+            <span>{errorMessage}</span>
+          </div>
+          <button type="button" onClick={generateMap} disabled={busy}>Retry</button>
+        </section>
+      )}
 
       <div className="workspace">
         <ControlPanel
@@ -131,7 +192,7 @@ export function App() {
             onToggleRisk={() => setShowRisk((value) => !value)}
             onToggleCoordinates={() => setShowCoordinates((value) => !value)}
           />
-          <ExperimentDashboard result={monteCarlo} />
+          <ExperimentDashboard result={monteCarlo} busy={busyAction === 'monte-carlo'} />
         </div>
         <div className="right-stack">
           <MetricsPanel config={config} result={episodeResult} />

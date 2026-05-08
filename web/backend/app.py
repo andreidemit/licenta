@@ -139,6 +139,16 @@ def health():
     return {"status": "ok"}
 
 
+ALGORITHM_LABELS = {
+    "random": "Random",
+    "rule_based": "Rule-Based",
+    "astar": "A*",
+    "risk_aware_astar": "Risk-Aware A*",
+    "tabular_q": "Tabular Q-Learning",
+    "feature_q": "Feature-Based Q-Learning",
+}
+
+
 ALGORITHM_EXPLANATIONS = {
     "random": RandomAgent().explain(),
     "rule_based": RuleBasedAgent().explain(),
@@ -171,15 +181,35 @@ def _safe_world_from_request(request: SafeNavigationRequest):
         danger_probability=danger_probability,
         random_seed=request.random_seed,
         movement_noise=request.movement_noise,
-        reward_config=RewardConfig(risk_weight=0.0),
+        reward_config=RewardConfig(risk_weight=request.risk_weight),
     )
+
+
+@app.get("/api/safe-navigation/status")
+def safe_navigation_status():
+    return {
+        "status": "ok",
+        "algorithms": [
+            {
+                "id": key,
+                "name": ALGORITHM_LABELS[key],
+                "explanation": ALGORITHM_EXPLANATIONS[key],
+            }
+            for key in ALGORITHM_LABELS
+        ],
+        "scenarios": [
+            {"id": key, **config.__dict__}
+            for key, config in SCENARIOS.items()
+        ],
+        "defaults": SafeNavigationRequest().model_dump(),
+    }
 
 
 @app.get("/api/safe-navigation/algorithms")
 def safe_navigation_algorithms():
     return {
         "algorithms": [
-            {"id": key, "name": key.replace("_", " ").title(), "explanation": value}
+            {"id": key, "name": ALGORITHM_LABELS[key], "explanation": value}
             for key, value in ALGORITHM_EXPLANATIONS.items()
         ],
         "scenarios": [
