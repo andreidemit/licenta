@@ -22,6 +22,7 @@ from src.renderer import Renderer
 from src.q_learning import QLearning
 from src.trainer import Trainer
 from src.analytics import Analytics
+from src.transitions import build_step_feedback
 from src.constants import (
     DEFAULT_EPISODES, MAX_STEPS_PER_EPISODE, ENERGY_MAX,
     SCENARIO_C_SWITCH_EPISODE, ALPHA_SENSITIVITY_VALUES,
@@ -90,22 +91,7 @@ def run_manual(seed=42, grid_size=20):
                     previous_pos = agent.position
                     result = env.try_move(agent.position, action)
                     reason = agent.apply_action_result(result)
-                    last_feedback = {
-                        "action": action,
-                        "reward": result["reward"],
-                        "energy_cost": result["energy_cost"],
-                        "energy_gain": result["energy_gain"],
-                        "energy_delta": result["energy_gain"] - result["energy_cost"],
-                        "previous_pos": previous_pos,
-                        "new_pos": result["new_pos"],
-                        "cell_type": result.get("cell_type").name if hasattr(result.get("cell_type"), "name") else str(result.get("cell_type")),
-                        "terminal_reason": reason,
-                        "is_collision": (
-                            action != 4
-                            and result["reward"] < 0
-                            and result["new_pos"] == previous_pos
-                        ),
-                    }
+                    last_feedback = build_step_feedback(action, result, previous_pos, reason)
                     info["Reward pas"] = f"{result['reward']:.1f}"
                     info["Actiune"] = action
 
@@ -303,22 +289,7 @@ def _run_greedy_replay(env, q, energy, renderer):
             result = env.try_move(agent.position, action)
             reason = agent.apply_action_result(result)
             state = agent.get_state()
-            last_feedback = {
-                "action": action,
-                "reward": result["reward"],
-                "energy_cost": result["energy_cost"],
-                "energy_gain": result["energy_gain"],
-                "energy_delta": result["energy_gain"] - result["energy_cost"],
-                "previous_pos": previous_pos,
-                "new_pos": result["new_pos"],
-                "cell_type": result.get("cell_type").name if hasattr(result.get("cell_type"), "name") else str(result.get("cell_type")),
-                "terminal_reason": reason,
-                "is_collision": (
-                    action != 4
-                    and result["reward"] < 0
-                    and result["new_pos"] == previous_pos
-                ),
-            }
+            last_feedback = build_step_feedback(action, result, previous_pos, reason)
 
         info = {
             "Mod": "Replay Greedy",

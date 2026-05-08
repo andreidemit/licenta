@@ -3,6 +3,7 @@ Bucla de antrenament Q-Learning: rulează episoade, colectează metrici, apelul 
 """
 
 import random
+from dataclasses import dataclass, field
 
 from src.environment import Environment, CellType
 from src.agent import Agent
@@ -11,38 +12,32 @@ from src.constants import (
     MAX_STEPS_PER_EPISODE, DEFAULT_EPISODES, ENERGY_MAX,
     SCENARIO_C_SWITCH_EPISODE, SCENARIO_C_OBSTACLE_RELOCATE_FRACTION,
 )
+from src.transitions import build_step_feedback, is_collision
 
 
+@dataclass(slots=True)
 class EpisodeResult:
     """Rezultatul unui singur episod de antrenament."""
-    __slots__ = ("episode_id", "total_steps", "total_reward", "epsilon",
-                 "outcome", "coverage", "energy_remaining",
-                 "collisions", "food_collected", "mud_steps",
-                 "danger_entries", "energy_spent", "energy_gained",
-                 "action_counts", "mean_abs_td", "q_nonzero", "q_fill_pct")
+    episode_id: int
+    total_steps: int
+    total_reward: float
+    epsilon: float
+    outcome: str
+    coverage: float
+    energy_remaining: float
+    collisions: int = 0
+    food_collected: int = 0
+    mud_steps: int = 0
+    danger_entries: int = 0
+    energy_spent: float = 0.0
+    energy_gained: float = 0.0
+    action_counts: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0])
+    mean_abs_td: float = 0.0
+    q_nonzero: int = 0
+    q_fill_pct: float = 0.0
 
-    def __init__(self, episode_id, total_steps, total_reward, epsilon,
-                 outcome, coverage, energy_remaining, collisions=0,
-                 food_collected=0, mud_steps=0, danger_entries=0,
-                 energy_spent=0.0, energy_gained=0.0, action_counts=None,
-                 mean_abs_td=0.0, q_nonzero=0, q_fill_pct=0.0):
-        self.episode_id = episode_id
-        self.total_steps = total_steps
-        self.total_reward = total_reward
-        self.epsilon = epsilon
-        self.outcome = outcome
-        self.coverage = coverage
-        self.energy_remaining = energy_remaining
-        self.collisions = collisions
-        self.food_collected = food_collected
-        self.mud_steps = mud_steps
-        self.danger_entries = danger_entries
-        self.energy_spent = energy_spent
-        self.energy_gained = energy_gained
-        self.action_counts = list(action_counts) if action_counts is not None else [0, 0, 0, 0, 0]
-        self.mean_abs_td = mean_abs_td
-        self.q_nonzero = q_nonzero
-        self.q_fill_pct = q_fill_pct
+    def __post_init__(self):
+        self.action_counts = list(self.action_counts)
 
 
 class Trainer:
@@ -82,7 +77,6 @@ class Trainer:
         knowledge = self.q.get_knowledge_stats()
         live_metrics = live_metrics or {}
         energy_delta = result["energy_gain"] - result["energy_cost"]
-        cell_type = result.get("cell_type")
 
         return {
             "Episod": episode_id,
@@ -95,22 +89,7 @@ class Trainer:
             "Medie 50 ep": f"{avg_reward:.1f}",
             "Success 50 ep": f"{success_rate:.1f}%",
             "Eveniment": self.last_training_event,
-            "_feedback": {
-                "action": action,
-                "reward": result["reward"],
-                "energy_cost": result["energy_cost"],
-                "energy_gain": result["energy_gain"],
-                "energy_delta": energy_delta,
-                "previous_pos": previous_pos,
-                "new_pos": result["new_pos"],
-                "cell_type": cell_type.name if hasattr(cell_type, "name") else str(cell_type),
-                "terminal_reason": reason,
-                "is_collision": (
-                    action != 4
-                    and result["reward"] < 0
-                    and result["new_pos"] == previous_pos
-                ),
-            },
+            "_feedback": build_step_feedback(action, result, previous_pos, reason),
             "_learning": {
                 "last_update": last_update,
                 "knowledge": knowledge,
@@ -183,12 +162,7 @@ class Trainer:
             previous_pos = agent.position
             result = self.env.try_move(agent.position, action)
             cell_type = result.get("cell_type")
-            is_collision = (
-                action != 4
-                and result["reward"] < 0
-                and result["new_pos"] == previous_pos
-            )
-            if is_collision:
+            if is_collision(action, result, previous_pos):
                 collisions += 1
             if cell_type == CellType.FOOD and result["energy_gain"] > 0:
                 food_collected += 1
