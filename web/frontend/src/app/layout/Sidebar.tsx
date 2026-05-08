@@ -10,12 +10,12 @@ import {
 import { cn } from '../../lib/cn';
 
 const navItems = [
-  { to: '/lab', label: 'Acasă lab', icon: Home, end: true },
-  { to: '/lab/antrenare', label: 'Antrenare', icon: Sparkles },
-  { to: '/lab/rulari', label: 'Rulări', icon: Layers },
-  { to: '/lab/evaluare', label: 'Evaluare', icon: Target },
-  { to: '/lab/editor-mediu', label: 'Editor mediu', icon: PencilRuler },
-  { to: '/lab/comparatie', label: 'Comparație', icon: GitCompareArrows },
+  { to: '/lab', label: 'Legacy home', icon: Home, end: true },
+  { to: '/lab/antrenare', label: 'Legacy training', icon: Sparkles },
+  { to: '/lab/rulari', label: 'Legacy runs', icon: Layers },
+  { to: '/lab/evaluare', label: 'Legacy evaluation', icon: Target },
+  { to: '/lab/editor-mediu', label: 'Legacy map editor', icon: PencilRuler },
+  { to: '/lab/comparatie', label: 'Legacy comparison', icon: GitCompareArrows },
 ];
 
 export function Sidebar() {
@@ -23,10 +23,10 @@ export function Sidebar() {
     <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border/60 bg-surface/40 backdrop-blur px-3 py-5 gap-1">
       <div className="px-3 pb-4 mb-2 border-b border-border/40">
         <p className="font-serif text-lg font-semibold text-ink leading-tight">
-          Q-Learning Lab
+          Legacy Q-Learning Lab
         </p>
         <p className="text-xs text-ink-subtle mt-0.5">
-          Studiu academic · navigare autonomă
+          Original tabular RL workflow
         </p>
       </div>
       <nav className="flex flex-col gap-0.5">

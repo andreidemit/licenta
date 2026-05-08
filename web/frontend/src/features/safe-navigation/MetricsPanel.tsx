@@ -5,6 +5,18 @@ function fmt(value?: number, digits = 1) {
   return value === undefined || Number.isNaN(value) ? '-' : value.toFixed(digits);
 }
 
+function algorithmLabel(value: string) {
+  const labels: Record<string, string> = {
+    random: 'Random',
+    rule_based: 'Rule-Based',
+    astar: 'A*',
+    risk_aware_astar: 'Risk-Aware A*',
+    tabular_q_learning: 'Tabular Q-Learning',
+    feature_q_learning: 'Feature-Based Q-Learning',
+  };
+  return labels[value] ?? value;
+}
+
 export function MetricsPanel({
   config,
   result,
@@ -15,10 +27,23 @@ export function MetricsPanel({
   const status = result ? (result.success ? 'Success' : result.timeout ? 'Timeout' : 'Failed') : 'Ready';
   return (
     <aside className="metrics-panel">
+      <section className="panel-card run-summary-card">
+        <div>
+          <small>Current Algorithm</small>
+          <strong>{algorithmLabel(config.algorithm)}</strong>
+        </div>
+        <b className={`badge ${status.toLowerCase()}`}>{status}</b>
+        <dl>
+          <div><dt>Steps</dt><dd>{result?.steps ?? '-'}</dd></div>
+          <div><dt>Reward</dt><dd>{fmt(result?.total_reward)}</dd></div>
+          <div><dt>Risk</dt><dd>{fmt(result?.total_risk_exposure)}</dd></div>
+        </dl>
+      </section>
+
       <section className="panel-card">
         <h2><Activity size={18} /> Live Metrics</h2>
         <div className="status-row">
-          <span>{config.algorithm.replace(/_/g, ' ')}</span>
+          <span>{algorithmLabel(config.algorithm)}</span>
           <b className={`badge ${status.toLowerCase()}`}>{status}</b>
         </div>
         <div className="metric-grid">

@@ -1,4 +1,4 @@
-import { Eye, Flame, Footprints, Hash } from 'lucide-react';
+import { CircleDot, Eye, Flame, Footprints, Hash } from 'lucide-react';
 import type { SafeEnvironment, SafeEpisodeResult } from './types';
 
 const colors: Record<number, string> = {
@@ -56,7 +56,7 @@ export function GridWorldView({
             const isPath = showPath && pathSet.has(key);
             const isAgent = finalPosition?.[0] === rowIndex && finalPosition?.[1] === colIndex;
             const risk = environment.risk_map?.[rowIndex]?.[colIndex] ?? 0;
-            const riskAlpha = showRisk ? Math.min(0.72, risk / maxRisk) : 0;
+            const riskAlpha = showRisk ? Math.min(0.36, risk / maxRisk * 0.42) : 0;
             return (
               <div
                 key={key}
@@ -79,6 +79,9 @@ export function GridWorldView({
         <span><i style={{ background: colors[2] }} /> Danger</span>
         <span><i style={{ background: colors[3] }} /> Start</span>
         <span><i style={{ background: colors[4] }} /> Goal</span>
+        <span><i className="legend-path" /> Path</span>
+        <span><i className="legend-agent"><CircleDot size={10} /></i> Agent</span>
+        <span><i className="legend-risk" /> Risk</span>
       </div>
     </main>
   );
