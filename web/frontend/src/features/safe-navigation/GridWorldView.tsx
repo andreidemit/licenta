@@ -31,7 +31,7 @@ export function GridWorldView({
   onToggleCoordinates,
 }: Props) {
   if (!environment) {
-    return <main className="visualization empty-stage">Generate a map to begin.</main>;
+    return <main className="visualization empty-stage">Generează o hartă pentru început.</main>;
   }
 
   const pathSet = new Set((result?.path ?? []).map(([row, col]) => `${row}-${col}`));
@@ -41,9 +41,9 @@ export function GridWorldView({
   return (
     <main className="visualization">
       <div className="stage-toolbar">
-        <button className={showPath ? 'toggle active' : 'toggle'} onClick={onTogglePath}><Footprints size={15} /> Path</button>
-        <button className={showRisk ? 'toggle active' : 'toggle'} onClick={onToggleRisk}><Flame size={15} /> Risk Heatmap</button>
-        <button className={showCoordinates ? 'toggle active' : 'toggle'} onClick={onToggleCoordinates}><Hash size={15} /> Coordinates</button>
+        <button className={showPath ? 'toggle active' : 'toggle'} onClick={onTogglePath}><Footprints size={15} /> Traseu</button>
+        <button className={showRisk ? 'toggle active' : 'toggle'} onClick={onToggleRisk}><Flame size={15} /> Hartă risc</button>
+        <button className={showCoordinates ? 'toggle active' : 'toggle'} onClick={onToggleCoordinates}><Hash size={15} /> Coordonate</button>
         <span><Eye size={15} /> {environment.rows}x{environment.cols}</span>
       </div>
       <div
@@ -64,7 +64,7 @@ export function GridWorldView({
                 style={{
                   background: `linear-gradient(rgba(248,113,113,${riskAlpha}), rgba(248,113,113,${riskAlpha})), ${colors[cell] ?? '#f8fafc'}`,
                 }}
-                title={`row ${rowIndex}, col ${colIndex}, risk ${risk.toFixed(1)}`}
+                title={`rând ${rowIndex}, coloană ${colIndex}, risc ${risk.toFixed(1)}`}
               >
                 {showCoordinates && <span>{rowIndex},{colIndex}</span>}
                 {isAgent && <b />}
@@ -74,14 +74,14 @@ export function GridWorldView({
         )}
       </div>
       <div className="legend">
-        <span><i style={{ background: colors[0] }} /> Empty</span>
-        <span><i style={{ background: colors[1] }} /> Wall</span>
-        <span><i style={{ background: colors[2] }} /> Danger</span>
-        <span><i style={{ background: colors[3] }} /> Start</span>
-        <span><i style={{ background: colors[4] }} /> Goal</span>
-        <span><i className="legend-path" /> Path</span>
+        <span><i style={{ background: colors[0] }} /> Liber</span>
+        <span><i style={{ background: colors[1] }} /> Perete</span>
+        <span><i style={{ background: colors[2] }} /> Pericol</span>
+        <span><i style={{ background: colors[3] }} /> Pornire</span>
+        <span><i style={{ background: colors[4] }} /> Obiectiv</span>
+        <span><i className="legend-path" /> Traseu</span>
         <span><i className="legend-agent"><CircleDot size={10} /></i> Agent</span>
-        <span><i className="legend-risk" /> Risk</span>
+        <span><i className="legend-risk" /> Risc</span>
       </div>
     </main>
   );

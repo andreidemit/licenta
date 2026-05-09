@@ -29,7 +29,7 @@ export function RewardAreaChart({
   height = 140,
   stroke = 'hsl(217 91% 70%)',
   fill = 'hsl(217 91% 60%)',
-  ariaLabel = 'Grafic cu evolutia recompensei',
+  ariaLabel = 'Grafic cu evoluția recompensei',
 }: {
   data: RewardPoint[];
   width?: number;
@@ -132,7 +132,7 @@ export function MultiLineChart({
     return (
       <svg width={width} height={height} role="img" aria-label="Grafic gol" className="block">
         <text x={width / 2} y={height / 2} textAnchor="middle" fill="hsl(215 16% 65%)" fontSize={12}>
-          Selecteaza cel putin o rulare.
+          Selectează cel puțin o rulare.
         </text>
       </svg>
     );
@@ -144,7 +144,7 @@ export function MultiLineChart({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label="Grafic comparativ pentru rularile selectate"
+      aria-label="Grafic comparativ pentru rulările selectate"
       className="block"
     >
       <rect x={0} y={0} width={width} height={height} rx={16} fill="transparent" />

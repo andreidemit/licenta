@@ -7,11 +7,11 @@ async function get<T>(path: string): Promise<T> {
   try {
     response = await fetch(`${API}${path}`);
   } catch (error) {
-    throw new Error(`Backend unavailable at ${API}. Start the FastAPI server and retry.`);
+    throw new Error(`Backend-ul nu este disponibil la ${API}. Pornește serverul FastAPI și reîncearcă.`);
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = typeof data.detail === 'string' ? data.detail : `Request failed: ${path}`;
+    const message = typeof data.detail === 'string' ? data.detail : `Cererea a eșuat: ${path}`;
     throw new Error(message);
   }
   return data as T;
@@ -26,11 +26,11 @@ async function post<T>(path: string, payload: unknown): Promise<T> {
       body: JSON.stringify(payload),
     });
   } catch (error) {
-    throw new Error(`Backend unavailable at ${API}. Start the FastAPI server and retry.`);
+    throw new Error(`Backend-ul nu este disponibil la ${API}. Pornește serverul FastAPI și reîncearcă.`);
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = typeof data.detail === 'string' ? data.detail : `Request failed: ${path}`;
+    const message = typeof data.detail === 'string' ? data.detail : `Cererea a eșuat: ${path}`;
     throw new Error(message);
   }
   return data as T;

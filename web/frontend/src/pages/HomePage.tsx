@@ -65,7 +65,7 @@ export function HomePage() {
     <div className="space-y-10">
       <PageHeader
         eyebrow="Laborator academic"
-        title="Q-Learning Lab"
+        title="Laborator Q-Learning"
         description="Un studiu interactiv asupra învățării prin recompensă: configurează experimente, observă agentul în timp real și testează politici învățate pe medii noi."
       />
 

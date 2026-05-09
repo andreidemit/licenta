@@ -30,6 +30,10 @@ const initialConfig: SafeNavigationConfig = {
 
 type BusyAction = 'map' | 'episode' | 'monte-carlo';
 
+function createRandomSeed() {
+  return Math.floor(Math.random() * 1_000_000);
+}
+
 export function App() {
   const [config, setConfig] = useState(initialConfig);
   const [environment, setEnvironment] = useState<SafeEnvironment>();
@@ -38,7 +42,7 @@ export function App() {
   const [explanation, setExplanation] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState<BusyAction>();
-  const [message, setMessage] = useState('Ready');
+  const [message, setMessage] = useState('Gata');
   const [errorMessage, setErrorMessage] = useState('');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [showPath, setShowPath] = useState(true);
@@ -64,10 +68,10 @@ export function App() {
       onSuccess(response);
     } catch (error) {
       if (id !== requestId.current) return;
-      const detail = error instanceof Error ? error.message : 'Unexpected request failure';
+      const detail = error instanceof Error ? error.message : 'Eroare neașteptată la cerere';
       setBackendStatus('offline');
       setErrorMessage(detail);
-      setMessage('Backend connection problem');
+      setMessage('Problemă de conectare la backend');
     } finally {
       if (id === requestId.current) {
         setBusy(false);
@@ -76,16 +80,22 @@ export function App() {
     }
   }, []);
 
-  const generateMap = useCallback(async () => {
+  const generateMap = useCallback(async (options?: { randomizeSeed?: boolean }) => {
+    const nextConfig = options?.randomizeSeed
+      ? { ...config, random_seed: createRandomSeed() }
+      : config;
+
     await runRequest(
       'map',
-      'Generating solvable map...',
-      () => safeNavigationApi.preview(config),
+      'Se generează o hartă rezolvabilă...',
+      () => safeNavigationApi.preview(nextConfig),
       (response) => {
+        setConfig(nextConfig);
         setEnvironment(response.environment);
         setEpisodeResult(undefined);
+        setMonteCarlo(undefined);
         setExplanation(response.algorithm_explanation);
-        setMessage('Map generated');
+        setMessage(`Hartă generată cu sămânța ${nextConfig.random_seed}`);
       },
     );
   }, [config, runRequest]);
@@ -93,13 +103,13 @@ export function App() {
   const runEpisode = useCallback(async () => {
     await runRequest(
       'episode',
-      'Running episode...',
+      'Se rulează episodul...',
       () => safeNavigationApi.runEpisode(config),
       (response) => {
         setEnvironment(response.environment);
         setEpisodeResult(response.result);
         setExplanation(response.algorithm_explanation);
-        setMessage(response.result.success ? 'Episode succeeded' : 'Episode finished without success');
+        setMessage(response.result.success ? 'Episod reușit' : 'Episod finalizat fără succes');
       },
     );
   }, [config, runRequest]);
@@ -107,7 +117,7 @@ export function App() {
   const runMonteCarlo = useCallback(async () => {
     await runRequest(
       'monte-carlo',
-      'Running Monte Carlo comparison...',
+      'Se rulează comparația Monte Carlo...',
       () => safeNavigationApi.monteCarlo(config, [
         'random',
         'rule_based',
@@ -118,7 +128,7 @@ export function App() {
       ]),
       (response) => {
         setMonteCarlo(response);
-        setMessage(`Compared ${response.summary.episode_count} episodes`);
+        setMessage(`Au fost comparate ${response.summary.episode_count} episoade`);
       },
     );
   }, [config, runRequest]);
@@ -137,8 +147,8 @@ export function App() {
       } catch (error) {
         if (cancelled) return;
         setBackendStatus('offline');
-        setMessage('Backend connection problem');
-        setErrorMessage(error instanceof Error ? error.message : 'Could not reach the backend');
+        setMessage('Problemă de conectare la backend');
+        setErrorMessage(error instanceof Error ? error.message : 'Backend-ul nu poate fi contactat');
       }
     }
     bootstrap();
@@ -153,22 +163,22 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Safe Navigation Simulator</p>
-          <h1>Simulation and evaluation of autonomous agents in unknown grid-based environments</h1>
+          <p className="eyebrow">Simulator de navigare sigură</p>
+          <h1>Simularea și evaluarea agenților autonomi în medii necunoscute pe grilă</h1>
         </div>
         <div className={`run-status backend-${backendStatus}`}>
           {backendStatus === 'offline' ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
-          <span>{busy ? 'Working' : message}</span>
+          <span>{busy ? 'Se lucrează' : message}</span>
         </div>
       </header>
       {errorMessage && (
         <section className="backend-alert">
           <Server size={17} />
           <div>
-            <strong>Backend unavailable or returned an error.</strong>
+            <strong>Backend indisponibil sau eroare la răspuns.</strong>
             <span>{errorMessage}</span>
           </div>
-          <button type="button" onClick={generateMap} disabled={busy}>Retry</button>
+          <button type="button" onClick={() => generateMap()} disabled={busy}>Reîncearcă</button>
         </section>
       )}
 
@@ -177,7 +187,7 @@ export function App() {
           config={config}
           busy={busy}
           onChange={setConfig}
-          onPreview={generateMap}
+          onPreview={() => generateMap({ randomizeSeed: true })}
           onEpisode={runEpisode}
           onMonteCarlo={runMonteCarlo}
         />
@@ -195,8 +205,19 @@ export function App() {
           <ExperimentDashboard result={monteCarlo} busy={busyAction === 'monte-carlo'} />
         </div>
         <div className="right-stack">
-          <MetricsPanel config={config} result={episodeResult} />
-          <ExplanationPanel text={explanation} />
+          <MetricsPanel
+            config={config}
+            environment={environment}
+            result={episodeResult}
+            monteCarlo={monteCarlo}
+          />
+          <ExplanationPanel
+            config={config}
+            environment={environment}
+            result={episodeResult}
+            monteCarlo={monteCarlo}
+            text={explanation}
+          />
         </div>
       </div>
     </div>

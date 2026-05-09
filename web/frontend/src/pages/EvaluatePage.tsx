@@ -182,7 +182,7 @@ function Stepper({
   const items: { id: Step; label: string; icon: React.ElementType; available: boolean }[] = [
     { id: 1, label: 'Tabel Q', icon: Database, available: true },
     { id: 2, label: 'Scenariu', icon: MapIcon, available: qtableSelected },
-    { id: 3, label: 'Replay', icon: Target, available: qtableSelected && scenarioSelected },
+    { id: 3, label: 'Redare', icon: Target, available: qtableSelected && scenarioSelected },
   ];
   return (
     <ol className="flex items-center gap-2 text-sm">
@@ -611,7 +611,7 @@ function ReplayControls({
     <Card>
       <CardContent className="py-3 space-y-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={player.reset} aria-label="Reset">
+          <Button variant="ghost" size="icon" onClick={player.reset} aria-label="Resetează redarea">
             <RotateCcw size={16} />
           </Button>
           <Button variant="ghost" size="icon" onClick={player.prev} aria-label="Înapoi un pas">
@@ -663,7 +663,7 @@ function ReplayControls({
           value={player.step}
           onChange={(e) => player.setStep(Number(e.target.value))}
           className="w-full accent-[hsl(var(--accent-primary))]"
-          aria-label="Timeline"
+          aria-label="Cronologie redare"
         />
       </CardContent>
     </Card>

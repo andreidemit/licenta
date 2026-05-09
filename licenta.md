@@ -20,29 +20,29 @@
 
 ### Rezumat în Limba Română
 
-Lucrarea de față prezintă proiectarea, implementarea și analiza experimentală a unui sistem de navigare autonomă bazat pe algoritmul Q-Learning tabular. Sistemul simulează un agent inteligent care navighează o grilă procedural generată de dimensiune 20×20, conținând obstacole, zone de mlaștină, surse de hrană, zone de pericol și o destinație țintă. Contribuția centrală a acestei lucrări constă în integrarea unui mecanism de homeostazie energetică în spațiul de stări al agentului, permițând astfel unui agent cu resurse limitate să dezvolte comportamente de supraviețuire emergente, respectiv să caute hrană atunci când nivelul de energie scade sub un prag critic.
+Lucrarea de față prezintă proiectarea, implementarea și analiza experimentală a unei platforme de simulare pentru agenți autonomi în medii discrete. Nucleul sistemului este un agent Q-Learning tabular care navighează o grilă procedural generată de dimensiune 20×20, conținând obstacole, zone de noroi, surse de hrană, zone de pericol și o destinație țintă. Contribuția centrală a acestei componente constă în integrarea unui mecanism de homeostazie energetică în spațiul de stări al agentului, permițând unui agent cu resurse limitate să învețe politici diferite în funcție de nivelul de energie.
 
 Spațiul de stări este definit ca un triplet $(rând, coloană, nivel\_energie)$, unde nivelul de energie continuu este discretizat în patru grupe, rezultând un Q-table de dimensiune $20 \times 20 \times 4 \times 5 = 8.000$ de intrări, gestionat eficient ca o matrice NumPy. Algoritmul Q-Learning actualizează valorile acestui tabel prin ecuația Bellman la fiecare pas al simulării, iar politica epsilon-greedy asigură echilibrul dintre explorare și exploatare pe parcursul antrenamentului.
 
-Lucrarea evaluează trei scenarii distincte: Scenariul A (energie infinită, navigare pură), Scenariul B (energie limitată la 100 de unități, agent forțat să colecteze hrană) și Scenariul C (mediu dinamic, cu obstacolele relocate la episodul 500). Rezultatele experimentale demonstrează că agentul converge la o rată de succes de 100% în Scenariul A (34 pași greedy), 98% în Scenariul B (38 pași greedy, reward 95,0, energie 84/100, 1.792/8.000 Q nenule) și 97-98% în Scenariul C (36 pași greedy, reward 97,0, 1.902/8.000 Q nenule). Remarcabil, relocarea a 30% din obstacole la episodul 500 în Scenariul C nu a produs regresie de performanță, ci adaptare imediată (+12 pp în 75 episoade).
+Lucrarea evaluează patru scenarii ale sistemului energetic: Scenariul A (energie foarte mare, navigare pură), Scenariul B (energie limitată la 100 de unități), Scenariul C (mediu dinamic, cu obstacole relocate în timpul antrenamentului) și WAREHOUSE (depozit industrial cu rafturi, stații de încărcare și zone de risc). Pachetul reproductibil generat de `src.final_report` pe grid 20×20, seed 42 și 2.000 de episoade obține rată de succes pe ultimele 100 de episoade de 100% în Scenariul A, 96% în Scenariul B, 100% în Scenariul C și 100% în scenariul WAREHOUSE. Evaluările greedy finale ajung la țintă în 34, 38, 12, respectiv 77 de pași.
 
-Lucrarea discută de asemenea aplicabilitatea directă a arhitecturii propuse în sisteme robotice reale, inclusiv roboți de depozit de tip Amazon Kiva, vehicule autonome de livrare, drone de căutare-salvare și roboți agricoli. O implementare concretă sub forma clasei `WarehouseEnvironment` demonstrează maparea directă a problemei de navigare în depozit pe arhitectura Q-Learning existentă.
+Pe lângă nucleul Q-Learning energetic, proiectul include și un cadru separat de „safe navigation” pentru comparația strategiilor de navigare în medii necunoscute. Acesta implementează agenți Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning, un model de risc derivat din apropierea de celule periculoase și experimente Monte Carlo pe hărți generate procedural. Întregul sistem este expus printr-un backend FastAPI și o interfață React/Vite hostabilă în Azure Cloud, ceea ce transformă implementarea într-o aplicație demonstrabilă și reproductibilă, nu doar într-un script de antrenare.
 
-**Cuvinte cheie:** Q-Learning, reinforcement learning, navigare autonomă, homeostazie energetică, grilă procedurală, robotică autonomă, epsilon-greedy, ecuația Bellman.
+**Cuvinte cheie:** Q-Learning, reinforcement learning, navigare autonomă, homeostazie energetică, simulare discretă, navigare sigură, Monte Carlo, FastAPI, React, Azure Cloud.
 
 ---
 
 ### Abstract in English
 
-This thesis presents the design, implementation and experimental analysis of an autonomous navigation system based on tabular Q-Learning. The system simulates an intelligent agent navigating a procedurally generated 20×20 grid containing obstacles, mud zones, food sources, danger zones, and a target destination. The central contribution of this work is the integration of an energy homeostasis mechanism into the agent's state space, enabling a resource-constrained agent to develop emergent survival behaviours — specifically, seeking food when energy drops below a critical threshold.
+This thesis presents the design, implementation and experimental analysis of a simulation platform for autonomous agents in discrete environments. The core system is a tabular Q-Learning agent that navigates a procedurally generated 20×20 grid containing obstacles, mud zones, food sources, danger zones and a target destination. The central contribution of this component is the integration of an energy homeostasis mechanism into the agent's state space, enabling a resource-constrained agent to learn different policies depending on its current energy level.
 
 The state space is defined as a triplet $(row, column, energy\_level)$, where the continuous energy level is discretised into four buckets, yielding a Q-table of size $20 \times 20 \times 4 \times 5 = 8{,}000$ entries, managed efficiently as a NumPy array. The Q-Learning algorithm updates this table via the Bellman equation at every simulation step, while an epsilon-greedy policy balances exploration and exploitation throughout training.
 
-The work evaluates three distinct scenarios: Scenario A (infinite energy, pure navigation), Scenario B (energy capped at 100 units, agent must collect food to survive), and Scenario C (dynamic environment, with obstacles relocated at episode 500). Experimental results demonstrate that the agent achieves 100% success rate in Scenario A (greedy: 34 steps, reward 83.0), 98% in Scenario B (greedy: 38 steps, reward 95.0, energy 84/100, 1,792/8,000 non-zero Q-entries), and 97–98% in Scenario C (greedy: 36 steps, reward 97.0, 1,902/8,000 non-zero). Notably, relocating 30% of obstacles at episode 500 in Scenario C produced no regression — instead, the success rate increased from 69% to 81% within 75 episodes, demonstrating robust implicit transfer learning.
+The work evaluates four scenarios of the energy-aware simulator: Scenario A (very high energy, pure navigation), Scenario B (energy capped at 100 units), Scenario C (dynamic environment, with obstacles relocated during training), and WAREHOUSE (an industrial warehouse layout with shelves, charging stations and risk zones). The reproducible final report generated by `src.final_report` on a 20×20 grid, seed 42 and 2,000 training episodes reaches 100% success in Scenario A, 96% in Scenario B, 100% in Scenario C and 100% in WAREHOUSE over the last 100 episodes. Final greedy evaluations reach the goal in 34, 38, 12 and 77 steps respectively.
 
-The thesis also discusses the direct applicability of the proposed architecture in real robotic systems, including Amazon Kiva warehouse robots, autonomous delivery vehicles, search-and-rescue drones, and agricultural robots. A concrete implementation in the form of a `WarehouseEnvironment` class demonstrates the direct mapping of the warehouse navigation problem onto the existing Q-Learning architecture.
+In addition to the energy-aware Q-Learning core, the project includes a separate safe-navigation framework for comparing navigation strategies in unknown grid worlds. It implements Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning and Feature-Based Q-Learning agents, a risk model based on proximity to dangerous cells, and Monte Carlo experiments across procedurally generated maps. The whole system is exposed through a FastAPI backend and a React/Vite frontend that can be hosted in Azure Cloud, turning the implementation into a reproducible and demonstrable simulation application.
 
-**Keywords:** Q-Learning, reinforcement learning, autonomous navigation, energy homeostasis, procedural grid, autonomous robotics, epsilon-greedy, Bellman equation.
+**Keywords:** Q-Learning, reinforcement learning, autonomous navigation, energy homeostasis, discrete simulation, safe navigation, Monte Carlo, FastAPI, React, Azure Cloud.
 
 ---
 
@@ -75,13 +75,17 @@ The thesis also discusses the direct applicability of the proposed architecture 
    - 4.5 Orchestratorul de antrenament (trainer.py)
    - 4.6 Interfața grafică Pygame (renderer.py)
    - 4.7 Modulul de analiză (analytics.py)
+   - 4.8 Serviciul web, API-ul FastAPI și interfața React
+   - 4.9 Cadrul de navigare sigură și comparație multi-agent
+   - 4.10 Deployment Azure Cloud
 5. Experimentare și Rezultate
    - 5.1 Setup experimental
    - 5.2 Scenariul A: Navigare pură
    - 5.3 Scenariul B: Dilema supraviețuitorului
    - 5.4 Scenariul C: Mediu dinamic
-   - 5.5 Analiza sensibilității la rata de învățare
-   - 5.6 Comparație scenarii și discuții
+   - 5.5 Scenariul WAREHOUSE
+   - 5.6 Navigare sigură și comparație Monte Carlo
+   - 5.7 Comparație scenarii și discuții
 6. Aplicații în Lumea Reală
    - 6.1 Robotică industrială — depozite autonome
    - 6.2 Vehicule autonome de livrare
@@ -123,9 +127,9 @@ Lucrarea de față urmărește atingerea unui set de obiective precise, organiza
 
 **Obiectivul fundamental** este implementarea unui sistem Q-Learning tabular funcțional, capabil să antreneze un agent să navigheze eficient o grilă 2D procedural generată. Sistemul trebuie să demonstreze convergența algoritmului, măsurată prin rata de succes și recompensa medie per episod pe un orizont de antrenament suficient.
 
-**Obiectivele de nivel intermediar** vizează extinderea sistemului de bază cu mecanisme specifice problemei: (1) integrarea componentei energetice în spațiul de stări, cu discretizare în patru grupe de energie; (2) implementarea unui sistem de recompense care penalizează și recompensează acțiunile agentului în mod adecvat problemei de supraviețuire; (3) validarea topologică a hărților generate prin algoritmul de parcurgere în lățime (BFS), garantând existența unui drum de la start la destinație; și (4) evaluarea sistemului în trei scenarii cu constrângeri progresiv mai dificile.
+**Obiectivele de nivel intermediar** vizează extinderea sistemului de bază cu mecanisme specifice problemei: (1) integrarea componentei energetice în spațiul de stări, cu discretizare în patru grupe de energie; (2) implementarea unui sistem de recompense care penalizează și recompensează acțiunile agentului în mod adecvat problemei de supraviețuire; (3) validarea topologică a hărților generate prin algoritmul de parcurgere în lățime (BFS), garantând existența unui drum de la start la destinație; și (4) evaluarea sistemului în patru scenarii: A, B, C și WAREHOUSE.
 
-**Obiectivele de nivel avansat** includ: analiza sensibilității sistemului la variațiile hiperparametrilor (în special rata de învățare $\alpha$), evaluarea adaptabilității agentului la schimbări bruște de mediu, implementarea unui modul de vizualizare interactivă care oferă insight-uri despre politica învățată prin heatmap-uri de valori Q și săgeți de direcție, și discutarea aplicabilității arhitecturii propuse la probleme din lumea reală.
+**Obiectivele de nivel avansat** includ: analiza sensibilității sistemului la variațiile hiperparametrilor, evaluarea adaptabilității agentului la schimbări bruște de mediu, implementarea unui modul de vizualizare interactivă care oferă insight-uri despre politica învățată prin heatmap-uri de valori Q și săgeți de direcție, expunerea simulatorului printr-un API web, construirea unei interfețe React pentru demonstrație și adăugarea unui cadru comparativ de navigare sigură bazat pe experimente Monte Carlo.
 
 ### 1.3 Contribuții Originale
 
@@ -133,11 +137,15 @@ Lucrarea aduce mai multe contribuții originale față de implementările standa
 
 **Contribuția 1 — Homeostazia energetică ca dimensiune a stării.** Deși ideea de a include nivelul de resurse în starea agentului nu este nouă în literature RL, implementarea sa specifică în contextul unui agent de navigare pe grilă cu recompense calibrate pentru supraviețuire reprezintă o arhitectură concretă și evaluată experimental. Discretizarea energiei în patru buckets ($< 25\%$, $25\text{–}50\%$, $50\text{–}75\%$, $\geq 75\%$) și integrarea ei transparentă în Q-table-ul tabular constituie o alegere de design justificată teoretic și validată practic.
 
-**Contribuția 2 — Generare procedurală BFS-validată cu densități configurabile.** Sistemul de generare a hărților garantează, prin validare topologică prin BFS, că fiecare hartă generată are cel puțin un drum de la poziția de start la destinație. Această proprietate este non-trivială în contextul generării aleatoare cu densitate de obstacole de 15%, și este esențială pentru comparabilitatea experim entelor între scenarii.
+**Contribuția 2 — Generare procedurală BFS-validată cu densități configurabile.** Sistemul de generare a hărților garantează, prin validare topologică prin BFS, că fiecare hartă generată are cel puțin un drum de la poziția de start la destinație. Această proprietate este non-trivială în contextul generării aleatoare cu densitate de obstacole de 15%, și este esențială pentru comparabilitatea experimentelor între scenarii.
 
-**Contribuția 3 — Evaluare comparativă pe trei scenarii cu dificultate progresivă.** Organizarea experimentelor în trei scenarii (navigare pură, supraviețuire cu energie limitată, mediu dinamic) permite o analiză sistematică a capacităților și limitelor algoritmului Q-Learning tabular. Fiecare scenariu introduce o constrângere suplimentară și permite izolarea efectului specific al acelei constrângeri asupra comportamentului agentului.
+**Contribuția 3 — Evaluare comparativă pe scenarii cu dificultate progresivă.** Organizarea experimentelor în scenariile A, B, C și WAREHOUSE permite o analiză sistematică a capacităților și limitelor algoritmului Q-Learning tabular. Fiecare scenariu introduce o constrângere suplimentară: navigare simplificată, energie limitată, mediu modificat în timpul antrenamentului și layout industrial fix.
 
-**Contribuția 4 — Maparea directă pe robotică reală prin WarehouseEnvironment.** Implementarea clasei `WarehouseEnvironment` demonstrează că arhitectura propusă poate fi aplicată direct la probleme din lumea reală, cu modificări minime. Aceasta nu este o simplă anologie conceptuală, ci o implementare concretă cu culoate de raft modelate, stații de încărcare și zone de pericol reprezentând utilaje.
+**Contribuția 4 — Studiu de caz industrial prin WarehouseEnvironment.** Implementarea clasei `WarehouseEnvironment` demonstrează cum aceeași interfață de mediu poate modela un depozit industrial simplificat, cu rafturi, culoare, stații de încărcare și zone de risc. Aceasta păstrează același agent și același Q-table, schimbând doar distribuția spațială a celulelor.
+
+**Contribuția 5 — Cadrul comparativ de navigare sigură.** Pachetele `agents/`, `environment/`, `simulation/` și `experiments/` implementează un al doilea simulator GridWorld orientat spre evaluarea siguranței traseului. Acesta permite compararea strategiilor Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning pe hărți generate procedural, folosind metrici precum rata de succes, coliziuni, intrări în pericol, expunere la risc și timp de calcul.
+
+**Contribuția 6 — Aplicație web și reproductibilitate operațională.** Motorul Python este expus printr-un backend FastAPI, iar frontend-ul React/Vite permite antrenarea, evaluarea, editarea mediilor, compararea rulărilor și rularea experimentelor de navigare sigură din browser. Configurația Azure inclusă în repository demonstrează că aplicația poate fi publicată ca sistem cloud, nu doar rulată local.
 
 ### 1.4 Structura Lucrării
 
@@ -147,9 +155,9 @@ Lucrarea este organizată în opt capitole, fiecare contribuind la construcția 
 
 **Capitolul 3** oferă fundamentarea matematică necesară: formalizarea Proceselor Markov de Decizie, derivarea și analiza ecuației Bellman, politica epsilon-greedy și justificarea teoretică a discretizării spațiului de stări.
 
-**Capitolul 4** descrie în detaliu arhitectura modulară a sistemului implementat — șase module de bază pentru bucla RL, completate de modulele `analytics.py` și `warehouse_scenario.py` pentru evaluare și extensia practică — cu explicarea deciziilor de design relevante.
+**Capitolul 4** descrie în detaliu arhitectura modulară a sistemului implementat — nucleul Q-Learning energetic din `src/`, cadrul comparativ de navigare sigură din `agents/`, `environment/`, `simulation/` și `experiments/`, plus API-ul FastAPI, interfața React și infrastructura Azure.
 
-**Capitolul 5** prezintă rezultatele experimentale pentru cele trei scenarii, inclusiv curbele de convergență, analiza de sensibilitate la $\alpha$ și comparația între scenarii.
+**Capitolul 5** prezintă rezultatele experimentale pentru scenariile A, B, C și WAREHOUSE, artefactele generate automat de pachetul final și comparațiile Monte Carlo între agenții de navigare sigură.
 
 **Capitolul 6** discută aplicabilitatea arhitecturii propuse în opt domenii din lumea reală, de la robotică industrială la neuroștiință computațională.
 
@@ -162,7 +170,7 @@ Lucrarea este organizată în opt capitole, fiecare contribuind la construcția 
 Pentru a reduce riscul de nealiniere dintre cod, grafice, prezentare și afirmațiile din text, versiunea finală a proiectului include un flux standardizat de reproducere. Rularea recomandată pentru pachetul complet este:
 
 ```bash
-python -m src.final_report --episodes 2000 --save-qtables
+python3 -m src.final_report --episodes 2000 --save-qtables
 ```
 
 Această comandă execută scenariile A, B, C și WAREHOUSE, generează artefactele standard (`results_*`, `convergence_*`, `epsilon_*`, `success_*`) și scrie un sumar agregat în `data/final_summary_<grid>_<seed>_<episodes>.csv` și `.json`. Pentru demo-uri rapide sau verificări smoke, rulările mai scurte sunt acceptate, însă pentru raportarea rezultatelor finale se păstrează configurațiile standardizate din pachetul final.
@@ -367,7 +375,7 @@ Sistemul implementat funcționează în **timp discret**: la fiecare pas $t$, ag
 
 ### 4.1 Arhitectura Modulară a Sistemului
 
-Sistemul este implementat în Python 3.11 cu o arhitectură modulară organizată după principiul **separării responsabilităților**: șase module formează bucla principală Reinforcement Learning, iar două module suplimentare acoperă analytics-ul și scenariul industrial `WAREHOUSE`. Această structură facilitează testarea independentă a componentelor, modificarea unui modul fără a afecta celelalte și extinderea sistemului cu noi funcționalități.
+Sistemul este implementat ca o platformă modulară de simulare, cu trei straturi principale. Primul strat este motorul Q-Learning energetic din `src/`, responsabil de scenariile A, B, C și WAREHOUSE. Al doilea strat este cadrul comparativ de navigare sigură, împărțit în pachetele `agents/`, `environment/`, `simulation/` și `experiments/`. Al treilea strat este aplicația web: backend FastAPI, frontend React/Vite și infrastructură de deployment Azure. Această organizare permite separarea clară între modelul de simulare, algoritmii de decizie, experimentele statistice și interfața utilizatorului.
 
 ```
 licenta/
@@ -379,19 +387,53 @@ licenta/
 │   ├── q_learning.py     # RL: Q-table, Bellman update, epsilon-greedy
 │   ├── trainer.py        # Orchestrare: bucla de antrenament, run_episode(), EpisodeResult
 │   ├── renderer.py       # GUI: Pygame, heatmap Q-values, săgeți politică
-│   ├── analytics.py      # Export: CSV, grafice Matplotlib
+│   ├── analytics.py      # Export: CSV, grafice Matplotlib, manifest JSON, PNG-uri
+│   ├── serialization.py  # Serializare medii, Q-statistici și evenimente live
+│   ├── simulation_service.py # Servicii reutilizate de CLI și FastAPI
+│   ├── static_environment.py # Medii JSON custom pentru evaluare
+│   ├── transitions.py    # Payload comun pentru evenimentele de tranziție
+│   ├── final_report.py   # Pachet reproductibil A/B/C/WAREHOUSE
 │   └── main.py           # Entry point: argparse, moduri manual/training
+├── agents/
+│   ├── random_agent.py
+│   ├── rule_based_agent.py
+│   ├── astar_agent.py
+│   ├── q_learning_agent.py
+│   └── feature_q_learning_agent.py
+├── environment/
+│   ├── grid_world.py     # Mediu generic pentru navigare sigură
+│   ├── map_generator.py  # Generare procedurală easy/medium/hard/custom
+│   └── risk_model.py     # Hartă de risc în jurul celulelor periculoase
+├── simulation/
+│   ├── simulator.py      # Motor generic care rulează orice BaseAgent
+│   ├── episode_result.py
+│   └── metrics.py        # Agregare Monte Carlo
+├── experiments/
+│   └── compare_agents.py # Comparație agenți pe hărți generate procedural
+├── web/
+│   ├── backend/          # FastAPI, SSE, job store, modele Pydantic
+│   └── frontend/         # React/Vite, pagini de training/evaluare/comparație
+├── infra/                # Bicep pentru Azure Static Web Apps + Container Apps
 ├── tests/
-│   ├── test_quick.py     # Funcționalitate de bază mediu/agent
-│   └── test_convergence.py  # Convergență Q-Learning pe 10×10
+│   ├── test_quick.py
+│   ├── test_convergence.py
+│   ├── test_scenarios.py
+│   ├── test_analytics.py
+│   ├── test_persistence.py
+│   ├── test_warehouse.py
+│   ├── test_web_api.py
+│   ├── test_transitions.py
+│   └── test_safe_navigation.py
 ├── data/                 # Q-tables salvate, CSV-uri, grafice PNG
 ├── requirements.txt
-└── CLAUDE.md
+└── Dockerfile
 ```
 
 **Fluxul de date per pas** urmează un circuit clar: `Renderer` vizualizează starea curentă → `QLearning.choose_action()` selectează o acțiune pe baza stării furnizate de `Agent.get_state()` → `Environment.try_move()` procesează acțiunea și returnează un payload complet de tranziție (poziție nouă, cost energetic, energie câștigată, reward, flag terminal și motiv terminal) → `Agent.apply_action_result()` actualizează starea internă și energia → `QLearning.update()` aplică actualizarea Bellman → `Trainer` înregistrează rezultatul episodului.
 
-Dependențele sunt unidirectionale: `main.py` → `trainer.py` → (`environment.py`, `agent.py`, `q_learning.py`) → `constants.py`. `renderer.py` și `analytics.py` sunt dependențe laterale (nu afectează logica de antrenament).
+Pentru aplicația web, fluxul este extins: frontend-ul React trimite cereri către FastAPI (`/api/train`, `/api/stream/{run_id}`, `/api/evaluate`, `/api/safe-navigation/*`), backend-ul construiește un `SimulationConfig`, creează un job în `JobStore`, rulează motorul Python și publică evenimente live prin Server-Sent Events. Artefactele finale sunt salvate sub `data/runs/` și pot fi descărcate din browser.
+
+Dependențele sunt păstrate pe direcții clare: motorul Q-Learning din `src/` nu depinde de frontend, iar backend-ul web reutilizează funcțiile din `src.simulation_service` în loc să reimplementeze logica în JavaScript. Cadrul de safe navigation este separat de motorul energetic, ceea ce permite folosirea lui pentru comparații Monte Carlo fără să modifice scenariile A/B/C.
 
 ### 4.2 Mediul de Simulare (environment.py) — Generare Procedurală BFS-Validată
 
@@ -599,13 +641,15 @@ Modulul `renderer.py` implementează vizualizarea interactivă a simulării util
 
 ### 4.7 Modulul de Analiză (analytics.py) — CSV, Grafice Convergență
 
-Modulul `analytics.py` colectează și vizualizează datele de antrenament. La finalul fiecărui episod, un rând este adăugat în fișierul CSV:
+Modulul `analytics.py` colectează și vizualizează datele de antrenament. La finalul fiecărui episod, un rând este adăugat în fișierul CSV. În versiunea curentă, exportul nu se limitează la pași, recompensă și epsilon, ci include și coliziuni, hrană colectată, pași prin noroi, intrări în pericol, energie consumată/câștigată, distribuția acțiunilor, eroarea TD medie și gradul de umplere al Q-table-ului:
 
 ```
-episode_id, steps, total_reward, epsilon, outcome, coverage_pct, energy_remaining
-1, 248, -152.0, 0.9950, DEATH_ENERGY, 18.50, 0.0
+episode_id, steps, total_reward, epsilon, outcome, coverage_pct, energy_remaining,
+collisions, food_collected, mud_steps, danger_entries, energy_spent, energy_gained,
+action_up, action_down, action_left, action_right, action_stay, mean_abs_td,
+q_nonzero, q_fill_pct
 ...
-1000, 31, 84.0, 0.0067, SUCCESS, 42.75, 42.0
+2000, 38, 95.0, 0.0100, SUCCESS, 9.50, 84.0, ...
 ```
 
 **Grafice generate automat** prin Matplotlib:
@@ -616,215 +660,258 @@ episode_id, steps, total_reward, epsilon, outcome, coverage_pct, energy_remainin
 4. **Distribuția pașilor** — histogramă a numărului de pași per episod succes;
 5. **Energia minimă atinsă** — evoluția nivelului minim de energie per episod (relevant pentru Scenariile B și C).
 
-Graficele sunt salvate automat ca fișiere PNG în directorul `data/`, cu denumiri descriptive. Un grafic comparativ multi-scenariu este generat la finalul tuturor rulărilor, suprapunând curbele de recompensă pentru A, B și C pe aceeași axă.
+Graficele sunt salvate automat ca fișiere PNG în directorul `data/`, cu denumiri descriptive. În plus, pachetul final produce:
+
+- `manifest_<scenario>_<grid>_<seed>.json` cu configurația, sumarul, statistici despre hartă și lista artefactelor;
+- `map_<scenario>_<grid>_<seed>.png` pentru vizualizarea hărții;
+- `policy_e3_<scenario>_<grid>_<seed>.png` pentru politica greedy la nivel energetic ridicat;
+- `q_heatmap_e3_<scenario>_<grid>_<seed>.png` pentru valorile Q maxime;
+- `visit_heatmap_<scenario>_<grid>_<seed>.png` și `td_heatmap_<scenario>_<grid>_<seed>.png` pentru observabilitatea procesului de învățare;
+- `greedy_trajectory_<scenario>_<grid>_<seed>.csv/.json` și `greedy_path_<scenario>_<grid>_<seed>.png` pentru traseul final;
+- `scenario_comparison_ALL_<grid>_<seed>.png` pentru comparația între scenarii.
+
+### 4.8 Serviciul Web, API-ul FastAPI și Interfața React
+
+Versiunea curentă a proiectului nu este doar un simulator CLI/Pygame, ci și o aplicație web. Backend-ul din `web/backend/app.py` expune motorul Python prin FastAPI. Rutele principale sunt:
+
+| Rută | Rol |
+|------|-----|
+| `/api/health` | Verifică disponibilitatea backend-ului |
+| `/api/scenarios` | Listează scenariile A, B, C și WAREHOUSE |
+| `/api/environments/preview` | Generează o previzualizare de hartă procedurală sau warehouse |
+| `/api/train` | Creează un job de antrenare |
+| `/api/stream/{job_id}` | Transmite evenimente live prin Server-Sent Events |
+| `/api/runs` și `/api/runs/{id}` | Listează și inspectează rulările salvate |
+| `/api/runs/{id}/artifacts/{key}/download` | Descarcă artefacte generate |
+| `/api/qtables` | Listează tabele Q disponibile pentru evaluare |
+| `/api/evaluate` | Rulează o politică greedy pe unul sau mai multe medii JSON |
+| `/api/safe-navigation/*` | Expune experimentele de navigare sigură |
+
+Persistența rulărilor este gestionată de `JobStore`, care scrie indexul în `data/runs/index.json`. Backend-ul validează modelele de request prin Pydantic (`TrainRequest`, `EvaluateRequest`, `EnvironmentPayload`, `SafeNavigationRequest`, `MonteCarloRequest`) și protejează descărcarea artefactelor prin verificarea că fișierele cerute se află sub directorul controlat `RUNS_ROOT`.
+
+Frontend-ul din `web/frontend/` este construit cu React, Vite, React Router, Tailwind CSS și componente UI de tip shadcn/Radix. Interfața include două zone funcționale:
+
+1. **Laboratorul Q-Learning energetic**, disponibil sub `/lab`, cu pagini pentru antrenare, rulări, detalii de rulare, evaluare pe medii noi, editor de mediu și comparație multi-run.
+2. **Simulatorul de navigare sigură**, disponibil pe ruta principală `/`, cu panou de configurare, vizualizare GridWorld, hartă de risc, replay al traseului, metrici și comparație Monte Carlo între algoritmi.
+
+Separarea este intenționată: laboratorul Q-Learning arată homeostazia energetică și artefactele de licență, iar simulatorul de navigare sigură arată comparația algoritmică și legătura directă cu tehnicile de simulare statistică.
+
+### 4.9 Cadrul de Navigare Sigură și Comparație Multi-Agent
+
+Pentru a întări componenta de tehnici de simulare, proiectul include un cadru separat de navigare sigură în medii GridWorld necunoscute. Acesta este organizat astfel:
+
+| Pachet | Responsabilitate |
+|--------|------------------|
+| `environment/` | Tipuri de celule, `GridWorld`, generare procedurală, model de risc |
+| `agents/` | Strategii de decizie: Random, Rule-Based, A*, Risk-Aware A*, Q-Learning |
+| `simulation/` | Motor generic de episod, tranziții, rezultate și agregări |
+| `experiments/` | Experimente Monte Carlo și comparație între agenți |
+
+`GridWorld` folosește celule `EMPTY`, `WALL`, `DANGER`, `START` și `GOAL`. Spre deosebire de mediul energetic din `src/environment.py`, acest mediu introduce explicit expunerea la risc. Clasa `RiskModel` calculează o hartă de risc pe baza distanței Manhattan față de celulele `DANGER`: celula de pericol are cost mare, celulele la distanța 1 au cost intermediar, iar riscul scade până la distanța 3.
+
+Funcția de recompensă este configurabilă prin `RewardConfig`:
+
+| Componentă | Valoare implicită | Semnificație |
+|------------|------------------:|--------------|
+| goal | +100 | Recompensă pentru atingerea obiectivului |
+| danger | -100 | Penalizare terminală pentru intrarea în pericol |
+| wall | -10 | Penalizare pentru coliziune |
+| step | -1 | Cost de timp per pas |
+| closer | +2 | Shaping pentru apropierea de obiectiv |
+| farther | -2 | Penalizare pentru îndepărtare |
+| risk_weight | configurabil | Penalizare proporțională cu riscul local |
+
+Algoritmii comparați au roluri diferite:
+
+- `RandomAgent` oferă baseline-ul minim;
+- `RuleBasedAgent` evită pereți/pericole imediate și reduce distanța Manhattan;
+- `AStarAgent` planifică drumul cel mai scurt cu euristică Manhattan;
+- `RiskAwareAStarAgent` optimizează distanța plus costul de risc;
+- `TabularQLearningAgent` învață valori Q pentru coordonate absolute;
+- `FeatureBasedQLearningAgent` învață pe baza unor features locale reutilizabile între hărți.
+
+Experimentele Monte Carlo rulează acești agenți pe mai multe hărți generate procedural, cu seed-uri controlate. Metricile agregate includ rata de succes, recompensa medie, pași medii, coliziuni, intrări în pericol, expunere totală la risc, cost total și timp mediu de calcul. Această parte este importantă pentru lucrare deoarece trece de la un singur episod demonstrativ la evaluare statistică pe distribuții de medii.
+
+### 4.10 Deployment Azure Cloud
+
+Repository-ul include și infrastructura pentru publicarea aplicației în Azure Cloud. Arhitectura de deployment este:
+
+```text
+Azure Static Web Apps
+  React/Vite frontend din web/frontend
+
+Azure Container Apps
+  Backend FastAPI + motorul Python de simulare
+
+Azure Files
+  Persistență pentru data/runs, Q-table-uri, CSV, JSON și PNG
+
+Azure Container Registry
+  Imagine Docker pentru backend
+
+Application Insights + Log Analytics
+  Observabilitate, loguri și erori backend
+```
+
+Fișierul `Dockerfile` construiește imaginea backend-ului, iar `infra/main.bicep` definește resursele Azure: Static Web App, Container Registry, Storage Account, File Share, Log Analytics, Application Insights, Container Apps Environment și Container App. Workflow-urile GitHub Actions din `.github/workflows/` separă provisioning-ul infrastructurii, deployment-ul backend-ului și deployment-ul frontend-ului.
+
+Această componentă nu schimbă algoritmul Q-Learning, dar este relevantă pentru demonstrație: aplicația poate fi accesată de coordonator sau comisie din browser, cu backend Python real, artefacte persistente și interfață completă pentru experimente.
 
 ---
 
 ## Capitolul 5: Experimentare și Rezultate
 
-### 5.1 Setup Experimental
+### 5.1 Setup Experimental și Reproductibilitate
 
-Toate experimentele au fost efectuate pe același hardware (procesor Intel Core i7-1165G7, 16 GB RAM, fără GPU dedicat) pentru comparabilitate. Configurația de bază:
+Experimentele principale sunt generate prin modulul `src.final_report`, care rulează scenariile A, B, C și WAREHOUSE, exportă CSV-uri, grafice, imagini de hartă, heatmap-uri Q, trasee greedy și manifest JSON. Comanda standard utilizată pentru pachetul final este:
+
+```bash
+python3 -m src.final_report --episodes 2000 --save-qtables
+```
+
+Configurația standard pentru scenariile A, B și C este:
 
 | Parametru | Valoare |
 |-----------|---------|
 | Dimensiune grilă | 20×20 |
-| Seed generare hartă | 42 |
-| Număr episoade | 2.000 |
+| Seed hartă | 42 |
+| Episoade antrenare | 2.000 |
 | Pași maximi per episod | 500 |
-| Rata de învățare $\alpha$ | 0.1 |
-| Factorul de actualizare $\gamma$ | 0.95 |
-| Epsilon start | 1.0 |
-| Epsilon min | 0.01 |
+| Rata de învățare α | 0.1 |
+| Factor de discount γ | 0.95 |
+| Epsilon inițial | 1.0 |
+| Epsilon minim | 0.01 |
 | Epsilon decay | 0.995 |
+| Niveluri energie | 4 buckets |
+| Acțiuni | sus, jos, stânga, dreapta, stai |
 
-Toate mediile raportate sunt calculate pe 5 rulări independente cu seed-uri diferite (42, 43, 44, 45, 46), iar intervalele de încredere (95%) sunt raportate acolo unde variabilitatea este semnificativă.
+Pentru scenariul WAREHOUSE, dimensiunea rămâne 20×20, dar harta nu este generată aleator: `WarehouseEnvironment` folosește un layout fix, cu rafturi, culoare, stații de încărcare și zone de pericol. Rezultatele raportate în acest capitol provin din `data/final_summary_20_42_2000.csv` și din artefactele asociate generate în directorul `data/`.
 
-**Metrici de evaluare principale:**
+Metricile principale sunt:
 
-- **Rata de succes** — procentul episoadelor în care agentul ajunge la destinație;
-- **Recompensa medie** — media recompenselor totale per episod (media mobilă pe 100 episoade);
-- **Lungimea medie a drumului** — numărul mediu de pași în episoadele reușite;
-- **Numărul de celule Q non-zero** — indicator al gradului de explorare al spațiului de stări;
-- **Episodul de convergență** — primul episod după care rata de succes rămâne peste 90% (sau alt prag specific scenariului).
+- **success_rate_last_100** — rata de succes pe ultimele 100 de episoade;
+- **avg_reward_last_100** — recompensa medie pe ultimele 100 de episoade;
+- **greedy_outcome** — rezultatul politicii greedy după antrenare;
+- **greedy_steps** — numărul de pași al traseului greedy final;
+- **greedy_reward** — recompensa totală a traseului greedy;
+- **greedy_energy** — energia rămasă la finalul traseului greedy;
+- **q_nonzero / q_total** — gradul de populare a Q-table-ului.
 
-### 5.2 Scenariul A: Navigare Pură (Energie Infinită)
+### 5.2 Rezultate Agregate pentru Scenariile A, B, C și WAREHOUSE
 
-**Configurare:** Energia agentului este setată la infinit — niciodată nu scade sub zero. Agentul nu poate muri din cauza energiei epuizate. Celulele FOOD există pe hartă, dar colectarea lor nu aduce beneficiu energetic (sunt tratate ca celule EMPTY). Scopul este pur: ajunge la TARGET în minimum de pași.
+Rezultatele finale generate de pachetul reproductibil sunt:
 
-**Spațiul de stări efectiv** se reduce la $20 \times 20 \times 1 \times 5 = 2.000$ intrări (nivelul de energie este mereu bucket 3), deși Q-table-ul menține toate cele 8.000 de intrări, cu celelalte bucket-uri rămânând la zero.
+| Scenariu | Success last 100 | Reward mediu last 100 | Greedy outcome | Greedy pași | Greedy reward | Energie greedy | Q nenule / total |
+|----------|-----------------:|----------------------:|----------------|------------:|--------------:|---------------:|-----------------:|
+| A | 100.00% | 98.50 | target_reached | 34 | 99.00 | 88.0 | 1.982 / 8.000 |
+| B | 96.00% | 86.86 | target_reached | 38 | 95.00 | 84.0 | 2.117 / 8.000 |
+| C | 100.00% | 88.79 | target_reached | 12 | 89.00 | 88.0 | 2.335 / 8.000 |
+| WAREHOUSE | 100.00% | 71.23 | target_reached | 77 | 72.00 | 67.0 | 4.609 / 8.000 |
 
-**Rezultate:**
+Aceste valori arată că agentul învață politici funcționale în toate cele patru configurații. Diferențele dintre scenarii sunt importante:
 
-| Metrică | Valoare | Detalii |
-|---------|---------|---------|
-| Episod de convergență | ~500 | Rata de succes atinge 91% la ep. 500 |
-| Rata de succes finală | 100% | 100/100 episoade (ultimele 100) |
-| Reward mediu (ultimele 100 ep.) | 83,0 | |
-| Lungimea drum greedy | 34 pași | Evaluare post-antrenament |
-| Reward greedy final | 83,0 | |
-| Energie rămasă (greedy) | 86/100 | (energie infinită, dar energia scade natural) |
-| Q-table intrări nenule | 1.898 / 8.000 | 23,7% explorat |
+- Scenariul A are cea mai simplă structură decizională, deoarece energia este setată la o valoare foarte mare și nu devine constrângere reală.
+- Scenariul B introduce constrângerea energetică: agentul trebuie să evite epuizarea energiei și poate beneficia de celulele FOOD.
+- Scenariul C testează adaptarea după schimbarea mediului; Q-table-ul nu este resetat, iar agentul continuă învățarea pe noua configurație.
+- WAREHOUSE are cel mai mare număr de valori Q nenule, deoarece structura de depozit creează culoare lungi, multe stări vizitate repetat și politici mai specializate.
 
-**Progresul antrenamentului (date reale, grid 20×20, seed 42, 2.000 episoade):**
+### 5.3 Scenariul A: Navigare cu Energie Foarte Mare
 
-| Episod | Avg Reward | Avg Pași | Success Rate | Epsilon |
-|--------|-----------|----------|--------------|---------|
-| 100 | -140,3 | 53,0 | 4,0% | 0,6058 |
-| 200 | -123,1 | 53,5 | 5,0% | 0,3670 |
-| 300 | -70,8 | 54,8 | 28,0% | 0,2223 |
-| 400 | 22,4 | 47,8 | 74,0% | 0,1347 |
-| 500 | 68,5 | 38,0 | 91,0% | 0,0816 |
-| 800 | 81,1 | 35,8 | 98,0% | 0,0181 |
-| 900 | 83,0 | 34,5 | 100,0% | 0,0110 |
-| 2000 | 83,0 | 34,8 | 100,0% | 0,0100 |
+Scenariul A folosește aceeași hartă procedurală ca scenariile B și C, dar energia inițială este setată la o valoare foarte mare (`999999`). Agentul tot consumă energie la fiecare pas, însă epuizarea nu este o constrângere practică. Din acest motiv, problema se apropie de navigarea clasică spre țintă cu obstacole și penalizare per pas.
 
-**Analiza curbei de convergență.** Fazele distincte observabile pe curba de recompensă medie:
-- **Episoadele 0–200:** Recompensă medie ≈ −140. Agentul explorează aleatoriu, lovește frecvent obstacole. Rata de succes < 5%.
-- **Episoadele 200–500:** Recompensă crește rapid (−123 → +68). Agentul descoperă traseele spre TARGET, acumulează gradienți Q utili.
-- **Episoadele 500–900:** Convergență rapidă. Rata de succes trece de 91% la ep. 500 și atinge 100% la ep. 900.
-- **Episoadele 900–2.000:** Faza de rafinare — politica stabilă la 97–100% success rate.
+Rezultatul final este foarte stabil: rata de succes pe ultimele 100 de episoade este 100%, iar politica greedy ajunge la țintă în 34 de pași, cu reward 99.0. Q-table-ul are 1.982 intrări nenule din 8.000, ceea ce indică explorarea unei părți relevante din spațiul de stări, fără a vizita exhaustiv toate combinațiile poziție-energie-acțiune.
 
-**Politica vizualizată** prin heatmap la finalul antrenamentului arată un gradient clar de valori Q, cu maximele lângă TARGET și descreștere monotonă spre periferie (în absența obstacolelor). Obstacolele creează „bariere de valori mici" pe care politica le ocolește corect.
+Artefactele asociate acestui scenariu sunt:
 
-**Interpretarea ineficienței de 8.5% față de BFS.** Diferența de 2.4 pași față de optim este explicabilă prin două factori: (1) Politica epsilon-greedy cu $\varepsilon_{min} = 0.01$ introduce 1% acțiuni aleatoare chiar și după convergență; (2) Funcția de recompensă nu recompensează explicit optimitatea — agentul nu primește bonus pentru drumul cel mai scurt, ci doar pentru a ajunge la destinație. O funcție de recompensă cu shaping suplimentar (de exemplu, reward proporțional cu $1/\text{distanță\_la\_target}$) ar putea reduce acest gap.
+- `data/results_A_20_42.csv` — istoricul episoadelor;
+- `data/convergence_A_20_42.png` — curba recompensei;
+- `data/success_A_20_42.png` — rata de succes;
+- `data/policy_e3_A_20_42.png` — politica greedy la energie ridicată;
+- `data/q_heatmap_e3_A_20_42.png` — heatmap-ul valorilor Q;
+- `data/greedy_path_A_20_42.png` — traseul greedy final.
 
-### 5.3 Scenariul B: Dilema Supraviețuitorului (Energie Limitată)
+### 5.4 Scenariul B: Supraviețuire cu Energie Limitată
 
-**Configurare:** Energia inițială este 100 de unități; scade cu 1 pe celulă EMPTY, 2 pe MUD, și poate fi recuperată cu +20 prin colectare FOOD. Agentul moare dacă energia ajunge la 0 sau intră pe o celulă DANGER. Harta conține suficientă hrană (densitate 5%) pentru a supraviețui, dar traseele spre hrană sunt deseori suboptimale față de traseul direct spre TARGET.
+Scenariul B este scenariul principal pentru homeostazia energetică. Agentul pornește cu 100 de unități de energie, consumă energie la deplasare, consumă mai mult pe noroi, câștigă energie prin colectarea hranei și moare dacă energia ajunge la zero sau intră într-o celulă DANGER.
 
-**Complexitatea sporită față de Scenariul A.** Agentul trebuie acum să rezolve o problemă de optimizare multidimensională: găsirea echilibrului optim între lungimea drumului și nivelul de energie. Politica optimă nu este un simplu drum shortest-path, ci un drum care vizitează strategic celulele de hrană exact când este necesar.
+Rata de succes pe ultimele 100 de episoade este 96%, iar politica greedy finală atinge ținta în 38 de pași, cu reward 95.0 și 84 unități de energie rămase. Comparativ cu Scenariul A, traseul greedy este mai lung, dar mai robust energetic. Această diferență susține ideea că aceeași poziție poate necesita acțiuni diferite în funcție de nivelul de energie.
 
-**Rezultate:**
+Q-table-ul are 2.117 intrări nenule, mai mult decât în Scenariul A. Explicația este că agentul vizitează mai multe bucket-uri energetice, nu doar bucket-ul de energie ridicată. Aceasta confirmă rolul discretizării energiei în starea MDP: agentul nu învață doar unde se află, ci și ce poate permite starea sa internă.
 
-| Metrică | Valoare | Detalii |
-|---------|---------|---------|
-| Episod de convergență | ~600–700 | Rata succes >80% după ep. 600 |
-| Rata de succes finală | 98% | 98/100 episoade (ultimele 100) |
-| Reward mediu (ultimele 100 ep.) | 90,8 | Convergență stabilă |
-| Lungimea medie drum (greedy) | 38 pași | Cu detour strategic pentru hrană |
-| Reward greedy final | 95,0 | Episod greedy post-antrenament |
-| Energie rămasă (greedy) | 84/100 | Comportament homostatic eficient |
-| Q-table intrări nenule | 1.792 / 8.000 | 22,4% din spațiul de stări explorat |
+### 5.5 Scenariul C: Mediu Dinamic cu Obstacole Relocate
 
-**Progresul antrenamentului (date din rularea grid 20×20, seed 42, 2.000 episoade):**
+Scenariul C testează adaptabilitatea la o schimbare structurală a mediului. În timpul antrenamentului, o fracțiune din obstacole este relocată, iar harta modificată devine noua hartă de bază pentru episoadele următoare. Q-table-ul nu este resetat; agentul păstrează cunoașterea acumulată și o actualizează în noul mediu.
 
-| Episod | Avg Reward | Avg Pași | Success Rate | Epsilon |
-|--------|-----------|----------|--------------|---------|
-| 100 | -140,5 | 53,4 | 5,0% | 0,6058 |
-| 200 | -120,6 | 51,7 | 6,0% | 0,3670 |
-| 300 | -71,9 | 58,6 | 31,0% | 0,2223 |
-| 400 | 14,3 | 52,7 | 71,0% | 0,1347 |
-| 500 | 31,2 | 39,8 | 72,0% | 0,0816 |
-| 600 | 59,0 | 34,5 | 82,0% | 0,0494 |
-| 700 | 72,5 | 37,7 | 89,0% | 0,0299 |
-| 800 | 81,1 | 36,6 | 93,0% | 0,0181 |
-| 900 | 86,8 | 37,3 | 96,0% | 0,0110 |
-| 1000 | 87,0 | 37,3 | 96,0% | 0,0100 |
-| 1300 | 94,8 | 38,2 | 100,0% | 0,0100 |
-| 2000 | 90,8 | 37,8 | 98,0% | 0,0100 |
+Rezultatul final din pachetul standard este foarte bun: 100% succes pe ultimele 100 de episoade și traseu greedy de 12 pași. Q-table-ul are 2.335 intrări nenule, peste scenariile A și B, ceea ce este coerent cu necesitatea de a explora atât configurația inițială, cât și configurația post-relocare.
 
-**Comportamentul emergent de supraviețuire.** Analiza politicii învățate revelă că agentul tratează diferit aceleași celule în funcție de nivelul de energie:
-- **Energy bucket 3 (≥75%):** Agentul urmează cel mai direct drum spre TARGET, ignorând celulele FOOD.
-- **Energy bucket 2 (50–75%):** Agentul ocolește MUD-ul mai mult, dar nu deviază masiv spre hrană.
-- **Energy bucket 1 (25–50%):** Agentul face detour dacă o celulă FOOD este la cel mult 3–4 pași distanță.
-- **Energy bucket 0 (<25%):** Agentul prioritizează urgent hrană față de TARGET, chiar dacă înseamnă un detour semnificativ. Acesta este comportamentul de supraviețuire pur.
+Interpretarea trebuie formulată prudent: nu este vorba despre transfer learning în sensul rețelelor neurale, ci despre reutilizarea valorilor Q într-un mediu parțial modificat. Totuși, experimental, agentul nu pornește de la zero după perturbare, iar valorile acumulate anterior pot accelera readaptarea atunci când zone importante ale hărții rămân similare.
 
-Această diferențiere a politicii pe bucket-uri demonstrează că adăugarea componentei energetice la spațiul de stări nu este redundantă — agentul a dezvoltat politici genuinoasă diferite pentru niveluri diferite de energie.
+### 5.6 Scenariul WAREHOUSE: Depozit Industrial Simplificat
 
-**Analiza ratei de converge mai lente.** Convergența la 1.200 episoade față de 600 în Scenariul A este explicabilă prin creșterea complexității politicii optime: agentul trebuie să exploreze nu doar spațiul pozițional, ci și interacțiunile dintre energie și poziție. Spațiul de stări efectiv utilizat crește de la 2.000 stări (bucket 3 dominant) la toate cele 6.400 stări cu energie < 75% (bucket-uri 0, 1, 2). Fiecare nouă stare necesită explorare și propagarea valorilor Q.
+Scenariul WAREHOUSE folosește clasa `WarehouseEnvironment`, care suprascrie generarea procedurală și construiește un layout fix 20×20. Harta conține:
 
-### 5.4 Scenariul C: Mediu Dinamic (Obstacole Relocate)
+- rafturi reprezentate ca obstacole;
+- culoare traversabile;
+- stații de încărcare reprezentate prin celule FOOD;
+- zone de pericol reprezentând zone de operare pentru utilaje;
+- poziție de start și destinație fixă.
 
-**Configurare:** Agentul este antrenat pe o hartă fixă pentru primele 500 de episoade (identică cu Scenariul A). La episodul 500, obstacolele sunt relocate aleatoriu (cu seed diferit), Q-table-ul este păstrat intact. Antrenamentul continuă până la episodul 2.000. La episodul 700, mai are loc o a doua relocare a obstacolelor (opțional, pentru testarea adaptabilității la perturbări repetate).
+Rezultatul final este 100% succes pe ultimele 100 de episoade, cu traseu greedy de 77 de pași, reward 72.0 și 67 energie rămasă. Numărul de intrări Q nenule este 4.609 / 8.000, semnificativ mai mare decât în A/B/C. Acest lucru arată că layout-ul de depozit produce o explorare mai largă a spațiului de stări, probabil din cauza culoarelor lungi, a blocurilor de rafturi și a numărului mai mare de trasee utile prin stațiile de încărcare.
 
-**Scopul:** Evaluarea capacității agentului de a se readapta la schimbări bruște de mediu, utilizând cunoașterea acumulată ca punct de plecare (transfer learning implicit).
+Față de scenariile procedurale, WAREHOUSE nu urmărește să fie o simulare fidelă a unui depozit real cu roboți multipli, ci un studiu de caz: aceeași interfață `Environment` poate reprezenta un mediu structurat manual, apropiat conceptual de o problemă logistică.
 
-**Rezultate:**
+### 5.7 Navigare Sigură și Comparație Monte Carlo
 
-**Progresul antrenamentului (date reale, 1.500 episoade, relocare la ep. 500):**
+Pe lângă experimentele A/B/C/WAREHOUSE, codul curent include un cadru de navigare sigură orientat spre comparația algoritmilor pe distribuții de hărți. Acesta este accesibil prin API-ul `/api/safe-navigation/*` și prin interfața React principală.
 
-| Episod | Avg Reward | Avg Pași | Success Rate | Epsilon |
-|--------|-----------|----------|--------------|---------|
-| 75 | -149,4 | 50,6 | 2,7% | 0,6866 |
-| 300 | -36,1 | 57,6 | 46,7% | 0,2223 |
-| 450 | 32,1 | 33,6 | 69,3% | 0,1048 |
-| **500** | **[RELOCARE OBSTACOLE]** | | | 0,0720 |
-| 525 | 57,3 | 35,3 | 81,3% | 0,0720 |
-| 600 | 68,3 | 35,6 | 86,7% | 0,0494 |
-| 750 | 85,5 | 41,8 | 97,3% | 0,0233 |
-| 900 | 94,1 | 36,2 | 98,7% | 0,0110 |
-| 1500 | 91,5 | 35,9 | 97,3% | 0,0100 |
+Scenariile predefinite sunt:
 
-**Evaluare greedy finală:** 36 pași, reward 97,0, energie rămasă 86, 98/100 success.  
-**Q-table:** 1.902 intrări nenule din 8.000.
+| Scenariu | Dimensiune | Probabilitate pereți | Probabilitate pericol |
+|----------|-----------:|---------------------:|----------------------:|
+| easy | 10×10 | 0.10 | 0.05 |
+| medium | 15×15 | 0.20 | 0.10 |
+| hard | 20×20 | 0.25 | 0.15 |
 
-| Metrică | Valoare | Detalii |
-|---------|---------|---------|
-| Rata de succes la ep. 450 (pre-schimbare) | 69,3% | Performanță în creștere pe harta originală |
-| Rata de succes la ep. 525 (post-schimbare) | 81,3% | Continuă creșterea — adaptare rapidă |
-| Episoade pentru re-convergență la 90% | ~75 ep. | Ep. 525→600: 81%→87% |
-| Rata de succes finală (ep. 1.500) | 97,3% | Depășește performanța pre-schimbare |
-| Q-table intrări nenule | 1.902 / 8.000 | Ușor mai mare decât scenariul B |
+Algoritmii comparați sunt:
 
-**Analiza adaptării la perturbație.** Remarcabil, relocarea obstacolelor la ep. 500 NU a produs o scădere de performanță — dimpotrivă, rata de succes a crescut imediat de la 69,3% (ep. 450) la 81,3% (ep. 525). Aceasta se explică prin faptul că relocarea a avut loc exact când epsilon scăzuse la 0.072 — agentul era deja în faza de exploatare parțială și putea naviga eficient prin zonele nemodificate ale hărții (gradientul de valori Q spre TARGET rămânând valid). Modificarea obstacolelor a afectat doar o fracțiune (30%) din grid, iar culoarele principale de navigare au rămas accesibile.
+| Algoritm | Tip | Necesită antrenare | Observație |
+|----------|-----|-------------------|------------|
+| Random | baseline | Nu | Alege acțiuni aleatoriu |
+| Rule-Based | euristic | Nu | Evită pericole imediate și reduce distanța Manhattan |
+| A* | planificare | Nu | Caută traseu scurt cu euristică Manhattan |
+| Risk-Aware A* | planificare cu cost de risc | Nu | Preferă trasee mai sigure chiar dacă sunt mai lungi |
+| Tabular Q-Learning | RL tabular | Da | Învață Q pe coordonate absolute |
+| Feature-Based Q-Learning | RL pe features | Da | Învață pe pereți/pericole locale și direcția obiectivului |
 
-**Readaptarea în sub 100 de episoade** (față de ~450 pentru antrenare de la zero) demonstrează că Q-Learning poate beneficia de o formă de transfer learning implicit: valorile Q inițializate din antrenamentul anterior oferă un punct de start cu mult mai bun decât inițializarea cu zero.
+Experimentul Monte Carlo generează mai multe hărți rezolvabile cu seed-uri controlate, rulează fiecare agent și agregă metricile. Această componentă adaugă proiectului o dimensiune de simulare statistică: performanța nu mai este judecată doar pe o singură hartă, ci pe o distribuție de medii.
 
-**Influența ratei de învățare la readaptare:**
+Metricile agregate sunt:
 
-| $\alpha$ | Episoade pentru 90% rata succes post-schimbare |
-|----------|----------------------------------------------|
-| 0.05 | ~280 episoade |
-| 0.10 | ~180 episoade |
-| 0.20 | ~120 episoade |
-| 0.30 | ~95 episoade |
-| 0.50 | ~80 episoade (dar instabil) |
+- rata de succes;
+- recompensa medie;
+- numărul mediu de pași;
+- numărul mediu de coliziuni;
+- rata episoadelor cu coliziuni;
+- numărul mediu de intrări în pericol;
+- expunerea medie la risc;
+- costul total mediu;
+- rata de timeout;
+- timpul mediu de calcul.
 
-Valorile mari ale lui $\alpha$ accelerează readaptarea (valorile vechi sunt rapid suprascrise cu informație nouă), dar introduc instabilitate în stările neafectate de schimbare (valorile Q valide sunt perturbate de actualizări prea agresive).
+Această parte completează Q-Learning-ul energetic cu o comparație între algoritmi clasici și algoritmi de învățare. În special, diferența dintre A* și Risk-Aware A* arată cum o funcție de cost modificată poate produce comportament mai sigur fără învățare, iar comparația dintre Tabular Q-Learning și Feature-Based Q-Learning ilustrează problema generalizării: coordonatele absolute învață bine pe harta de training, dar features locale pot transfera mai bine pe hărți nevăzute.
 
-### 5.5 Analiza Sensibilității la Rata de Învățare α
+### 5.8 Discuții
 
-Rata de învățare $\alpha$ controlează câtă informație nouă suprascrie informația veche la fiecare actualizare Bellman. Experimentele de sensibilitate evaluează impactul lui $\alpha$ pe Scenariul C, 1.500 episoade, seed=42 (rulare reală cu `--alpha-sensitivity`):
+Rezultatele indică două concluzii complementare. Prima este că Q-Learning tabular este suficient de puternic pentru scenarii discrete moderate, mai ales când spațiul de stări este mic și interpretabil. A doua este că, pentru navigare pe hărți noi, algoritmii de planificare precum A* rămân foarte competitivi, iar variantele risk-aware pot fi preferabile când siguranța contează mai mult decât lungimea minimă a traseului.
 
-| $\alpha$ | Ep. conv. (80% succes) | Success rate final | Reward final | Greedy (pași) | Greedy (reward) |
-|----------|----------------------|-------------------|-------------|---------------|-----------------|
-| **0.05** | ~600 | **98%** | **+114.6** | **12** | **+119.0** |
-| 0.10 | ~825 | 95% | +85.4 | 38 | +95.0 |
-| 0.20 | ~825 | 97% | +89.1 | 38 | +95.0 |
+Din perspectiva lucrării de licență, valoarea proiectului nu stă doar în obținerea unei politici Q bune, ci în platforma completă de simulare: generare procedurală validată BFS, scenarii parametrizabile, export de date, artefacte vizuale, API web, interfață cloud și comparații Monte Carlo. Aceasta aliniază proiectul atât cu tematica de Reinforcement Learning, cât și cu disciplina de tehnici de simulare.
 
-**Rezultat surprinzător:** α = 0.05 produce cea mai bună performanță — atât ca success rate cât și ca calitate a politicii greedy (12 pași vs. 38 pași pentru α=0.1/0.2). Actualizările conservative (α mic) permit politicii să se rafineze mai gradual, evitând oscilațiile care apar la α=0.1–0.2 după convergența inițială.
-
-Graficul comparativ generat: `data/alpha_comparison_C_20_42.png`
-
-**Concluzie.** Spre deosebire de intuiția că α=0.1 este optim, experimentul real pe Scenariul C cu perturbație arată că α = 0.05 produce politici de calitate superioară. Explicația: rata mică de învățare protejează cunoștințele acumulate pre-perturbație, folosindu-le ca fundament pentru re-adaptare, în loc să le suprascrie agresiv.
-
-### 5.6 Comparație Scenarii și Discuții
-
-Tabloul comparativ final al celor trei scenarii:
-
-| Metrică | Scenariu A | Scenariu B | Scenariu C |
-|---------|-----------|-----------|-----------|
-| Complexitate problemă | Mică | Medie | Mare |
-| Episoade convergență (~90%) | ~900 | ~900 | ~900 |
-| Rata succes finală | **100%** | **98%** | **97-98%** |
-| Greedy — pași | 34 | 38 | 36 |
-| Greedy — reward | 83.0 | **95.0** | 97.0 |
-| Energie rămasă (greedy) | 86/100 | 84/100 | 86/100 |
-| Q-table nenule / 8.000 | 1.898 | 1.792 | 1.902 |
-| Comportament emergent | Navigare directă | Pit-stops homeostatice | Adaptare imediată |
-
-**Discuție privind limitele abordării tabulare.** Q-Learning tabular demonstrează o performanță excelentă în toate cele trei scenarii, cu convergență garantată și trasabilitate completă. Cu toate acestea, abordarea nu scalează la probleme cu spații de stări mari: o grilă de 100×100 cu 8 bucket-uri de energie ar necesita $100 \times 100 \times 8 \times 5 = 400.000$ de intrări — gestionabil, dar comenzile de explorare ar crește exponențial. O grilă 1.000×1.000 ar face abordarea tabular practic infezabilă.
-
-**Q-table-ul după antrenament** conține circa 60–78% valori non-zero (în funcție de scenariu), ceea ce indică o explorare bună dar nu exhaustivă a spațiului de stări. Stările non-zero corespund în mare parte celulelor traversabile de pe harta cu seed 42; obstacolele și celulele de pericol nu sunt vizitate (și rămân la zero). Analiza heatmap-ului relevă gradienți clari: celulele adiacente TARGET au valorile Q cele mai mari, cu descreștere monotonă (în medie) spre periferie.
-
----
 
 ## Capitolul 6: Aplicații în Lumea Reală
 
 ### 6.1 Robotică Industrială — Depozite Autonome (Amazon Kiva)
 
-Sistemul de roboți Amazon Kiva (redenumit Amazon Robotics în 2015) reprezintă cea mai largă implementare comercială a principiilor similare cu cele explodate în această lucrare. Flota Amazon numără peste 750.000 de roboți activi în 2024, navigând în depozite de peste 100.000 m² pentru a transporta rafturi întregi de produse la stațiile de împachetare. Problema pe care o rezolvă fiecare robot Kiva este structural identică cu Scenariul B din această lucrare: navigare eficientă într-un mediu cu obstacole dinamice (alți roboți, rafturi în mișcare), cu constrângere energetică (bateria robotului, cu stații de încărcare similare celulelor FOOD).
+Sistemul de roboți Amazon Kiva, ulterior integrat în Amazon Robotics, reprezintă un exemplu comercial relevant pentru principiile discutate în această lucrare. Roboții mobili din depozite trebuie să navigheze printre rafturi, să evite blocaje și să își gestioneze bateria în raport cu stațiile de încărcare. Problema este mai complexă decât scenariul WAREHOUSE din proiect, dar are aceeași structură conceptuală: navigare într-un mediu cu obstacole, constrângeri operaționale și resurse energetice limitate.
 
 Diferențele față de simularea noastră sunt de scară și complexitate: harta unui depozit Amazon este continuă (nu discretizată pe grilă), există sute de agenți simultan (problema multi-agent), obstacolele sunt dinamice (alți roboți în mișcare), și constrângerile de timp real sunt stricte (robotul trebuie să reacționeze în milisecunde). Cu toate acestea, principiile fundamentale — navigare cu evitarea obstacolelor, gestionarea energiei, convergența prin trial-and-error — sunt aceleași.
 
@@ -904,159 +991,147 @@ Una dintre cele mai fascinante conexiuni ale Q-Learning este cu neuroștiința: 
 
 ## Capitolul 7: Simulare Practică — Robotul de Depozit
 
-### 7.1 Prezentarea Problemei: Navigare în Depozit Amazon-Style
+### 7.1 Prezentarea Problemei
 
-Implementarea `WarehouseEnvironment` extinde sistemul de bază pentru a simula specific contextul unui depozit automatizat de tip Amazon Kiva. Depozitul este modelat ca o grilă cu topologie specifică: culoarele de acces formează o rețea regulată printre rafturile de produse, cu stații de încărcare distribuite strategic și zone de pericol reprezentând utilaje grele (stivuitoare) care se mișcă pe trasee fixe.
+Scenariul `WAREHOUSE` modelează o problemă simplificată de navigare într-un depozit industrial. Scopul nu este reproducerea completă a unui sistem comercial de roboți mobili, ci demonstrarea faptului că arhitectura Q-Learning implementată poate fi reutilizată pe un mediu structurat manual, diferit de hărțile generate aleator.
 
-**Specificul față de mediul generic:**
+În această reprezentare, depozitul este o grilă 20×20 cu zone funcționale:
 
-| Aspect | Mediu generic | WarehouseEnvironment |
-|--------|--------------|---------------------|
-| Obstacole | Distribuite aleatoriu 15% | Rafturi în configurație de grilă regulată |
-| Hrană | Distribuită aleatoriu 5% | Stații de încărcare la capetele culoarelor |
-| Pericol | Distribuit aleatoriu 3% | Zone fixe de trecere a stivuitoarelor |
-| Target | Un singur punct fix | Stație de picking cu coordonate specificate la runtime |
-| Constrângere energie | Energie generală | Baterie robot (autonomie 4 ore = 1.440 pași la 10 secunde/pas) |
+| Element din depozit | Reprezentare în simulator |
+|--------------------|---------------------------|
+| Culoar navigabil | `EMPTY` |
+| Raft de depozitare | `OBSTACLE` |
+| Intersecție aglomerată / zonă cu deplasare dificilă | `MUD` |
+| Stație de încărcare | `FOOD` |
+| Zonă de operare stivuitor | `DANGER` |
+| Zonă de recepție | `START` |
+| Zonă de expediere | `TARGET` |
 
-**Scenariul specific de evaluare:** Un robot de depozit pornește de la stația de încărcare (START), trebuie să ajungă la un raft specificat (TARGET) pentru a prelua un produs, și să returneze la stația de pachetare — un ciclu tipic în operațiunea unui depozit real. Bateria permite circa 15–20 de cicluri complete fără reîncărcare; stațiile de încărcare rapidă sunt disponibile la capetele fiecărui culoar.
+Această mapare permite reutilizarea directă a funcției de tranziție, a sistemului energetic și a Q-table-ului. Agentul interpretează stațiile de încărcare ca surse de energie, rafturile ca obstacole, iar zonele de stivuitor ca stări terminale negative.
 
-### 7.2 Maparea pe Arhitectura Q-Learning Existentă
+### 7.2 Implementarea WarehouseEnvironment
 
-Eleganta principală a `WarehouseEnvironment` este că se mapează direct pe interfațele definite de mediul generic, necesitând zero modificări în `agent.py`, `q_learning.py` sau `trainer.py`. Schimbările sunt exclusiv în `environment.py`:
-
-**Generatorul de hartă** este înlocuit cu un generator specific depozitului:
-
-```python
-def _generate_warehouse_grid(self):
-    """
-    Generează layout de depozit cu rafturi în configurație de grilă.
-    Culoarele ocupă coloanele pare; rafturile - coloanele impare.
-    Stațiile de încărcare la rândul 0 și N-1, coloane pare.
-    Zonele de pericol (stivuitoare) la rândul 1 și N-2, coloane pare.
-    """
-    for r in range(self.rows):
-        for c in range(self.cols):
-            if c % 2 == 1:  # Coloană impară = raft (obstacol)
-                self.grid[r, c] = CellType.OBSTACLE
-            elif r == 0 or r == self.rows - 1:
-                if c % 4 == 0:  # La 4 coloane: stație de încărcare
-                    self.grid[r, c] = CellType.FOOD  # Refolosim FOOD pentru stații
-            elif r == 1 or r == self.rows - 2:
-                if c % 6 == 0:  # La 6 coloane: zonă stivuitor
-                    self.grid[r, c] = CellType.DANGER
-```
-
-**Funcția `try_move()`** este identică cu mediul generic — nu necesită modificări. Costurile energetice și recompensele sunt moștenite din `constants.py`.
-
-**Starea MDP** rămâne $(rând, coloană, bucket\_energie)$ — mappingul direct pe Q-table este identic.
-
-### 7.3 Implementarea WarehouseEnvironment
-
-Clasa `WarehouseEnvironment` extinde `Environment` prin suprascrierea metodei de generare a hărții și adăugarea unor metrici specifice depozitului:
+Clasa `WarehouseEnvironment` se află în `src/warehouse_scenario.py` și extinde clasa generică `Environment`. Spre deosebire de `Environment`, care construiește harta procedural prin densități de obstacole, noroi, hrană și pericol, `WarehouseEnvironment` folosește un layout fix definit printr-o listă de șiruri de caractere:
 
 ```python
-class WarehouseEnvironment(Environment):
-    """
-    Mediu de simulare specific depozitelor autonome.
-    Extinde Environment cu layout de depozit și metrici operaționale.
-    """
-    
-    def __init__(self, rows: int = 20, cols: int = 20, 
-                 n_charging_stations: int = 5,
-                 n_forklift_zones: int = 3,
-                 seed: int = 42):
-        self.n_charging_stations = n_charging_stations
-        self.n_forklift_zones = n_forklift_zones
-        super().__init__(rows, cols, seed)
-    
-    def _generate_map(self):
-        """Override generare hartă cu layout specific depozitului."""
-        self._generate_warehouse_grid()
-        self._place_charging_stations()
-        self._place_forklift_danger_zones()
-        self._validate_or_regenerate()
-    
-    def get_operational_metrics(self) -> dict:
-        """Returnează metrici specifice operaționale depozitului."""
-        return {
-            'picks_per_charge_cycle': self._calculate_picks_per_cycle(),
-            'avg_aisle_traversal_time': self._calculate_aisle_time(),
-            'charging_efficiency': self._calculate_charging_efficiency(),
-            'collision_avoidance_rate': self._calculate_collision_rate()
-        }
+_WAREHOUSE_LAYOUT = [
+    list("S.................."),
+    list("..................."),
+    list("..................."),
+    list(".WWW.WWW.WWW.WWW.WW."),
+    ...
+    list("D..................D"),
+    list("..................."),
+    list("....T.............."),
+]
 ```
 
-**Metrici specifice depozitului** sunt calculale pe baza episoadelor de evaluare:
+Simbolurile sunt mapate la `CellType` astfel:
 
-- **Picks per charge cycle:** Numărul mediu de cicluri start→picking→retur completate înainte de o reîncărcare necesară;
-- **Avg aisle traversal time:** Numărul mediu de pași pentru traversarea unui culoar complet;
-- **Charging efficiency:** Procentul de energie câștigat față de costul de deplasare la stația de încărcare (eficiența detourului);
-- **Collision avoidance rate:** Procentul de situații de proximitate cu zonele de pericol care au fost evitate cu succes.
+```python
+_SYMBOL_TO_CELL = {
+    "S": CellType.START,
+    "T": CellType.TARGET,
+    "W": CellType.OBSTACLE,
+    "F": CellType.FOOD,
+    "M": CellType.MUD,
+    "D": CellType.DANGER,
+    ".": CellType.EMPTY,
+}
+```
 
-### 7.4 Rezultate și Metrici
+Constructorul impune dimensiunea 20×20, deoarece layout-ul este proiectat manual pentru această grilă. Metoda `generate()` ignoră seed-ul și reconstruiește harta fixă, apoi validează existența unui drum cu BFS. Metoda `reset()` reface layout-ul inițial la fiecare episod, asigurând reproductibilitatea antrenamentului.
 
-Antrenamentul pe `WarehouseEnvironment` cu aceleași hiperparametri ca Scenariul B generează rezultate comparabile, cu câteva particularități specifice structurii de depozit:
+`WarehouseEnvironment` adaugă și metoda `get_warehouse_stats()`, care returnează statistici utile pentru raportare:
 
-| Metrică | WarehouseEnv | Scenariu B generic |
-|---------|-------------|-------------------|
-| Episoade convergență | ~1.000 | ~700 |
-| Rata succes finală | 99% | 98% |
-| Lungime drum greedy | 49 pași | 38 pași |
-| Overhead față de BFS optim | +26 pași (+113%) | N/A |
-| Energie rămasă (greedy) | 67/100 | 84/100 |
-| Picks per charge cycle | 12.3 cicluri | N/A |
-| Aisle traversal time | 8.7 pași | N/A |
+- numărul total de celule;
+- numărul de rafturi;
+- numărul de culoare libere;
+- numărul de stații de încărcare;
+- numărul de zone MUD;
+- numărul de zone DANGER;
+- distanța BFS optimă;
+- coordonatele startului și ale țintei.
 
-**Convergența mai lentă** (1.400 vs. 1.200 episoade) în `WarehouseEnvironment` este cauzată de topologia mai restrictivă: culoarele înguste lasă mai puțin spațiu pentru manevre alternative, crescând numărul de stări care necesită politici precise. În mediul generic, agentul poate naviga „în jurul" obstacolelor prin mai multe rute alternative; în depozit, mulți nodi ai grilei au un singur culoar de acces.
+### 7.3 Rezultate Experimentale WAREHOUSE
 
-**Politica de reîncărcare emergentă** este deosebit de interesantă: agentul a învățat să viziteze stațiile de încărcare nu doar când energia e critică (bucket 0), ci profilactic la bucket 1 dacă stația este pe traseul natural spre TARGET. Aceasta este o politică de tip „fill-up" — identică cu comportamentul optim al roboților Kiva reali, care sunt programați să se încarce ori de câte ori trec pe lângă o stație cu mai puțin de 30% baterie.
+În pachetul final, scenariul WAREHOUSE este rulat cu aceiași hiperparametri de bază ca scenariile A/B/C, dar cu harta fixă de depozit. Rezultatele din `data/final_summary_20_42_2000.csv` sunt:
 
-### 7.5 Comparație cu Abordări Comerciale (ROS, OpenAI Gym)
+| Metrică | Valoare |
+|---------|--------:|
+| Episoade | 2.000 |
+| Rata succes ultimele 100 episoade | 100.00% |
+| Reward mediu ultimele 100 episoade | 71.23 |
+| Greedy outcome | target_reached |
+| Greedy pași | 77 |
+| Greedy reward | 72.00 |
+| Energie rămasă greedy | 67.0 |
+| Q nenule | 4.609 / 8.000 |
 
-**ROS (Robot Operating System)** este platforma de software standard pentru robotica de cercetare, oferind un framework pentru comunicarea între noduri, acces la driver-e de senzori și suite de planificare a mișcării. ROS Nav Stack (navigation stack) implementează un planificator de trasee bazat pe A* cu actualizarea dinamică a costmap-urilor — soluție mai robustă decât Q-Learning tabular, dar incomparabil mai complexă și mai greu de înțeles.
+Comparativ cu scenariile procedurale, WAREHOUSE are cel mai mare număr de intrări Q nenule. Acest lucru este explicabil prin structura hărții: culoarele lungi, stațiile de încărcare și zonele de risc creează multe stări relevante, iar agentul explorează mai mult din spațiul de poziții și energie.
 
-**OpenAI Gym** oferă o colecție de medii de benchmark pentru RL, incluzând FrozenLake-v1 (o grilă cu gheață și găuri) care este structural similar cu mediul nostru. Diferențele față de implementarea din lucrare: FrozenLake are tranziții stochastice (gheața alunecă), nu include componenta energetică, și nu are generare procedurală. `WarehouseEnvironment` poate fi expusă ca un mediu OpenAI Gym-compatible prin implementarea interfeței `gym.Env`, permițând benchmarkarea directă față de alți algoritmi RL.
+Traseul greedy este mai lung decât în scenariile A/B/C, dar acest lucru nu este un defect. Harta de depozit este mai restrictivă, iar rafturile formează blocuri care obligă agentul să circule prin culoare. Într-un mediu de depozit, eficiența nu se reduce doar la distanța Manhattan, ci include evitarea zonelor periculoase și menținerea energiei.
 
-**Comparație directă:**
+### 7.4 Artefacte Generate
 
-| Criteriu | WarehouseEnv (Q-Learning) | ROS Nav Stack | OpenAI Gym FrozenLake |
-|----------|--------------------------|---------------|----------------------|
-| Cunoaștere prealabilă a hărții | Nu necesară | Necesară (SLAM) | N/A (mediu simulator) |
-| Adaptare la mediu dinamic | Da (Scenariul C) | Parțial (costmap updates) | Nu |
-| Componenta energetică | Da | Nu standard | Nu |
-| Transparență politică | Completă (Q-table) | Redusă | Completă |
-| Scalabilitate | Limitată la grilă mică | Generalistă | Limitată la benchmark |
-| Cost computațional antrenament | Scăzut (secunde-minute) | N/A (planificare on-line) | Scăzut-mediu |
+Pentru scenariul WAREHOUSE, pachetul final produce aceleași tipuri de artefacte ca pentru scenariile procedurale:
 
----
+| Artefact | Fișier |
+|----------|--------|
+| Istoric episoade | `data/results_WAREHOUSE_20_0.csv` |
+| Curba recompensei | `data/convergence_WAREHOUSE_20_0.png` |
+| Decăderea epsilon | `data/epsilon_WAREHOUSE_20_0.png` |
+| Rata de succes | `data/success_WAREHOUSE_20_0.png` |
+| Harta depozitului | `data/map_WAREHOUSE_20_0.png` |
+| Politica greedy | `data/policy_e3_WAREHOUSE_20_0.png` |
+| Heatmap valori Q | `data/q_heatmap_e3_WAREHOUSE_20_0.png` |
+| Heatmap vizite | `data/visit_heatmap_WAREHOUSE_20_0.png` |
+| Heatmap TD-error | `data/td_heatmap_WAREHOUSE_20_0.png` |
+| Traseu greedy | `data/greedy_path_WAREHOUSE_20_0.png` |
+| Q-table | `data/qtable_WAREHOUSE_20_0.npy` |
+| Manifest | `data/manifest_WAREHOUSE_20_0.json` |
+
+Aceste artefacte fac scenariul verificabil: un evaluator poate vedea harta, traseul, politica, valorile Q și istoricul episoadelor fără să ruleze din nou întregul antrenament.
+
+### 7.5 Interpretare
+
+Scenariul WAREHOUSE susține o concluzie importantă: arhitectura proiectului este reutilizabilă. `Trainer`, `Agent` și `QLearning` nu trebuie modificați pentru a lucra pe un mediu nou, atât timp cât mediul respectă contractul `Environment`: poziție de start, poziție țintă, grilă, `try_move()` și BFS pentru validare.
+
+Totuși, scenariul rămâne o aproximare. Un depozit real ar include mai mulți roboți, obstacole dinamice, planificare centralizată, priorități de sarcini, rezervări de culoare și constrângeri de timp real. Implementarea curentă trebuie interpretată ca un studiu de caz educațional și experimental, nu ca o soluție industrială completă.
+
 
 ## Capitolul 8: Concluzii și Direcții Viitoare
 
 ### 8.1 Concluzii Principale
 
-Lucrarea de față a demonstrat că Q-Learning tabular, augmentat cu o componentă de homeostazie energetică în spațiul de stări, constituie o soluție elegantă, eficientă și interpretabilă pentru problema navigării autonome cu constrângeri de supraviețuire. Principalele concluzii sunt:
+Lucrarea de față a demonstrat că Q-Learning tabular, augmentat cu o componentă de homeostazie energetică în spațiul de stări, poate rezolva eficient probleme de navigare autonomă în medii discrete moderate. În același timp, proiectul a evoluat dincolo de un simplu script RL, devenind o platformă de simulare cu experimente reproductibile, aplicație web și comparații Monte Carlo între strategii de navigare.
 
-**Concluzia 1 — Eficiența Q-Learning tabular în spații de stări mici.** Pe o grilă 20×20 cu 4 buckets energetice (8.000 intrări în Q-table), algoritmul converge la politici cu 100% rată de succes în Scenariul A (ep. 900), 98% în Scenariul B (ep. 2.000, greedy: 38 pași, reward 95,0) și 97-98% în Scenariul C (ep. 900, greedy: 36 pași, reward 97,0), cu un timp de antrenament de ordinul minutelor pe hardware standard. Aceasta demonstrează că, pentru probleme cu spații de stări moderate și deterministe, abordarea tabulară rămâne superioară DQN din perspectiva eficienței computaționale și a garanțiilor de convergență.
+**Concluzia 1 — Q-Learning tabular este eficient și interpretabil pentru grile moderate.** Pe o grilă 20×20 cu 4 niveluri energetice și 5 acțiuni, Q-table-ul are 8.000 de intrări, suficient de puțin pentru a fi inspectabil și ușor de antrenat. Pachetul final obține 100% succes pe ultimele 100 de episoade în Scenariul A, 96% în Scenariul B, 100% în Scenariul C și 100% în WAREHOUSE. Această performanță confirmă că abordarea tabulară este potrivită pentru un proiect educațional și experimental în care interpretabilitatea este la fel de importantă ca performanța.
 
-**Concluzia 2 — Homeostazia energetică generează comportamente emergente non-triviale.** Adăugarea nivelului de energie ca dimensiune a stării MDP produce un agent care dezvoltă politici calitativ diferite în funcție de starea energetică — navigare directă la energie ridicată, detour strategic spre hrană la energie scăzută. Acest comportament nu este programat explicit, ci emerge din procesul de optimizare Q-Learning. Aceasta validează principiul că îmbogățirea spațiului de stări cu variabile interne relevante produce comportamente mai complexe și mai adaptive.
+**Concluzia 2 — Homeostazia energetică îmbogățește comportamentul agentului.** Adăugarea energiei în starea MDP face ca aceeași poziție din hartă să poată avea politici diferite în funcție de nivelul energetic. Agentul nu optimizează doar distanța până la țintă, ci și supraviețuirea, evitarea costurilor mari și folosirea surselor de energie atunci când acestea sunt relevante.
 
-**Concluzia 3 — Adaptabilitatea la mediu dinamic prin transfer implicit.** Scenariul C demonstrează că Q-table-ul acumulat pe o hartă poate fi reutilizat ca punct de start pentru antrenamentul pe o hartă modificată, reducând numărul de episoade de re-convergență de la ~600 la ~180. Aceasta este o formă de transfer learning implicit, validând că cunoașterea generală acumulată (gradienții de valori spre TARGET, politicile de ocolire a obstacolelor în general) se transferă între configurații specifice diferite.
+**Concluzia 3 — Mediul poate fi schimbat fără rescrierea agentului.** `WarehouseEnvironment` arată că aceeași interfață de mediu poate descrie o hartă procedurală sau un layout industrial fix. `Trainer`, `Agent` și `QLearning` rămân neschimbate, ceea ce validează separarea responsabilităților din arhitectură.
 
-**Concluzia 4 — Aplicabilitate directă în robotică reală.** Implementarea `WarehouseEnvironment` demonstrează că arhitectura propusă se mapează direct pe probleme reale cu modificări minime. Principiile identificate — navigare cu constrângeri energetice, pit-stop-uri profilactice, adaptare la schimbări de mediu — sunt relevante pentru sisteme robotice reale, de la Amazon Kiva la drone SAR și roboți agricoli.
+**Concluzia 4 — Platforma susține reproductibilitatea experimentală.** Modulul `src.final_report` generează într-un singur flux CSV-uri, grafice, manifest JSON, Q-table-uri, heatmap-uri și trasee greedy. Acest lucru reduce riscul ca textul lucrării, prezentarea și codul să raporteze rezultate diferite.
 
-**Concluzia 5 — Valoarea pedagogică a implementării tabulare.** Comparativ cu DQN și alte abordări bazate pe rețele neurale, Q-Learning tabular oferă trasabilitate completă: fiecare valoare Q poate fi inspectată, fiecare decizie poate fi justificată prin valorile Q comparate. Această proprietate, combinată cu vizualizările heatmap și săgeți de politică, face implementarea un instrument valoros pentru înțelegerea intuitivă a mecanismelor RL.
+**Concluzia 5 — Cadrul de navigare sigură completează partea de tehnici de simulare.** Experimentele Monte Carlo din `experiments/compare_agents.py` compară mai mulți agenți pe distribuții de hărți generate procedural. Această componentă extinde proiectul dincolo de un singur agent RL și introduce evaluare statistică, baseline-uri și metrici de risc.
+
+**Concluzia 6 — Aplicația web face proiectul demonstrabil.** Backend-ul FastAPI și frontend-ul React/Vite permit rularea experimentelor din browser, vizualizarea traseelor și descărcarea artefactelor. Infrastructura Azure arată că sistemul poate fi publicat ca aplicație cloud, utilă pentru demonstrația în fața coordonatorului sau a comisiei.
+
 
 ### 8.2 Limitări ale Abordării
 
 **Limitarea 1 — Scalabilitatea la spații de stări mari.** Dimensiunea Q-table-ului crește liniar cu produsul dimensiunilor fiecărei componente a stării. O grilă de 100×100 cu 8 buckets energetice ar necesita $100 \times 100 \times 8 \times 5 = 400.000$ intrări — gestionabil. Dar o grilă 1.000×1.000 (dimensiunea realistă a unui depozit mare) cu 16 buckets energetice și 8 acțiuni ar necesita $1.000 \times 1.000 \times 16 \times 8 = 128.000.000$ intrări — impractică atât ca memorie, cât și ca explorare completă.
 
-**Limitarea 2 — Mediu determinist.** Implementarea curentă presupune tranziții deterministe ($P(s'|s,a) \in \{0, 1\}$). Mediile reale au perturbații stochastice: senzori cu zgomot, actuatori imperfecți, obstacole dinamice neplanificate. Extinderea la medii stochastice ar necesita evaluarea așteptată a valorilor Q, nu simpla operație max.
+**Limitarea 2 — Nucleul energetic este în principal determinist.** Scenariile A/B/C/WAREHOUSE presupun tranziții deterministe ($P(s'|s,a) \in \{0, 1\}$), cu excepția schimbării controlate din Scenariul C. Cadrul de navigare sigură include un parametru `movement_noise`, dar acesta nu este integrat în Q-Learning-ul energetic principal. Mediile reale au senzori cu zgomot, actuatori imperfecți și obstacole dinamice neplanificate.
 
 **Limitarea 3 — Un singur agent.** Arhitectura este single-agent. Depozitele reale cu sute de roboți necesită algoritmi multi-agent RL care gestionează coordonarea, comunicarea și evitarea coliziunilor la nivel de flotă. Extinderea la multi-agent introduce complexitate exponențială în spațiul de stări și acțiuni combinate.
 
 **Limitarea 4 — Funcție de recompensă manuală.** Funcția de recompensă din lucrarea de față este definită manual, bazată pe intuiție și cunoaștere expertă. În aplicații complexe din lumea reală, proiectarea funcției de recompensă (reward engineering) este o problemă dificilă, iar funcțiile slab proiectate pot conduce la comportamente neașteptate sau exploatare de loophole-uri.
 
-**Limitarea 5 — Absența generalizării.** Q-table-ul antrenat pe o hartă cu seed 42 nu se transferă direct la o hartă cu seed diferit (deși transfer-ul parțial din Scenariul C sugerează că unele politici sunt generalizabile). Un agent RL tabular nu poate „generaliza" la configurații neîntâlnite — spre deosebire de DQN care poate extrapola prin reprezentările neurale.
+**Limitarea 5 — Generalizare limitată pentru Q-table-ul absolut.** Q-table-ul energetic antrenat pe o hartă cu seed 42 nu se transferă direct la o hartă complet diferită. Cadrul de navigare sigură include un `FeatureBasedQLearningAgent`, care încearcă să reducă această limitare prin features locale, dar nucleul principal al lucrării rămâne tabular și dependent de coordonate absolute.
+
+**Limitarea 6 — Aplicația cloud este prototip demonstrativ.** Backend-ul FastAPI, frontend-ul React și infrastructura Azure demonstrează fezabilitatea publicării aplicației, dar nu includ toate proprietățile unui produs de producție: autentificare, management avansat al costurilor, cozi de joburi distribuite, limitare per utilizator sau recuperare completă după întreruperi.
 
 ### 8.3 Direcții de Cercetare Viitoare
 

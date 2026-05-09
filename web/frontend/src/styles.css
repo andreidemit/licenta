@@ -155,12 +155,18 @@ button { color: inherit; }
 }
 
 .metrics-panel {
-  flex: 0 0 auto;
+  flex: 1 1 52%;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .control-panel,
 .right-stack {
   overflow: auto;
+}
+
+.right-stack {
+  overflow: hidden;
 }
 
 .control-panel {
@@ -523,7 +529,50 @@ button:disabled {
 .story-card p {
   display: flex;
   gap: 8px;
-  margin: 9px 0;
+  margin: 7px 0;
+  font-size: 0.82rem;
+}
+
+.story-card svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.live-metrics-card {
+  flex: 0 0 auto;
+}
+
+.explanation-panel {
+  flex: 1 1 240px;
+  min-height: 210px;
+  overflow: auto;
+}
+
+.explanation-block {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid #edf1f6;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.explanation-block:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.explanation-block strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.explanation-block p {
+  margin: 0;
+  font-size: 0.83rem;
 }
 
 .comparison-dashboard {

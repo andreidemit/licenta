@@ -140,12 +140,12 @@ def health():
 
 
 ALGORITHM_LABELS = {
-    "random": "Random",
-    "rule_based": "Rule-Based",
+    "random": "Aleator",
+    "rule_based": "Bazat pe reguli",
     "astar": "A*",
-    "risk_aware_astar": "Risk-Aware A*",
-    "tabular_q": "Tabular Q-Learning",
-    "feature_q": "Feature-Based Q-Learning",
+    "risk_aware_astar": "A* conștient de risc",
+    "tabular_q": "Q-Learning tabular",
+    "feature_q": "Q-Learning pe trăsături",
 }
 
 
