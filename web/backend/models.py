@@ -92,7 +92,16 @@ class SafeNavigationRequest(BaseModel):
 
 
 class MonteCarloRequest(BaseModel):
-    algorithms: list[str] = Field(default_factory=lambda: ["astar", "risk_aware_astar"])
+    algorithms: list[str] = Field(
+        default_factory=lambda: [
+            "random",
+            "rule_based",
+            "astar",
+            "risk_aware_astar",
+            "tabular_q",
+            "feature_q",
+        ]
+    )
     experiment_profile: Literal[
         "known_static",
         "high_risk",

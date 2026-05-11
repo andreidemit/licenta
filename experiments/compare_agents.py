@@ -8,7 +8,6 @@ from agents import (
     RandomAgent,
     RiskAwareAStarAgent,
     RuleBasedAgent,
-    SarsaAgent,
     TabularQLearningAgent,
 )
 from environment.grid_world import RewardConfig
@@ -26,6 +25,7 @@ EXPERIMENT_PROFILES = {
         "expected_takeaway": "A* este alegerea naturală când mediul este cunoscut și static.",
         "favored_algorithms": ["astar", "risk_aware_astar"],
         "protocol": "Evaluare Monte Carlo clasică pe hărți generate, cunoscute integral agentului.",
+        "agent_lifecycle": "per_map",
     },
     "high_risk": {
         "id": "high_risk",
@@ -35,6 +35,7 @@ EXPERIMENT_PROFILES = {
         "expected_takeaway": "A* conștient de risc este preferabil când traseul scurt traversează zone periculoase.",
         "favored_algorithms": ["risk_aware_astar"],
         "protocol": "Evaluare Monte Carlo cu pondere de risc mai mare în recompensă și cost.",
+        "agent_lifecycle": "per_map",
     },
     "stochastic_execution": {
         "id": "stochastic_execution",
@@ -44,6 +45,7 @@ EXPERIMENT_PROFILES = {
         "expected_takeaway": "Planificarea rămâne puternică, dar comparația trebuie citită prin robustețe, nu doar pași.",
         "favored_algorithms": ["risk_aware_astar", "feature_q"],
         "protocol": "Evaluare Monte Carlo cu tranziții stocastice controlate de movement_noise.",
+        "agent_lifecycle": "per_map",
     },
     "same_map_learning": {
         "id": "same_map_learning",
@@ -53,6 +55,7 @@ EXPERIMENT_PROFILES = {
         "expected_takeaway": "Q-learning tabular devine relevant când coordonatele învățate rămân valabile.",
         "favored_algorithms": ["tabular_q", "feature_q"],
         "protocol": "Training pe seed-ul hărții evaluate, apoi evaluare greedy pe aceeași hartă.",
+        "agent_lifecycle": "per_map",
     },
     "transfer_learning": {
         "id": "transfer_learning",
@@ -62,6 +65,7 @@ EXPERIMENT_PROFILES = {
         "expected_takeaway": "Q-learning pe trăsături este mai potrivit pentru transfer decât Q-learning tabular.",
         "favored_algorithms": ["feature_q"],
         "protocol": "Training pe hărți dedicate, evaluare pe alte hărți; A* rămâne baseline cu hartă cunoscută.",
+        "agent_lifecycle": "shared_across_maps",
     },
     "training_cost": {
         "id": "training_cost",
@@ -71,8 +75,19 @@ EXPERIMENT_PROFILES = {
         "expected_takeaway": "A* este foarte puternic fără training; learning-ul merită când politica este reutilizată.",
         "favored_algorithms": ["astar", "risk_aware_astar", "feature_q"],
         "protocol": "Evaluare Monte Carlo standard cu metadate explicite despre episoadele de training.",
+        "agent_lifecycle": "per_map",
     },
 }
+
+
+# Notă de interpretare: în profilele cu ``agent_lifecycle == "per_map"``,
+# un agent care necesită training (ex. ``tabular_q``) este re-creat și
+# re-antrenat pentru fiecare hartă de evaluare. Politicile învățate NU se
+# transferă între hărți — fiecare măsurătoare reflectă o sesiune de învățare
+# izolată, iar variabilitatea raportată include și variabilitatea cauzată de
+# inițializările diferite. Singurul profil în care un agent este antrenat o
+# dată și apoi evaluat pe hărți distincte este ``transfer_learning``, care
+# folosește ``_run_transfer_experiment``.
 
 
 def create_agent(algorithm: str, rows: int, cols: int, risk_weight: float = 1.0, seed: int | None = None):
@@ -89,8 +104,6 @@ def create_agent(algorithm: str, rows: int, cols: int, risk_weight: float = 1.0,
         return TabularQLearningAgent(rows=rows, cols=cols, random_seed=seed)
     if key in ("feature_q", "feature-based-q-learning", "feature q-learning"):
         return FeatureBasedQLearningAgent(random_seed=seed)
-    if key in ("sarsa", "sarsa_tabular", "sarsa tabular"):
-        return SarsaAgent(rows=rows, cols=cols, random_seed=seed)
     raise ValueError(f"Algoritm necunoscut: {algorithm}")
 
 

@@ -35,7 +35,6 @@ const algorithms = [
   ['risk_aware_astar', 'A* conștient de risc'],
   ['tabular_q', 'Q-Learning tabular'],
   ['feature_q', 'Q-Learning pe trăsături'],
-  ['sarsa', 'SARSA tabular'],
 ];
 
 const scenarios = [
@@ -45,7 +44,7 @@ const scenarios = [
   ['custom', 'Personalizat', 'Configurează dimensiunea, densitățile și seed-ul.'],
 ];
 
-const learningAlgorithms = new Set(['tabular_q', 'feature_q', 'sarsa']);
+const learningAlgorithms = new Set(['tabular_q', 'feature_q']);
 
 export type WizardStage = 'scenario' | 'run' | 'results';
 

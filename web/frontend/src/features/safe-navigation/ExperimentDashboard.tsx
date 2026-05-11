@@ -170,12 +170,8 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
         <strong>Comentariu numeric</strong>
         <span>{overallComment}</span>
       </div>
-      <Link
-        to="/safe-navigation/monte-carlo"
-        className="primary-button"
-        style={{ alignSelf: 'flex-start', textDecoration: 'none' }}
-      >
-        <ExternalLink size={16} /> Deschide analiza statistică detaliată
+      <Link to="/safe-navigation/monte-carlo" className="comparison-dashboard__entry">
+        <ExternalLink size={14} /> Deschide analiza statistică detaliată
       </Link>
       <div className="comparison-table">
         <div className="table-head">

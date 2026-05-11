@@ -5,7 +5,7 @@ import { algorithmLabel, colorFor, formatPercent } from './analysisHelpers';
 function colorScale(value: number) {
   const clamped = Math.max(0, Math.min(1, value));
   const hue = clamped * 130; // 0=red, 130=green
-  return `hsl(${hue}, 70%, ${30 + clamped * 25}%)`;
+  return `hsl(${hue}, 65%, ${65 - clamped * 12}%)`;
 }
 
 export function PerMapHeatmap({ result }: { result: MonteCarloResult }) {
@@ -20,81 +20,56 @@ export function PerMapHeatmap({ result }: { result: MonteCarloResult }) {
 
   if (!data.seeds.length) {
     return (
-      <section className="panel-card">
-        <h2 style={{ margin: 0 }}>Heatmap per hartă</h2>
-        <p className="muted" style={{ marginTop: '0.5rem' }}>
-          Nu sunt informații per-hartă disponibile. Re-rulează Monte Carlo după actualizarea backend-ului.
-        </p>
+      <section className="mc-card">
+        <header className="mc-card__header">
+          <div>
+            <h2>Heatmap per hartă</h2>
+            <p className="mc-card__caption">
+              Nu sunt informații per-hartă disponibile. Re-rulează Monte Carlo după actualizarea backend-ului.
+            </p>
+          </div>
+        </header>
       </section>
     );
   }
 
   return (
-    <section className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <header>
-        <h2 style={{ margin: 0 }}>Heatmap per hartă (rată de succes)</h2>
-        <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-          Verde = succes ridicat, roșu = eșec frecvent. Identifică pe ce hărți specifice un agent eșuează.
-        </p>
+    <section className="mc-card">
+      <header className="mc-card__header">
+        <div>
+          <h2>Heatmap per hartă (rată de succes)</h2>
+          <p className="mc-card__caption">
+            Verde = succes ridicat, roșu = eșec frecvent. Ajută la identificarea hărților pe care un agent specific eșuează.
+          </p>
+        </div>
       </header>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'separate', borderSpacing: 4, fontSize: 12 }}>
+        <table className="mc-heatmap">
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', padding: '0 0.5rem', color: 'rgba(148,163,184,0.85)' }}>Agent \\ Seed</th>
+              <th className="mc-heatmap__row-label">Agent \\ Seed</th>
               {data.seeds.map((seed) => (
-                <th key={seed} style={{ padding: '0 0.4rem', color: 'rgba(148,163,184,0.85)', fontWeight: 500 }}>
-                  {seed}
-                </th>
+                <th key={seed}>{seed}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {data.algorithms.map((algorithm) => (
               <tr key={algorithm}>
-                <td
-                  style={{
-                    padding: '0.3rem 0.6rem',
-                    color: colorFor(algorithm),
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
+                <td className="mc-heatmap__row-label" style={{ color: colorFor(algorithm) }}>
                   {algorithmLabel(algorithm)}
                 </td>
                 {data.seeds.map((seed) => {
                   const cell = data.lookup.get(`${algorithm}::${seed}`);
                   if (!cell) {
-                    return (
-                      <td
-                        key={seed}
-                        style={{
-                          width: 56,
-                          height: 36,
-                          background: 'rgba(148,163,184,0.1)',
-                          borderRadius: 6,
-                          textAlign: 'center',
-                          color: 'rgba(148,163,184,0.5)',
-                        }}
-                      >
-                        -
-                      </td>
-                    );
+                    return <td key={seed} className="mc-heatmap__missing">-</td>;
                   }
                   return (
                     <td
                       key={seed}
                       title={`Seed ${seed} · ${cell.episodes} episoade · succes ${formatPercent(cell.success_rate)} · risc ${cell.average_risk_exposure.toFixed(1)}`}
-                      style={{
-                        width: 56,
-                        height: 36,
-                        background: colorScale(cell.success_rate),
-                        borderRadius: 6,
-                        textAlign: 'center',
-                        color: '#0b1220',
-                        fontWeight: 600,
-                      }}
+                      style={{ background: colorScale(cell.success_rate) }}
                     >
                       {Math.round(cell.success_rate * 100)}
                     </td>
@@ -106,18 +81,11 @@ export function PerMapHeatmap({ result }: { result: MonteCarloResult }) {
         </table>
       </div>
 
-      <footer style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.78rem', color: 'rgba(148,163,184,0.85)' }}>
-        <span>0%</span>
-        <div
-          style={{
-            flex: 1,
-            height: 12,
-            borderRadius: 6,
-            background: 'linear-gradient(to right, hsl(0,70%,30%), hsl(65,70%,42%), hsl(130,70%,55%))',
-          }}
-        />
-        <span>100%</span>
-      </footer>
+      <div className="mc-legend-bar">
+        <span>0% succes</span>
+        <div className="mc-legend-bar__track" />
+        <span>100% succes</span>
+      </div>
     </section>
   );
 }

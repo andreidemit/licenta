@@ -11,7 +11,7 @@ import {
   ZAxis,
 } from 'recharts';
 import type { MonteCarloResult } from '../types';
-import { algorithmLabel, colorFor, formatNumber, groupEpisodesByAlgorithm } from './analysisHelpers';
+import { CHART_THEME, algorithmLabel, colorFor, formatNumber, groupEpisodesByAlgorithm } from './analysisHelpers';
 
 export function RiskRewardScatter({ result }: { result: MonteCarloResult }) {
   const series = useMemo(() => {
@@ -31,38 +31,40 @@ export function RiskRewardScatter({ result }: { result: MonteCarloResult }) {
   }, [result]);
 
   return (
-    <section className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <header>
-        <h2 style={{ margin: 0 }}>Trade-off risc vs recompensă</h2>
-        <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-          Un punct = un episod. Sus-stânga = bun (risc mic, recompensă mare). Jos-dreapta = costisitor.
-        </p>
+    <section className="mc-card">
+      <header className="mc-card__header">
+        <div>
+          <h2>Trade-off risc vs recompensă</h2>
+          <p className="mc-card__caption">
+            Un punct = un episod. Sus-stânga indică un agent eficient și sigur; jos-dreapta este zona costisitoare.
+          </p>
+        </div>
       </header>
-      <div style={{ width: '100%', height: 380 }}>
+      <div className="mc-chart mc-chart--tall">
         <ResponsiveContainer>
-          <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
+          <ScatterChart margin={{ top: 16, right: 24, bottom: 36, left: 16 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
             <XAxis
               type="number"
               dataKey="risk"
               name="Risc cumulat"
-              tick={{ fill: '#cbd5f5', fontSize: 12 }}
-              label={{ value: 'Expunere la risc', position: 'insideBottom', dy: 16, fill: '#cbd5f5' }}
+              tick={{ fill: CHART_THEME.axis, fontSize: 12 }}
+              label={{ value: 'Expunere la risc', position: 'insideBottom', dy: 16, fill: CHART_THEME.axisLabel, fontSize: 12 }}
             />
             <YAxis
               type="number"
               dataKey="reward"
               name="Recompensă"
-              tick={{ fill: '#cbd5f5', fontSize: 12 }}
-              label={{ value: 'Recompensă totală', angle: -90, position: 'insideLeft', fill: '#cbd5f5' }}
+              tick={{ fill: CHART_THEME.axis, fontSize: 12 }}
+              label={{ value: 'Recompensă totală', angle: -90, position: 'insideLeft', fill: CHART_THEME.axisLabel, fontSize: 12 }}
             />
             <ZAxis type="number" dataKey="steps" range={[40, 200]} name="Pași" />
             <Tooltip
               cursor={{ strokeDasharray: '3 3' }}
-              contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
+              contentStyle={{ background: CHART_THEME.tooltipBg, border: `1px solid ${CHART_THEME.tooltipBorder}`, borderRadius: 8, color: CHART_THEME.tooltipText, fontSize: 12 }}
               formatter={(value, name) => [formatNumber(Number(value)), String(name)]}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12, color: CHART_THEME.axis }} />
             {series.map((entry) => (
               <Scatter
                 key={entry.algorithm}

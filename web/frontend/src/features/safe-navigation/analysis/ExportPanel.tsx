@@ -11,9 +11,9 @@ export function ExportPanel({ result }: { result: MonteCarloResult }) {
     setBusy(true);
     setFeedback('');
     try {
-      const svgs = Array.from(document.querySelectorAll<SVGSVGElement>('.monte-carlo-analysis svg'));
+      const svgs = Array.from(document.querySelectorAll<SVGSVGElement>('.mc-page svg'));
       if (!svgs.length) {
-        setFeedback('Nu există grafice de exportat.');
+        setFeedback('Nu există grafice de exportat. Deschide unul dintre tab-urile cu vizualizări înainte de export.');
         return;
       }
       let exported = 0;
@@ -37,15 +37,17 @@ export function ExportPanel({ result }: { result: MonteCarloResult }) {
   };
 
   return (
-    <section className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      <header>
-        <h2 style={{ margin: 0 }}>Export pentru raport</h2>
-        <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-          Descarcă rezumatul agregat și episoadele brute pentru analize externe sau anexa lucrării.
-        </p>
+    <section className="mc-card">
+      <header className="mc-card__header">
+        <div>
+          <h2>Export pentru raport</h2>
+          <p className="mc-card__caption">
+            Descarcă rezumatul agregat și episoadele brute pentru analize externe sau anexa lucrării.
+          </p>
+        </div>
       </header>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+      <div className="mc-export-row">
         <button
           type="button"
           className="secondary-button"
@@ -78,9 +80,7 @@ export function ExportPanel({ result }: { result: MonteCarloResult }) {
         </button>
       </div>
 
-      {feedback && (
-        <p style={{ fontSize: '0.8rem', color: 'rgba(148,163,184,0.95)' }}>{feedback}</p>
-      )}
+      {feedback && <p className="mc-feedback">{feedback}</p>}
     </section>
   );
 }

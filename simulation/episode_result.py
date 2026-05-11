@@ -1,4 +1,12 @@
-"""Structuri de date pentru tranziții și rezultate de episod."""
+"""Structuri de date pentru tranziții și rezultate de episod (stiva safe-navigation).
+
+Important: există o clasă cu același nume ``EpisodeResult`` și în
+``src/trainer.py`` (stiva legacy de Q-Learning cu energie). Cele două **nu**
+sunt interschimbabile: cea de aici descrie un episod safe-navigation cu
+``algorithm``, ``total_risk_exposure``, ``timeout`` și ``map_seed``, în timp ce
+cea legacy are ``episode_id``, ``epsilon``, ``coverage``, ``food_collected``
+etc. Importați explicit din modulul corect.
+"""
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -16,6 +24,8 @@ class Transition:
 
 @dataclass(slots=True)
 class EpisodeResult:
+    """Rezultatul unui episod în pipeline-ul safe-navigation / Monte Carlo."""
+
     algorithm: str
     success: bool
     total_reward: float

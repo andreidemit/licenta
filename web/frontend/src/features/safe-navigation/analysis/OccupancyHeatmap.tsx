@@ -34,9 +34,13 @@ export function OccupancyHeatmap({ result }: { result: MonteCarloResult }) {
 
   if (!algorithms.length) {
     return (
-      <section className="panel-card">
-        <h2 style={{ margin: 0 }}>Heatmap de ocupare</h2>
-        <p className="muted" style={{ marginTop: '0.5rem' }}>Nu există episoade înregistrate.</p>
+      <section className="mc-card">
+        <header className="mc-card__header">
+          <div>
+            <h2>Heatmap de ocupare</h2>
+            <p className="mc-card__caption">Nu există episoade înregistrate.</p>
+          </div>
+        </header>
       </section>
     );
   }
@@ -45,24 +49,18 @@ export function OccupancyHeatmap({ result }: { result: MonteCarloResult }) {
   const accent = colorFor(active);
 
   return (
-    <section className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+    <section className="mc-card">
+      <header className="mc-card__header">
         <div>
-          <h2 style={{ margin: 0 }}>Heatmap de ocupare a grilei</h2>
-          <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+          <h2>Heatmap de ocupare a grilei</h2>
+          <p className="mc-card__caption">
             Frecvența cu care fiecare celulă este vizitată de agentul selectat, agregat pe toate episoadele MC.
           </p>
         </div>
         <select
+          className="mc-select"
           value={active}
           onChange={(event) => setActive(event.target.value)}
-          style={{
-            background: 'var(--surface-strong, #1f2937)',
-            color: 'inherit',
-            border: '1px solid var(--border, #334155)',
-            borderRadius: 8,
-            padding: '0.4rem 0.6rem',
-          }}
         >
           {algorithms.map((algorithm) => (
             <option key={algorithm} value={algorithm}>{algorithmLabel(algorithm)}</option>
@@ -70,11 +68,11 @@ export function OccupancyHeatmap({ result }: { result: MonteCarloResult }) {
         </select>
       </header>
 
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <div className="mc-occupancy">
         <svg
+          className="mc-occupancy__svg"
           width={cols * cellSize + 2}
           height={rows * cellSize + 2}
-          style={{ background: '#020617', borderRadius: 8 }}
         >
           {heatmap.matrix.map((row, rowIndex) => (
             row.map((value, colIndex) => {
@@ -88,7 +86,7 @@ export function OccupancyHeatmap({ result }: { result: MonteCarloResult }) {
                   height={cellSize - 1}
                   fill={accent}
                   fillOpacity={intensity}
-                  stroke="rgba(148,163,184,0.06)"
+                  stroke="rgba(15,23,42,0.08)"
                 >
                   <title>{`(${rowIndex}, ${colIndex}): ${value} vizite`}</title>
                 </rect>
@@ -96,12 +94,11 @@ export function OccupancyHeatmap({ result }: { result: MonteCarloResult }) {
             })
           ))}
         </svg>
+        <div className="mc-occupancy__footer">
+          <span>0 vizite</span>
+          <span>maxim: {heatmap.max} vizite</span>
+        </div>
       </div>
-
-      <footer style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'rgba(148,163,184,0.85)' }}>
-        <span>0 vizite</span>
-        <span>maximum: {heatmap.max} vizite</span>
-      </footer>
     </section>
   );
 }

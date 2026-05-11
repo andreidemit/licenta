@@ -1,5 +1,10 @@
 """
 Bucla de antrenament Q-Learning: rulează episoade, colectează metrici, apelul Q-update.
+
+NOTĂ: clasa ``EpisodeResult`` definită aici aparține stivei legacy de Q-Learning
+cu energie și nu trebuie confundată cu ``simulation.episode_result.EpisodeResult``
+folosită de pipeline-ul safe-navigation / Monte Carlo. Cele două sunt complet
+independente; importați direct din modulul corect.
 """
 
 import random
@@ -15,9 +20,12 @@ from src.constants import (
 from src.transitions import build_step_feedback, is_collision
 
 
+__all__ = ["EpisodeResult", "Trainer"]
+
+
 @dataclass(slots=True)
 class EpisodeResult:
-    """Rezultatul unui singur episod de antrenament."""
+    """Rezultatul unui episod legacy (energie, food, mud, scenariile A/B/C)."""
     episode_id: int
     total_steps: int
     total_reward: float

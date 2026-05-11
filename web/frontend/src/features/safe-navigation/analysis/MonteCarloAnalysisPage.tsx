@@ -1,8 +1,8 @@
 import { ArrowLeft, BarChart3, BookOpen } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import '../../../styles.css';
 import * as Tabs from '@radix-ui/react-tabs';
+import '../../../styles.css';
 import { useLatestMonteCarlo } from '../monteCarloStore';
 import { algorithmLabel } from './analysisHelpers';
 import { ExportPanel } from './ExportPanel';
@@ -23,112 +23,92 @@ const TABS = [
   { id: 'export', label: 'Export' },
 ];
 
-function tabButtonStyle(active: boolean) {
-  return {
-    padding: '0.55rem 0.95rem',
-    borderRadius: 999,
-    fontSize: '0.85rem',
-    fontWeight: 600,
-    border: '1px solid',
-    borderColor: active ? 'rgba(56,189,248,0.65)' : 'rgba(148,163,184,0.25)',
-    background: active ? 'rgba(56,189,248,0.18)' : 'rgba(15,23,42,0.45)',
-    color: active ? '#e0f2fe' : 'rgba(203,213,245,0.8)',
-    cursor: 'pointer',
-    transition: 'all 120ms ease',
-  } as const;
-}
-
 export function MonteCarloAnalysisPage() {
   const result = useLatestMonteCarlo();
-  const [tab, setTab] = useState(TABS[0].id);
+  const [tab, setTab] = useState<string>(TABS[0].id);
 
-  const headlineNumbers = useMemo(() => {
+  const headline = useMemo(() => {
     if (!result) return null;
-    const total = result.summary.episode_count;
-    const agents = result.summary.agents.length;
-    const profile = result.profile?.label ?? 'profil necunoscut';
-    return { total, agents, profile };
+    return {
+      total: result.summary.episode_count,
+      agents: result.summary.agents.length,
+      profile: result.profile?.label ?? 'profil necunoscut',
+    };
   }, [result]);
 
   if (!result) {
     return (
-      <div className="app-shell monte-carlo-analysis" style={{ padding: '2rem' }}>
-        <header style={{ marginBottom: '1.5rem' }}>
-          <p className="eyebrow">Analiză Monte Carlo</p>
-          <h1>Niciun rezultat disponibil</h1>
-          <p className="muted">
-            Pornește o comparație Monte Carlo din pagina principală, apoi revino aici pentru analiza statistică detaliată.
-          </p>
+      <div className="mc-page">
+        <header className="mc-page__topbar">
+          <div>
+            <p className="eyebrow"><BarChart3 size={14} /> Analiză Monte Carlo</p>
+            <h1 className="mc-page__title">Niciun rezultat disponibil</h1>
+          </div>
+          <Link to="/" className="secondary-button" style={{ width: 'auto' }}>
+            <ArrowLeft size={16} /> Înapoi la simulator
+          </Link>
         </header>
-        <Link to="/" className="primary-button">
-          <ArrowLeft size={16} /> Înapoi la simulator
-        </Link>
+        <section className="mc-page__empty">
+          <p>
+            Pornește o comparație Monte Carlo din pagina principală a simulatorului. După ce rulezi
+            butonul <em>„Compară Monte Carlo"</em>, revino aici pentru analiza statistică detaliată.
+          </p>
+          <Link to="/" className="primary-button" style={{ width: 'auto' }}>
+            <ArrowLeft size={16} /> Mergi la simulator
+          </Link>
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="app-shell monte-carlo-analysis" style={{ padding: '1.75rem 2rem 4rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+    <div className="mc-page">
+      <header className="mc-page__topbar">
         <div>
           <p className="eyebrow"><BarChart3 size={14} /> Analiză Monte Carlo</p>
-          <h1 style={{ margin: '0.25rem 0 0.5rem' }}>Rezultate detaliate pe {headlineNumbers?.total} episoade</h1>
-          <p className="muted" style={{ maxWidth: 720 }}>
-            {headlineNumbers?.agents} agenți · profil <strong>{headlineNumbers?.profile}</strong>.
-            Folosește tab-urile pentru distribuții, intervale de încredere și comportament per-hartă.
+          <h1 className="mc-page__title">Rezultate detaliate pe {headline?.total} episoade</h1>
+          <p className="mc-page__subtitle">
+            {headline?.agents} agenți · profil <strong>{headline?.profile}</strong>. Folosește tab-urile
+            pentru distribuții, intervale de încredere și comportament per-hartă.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <Link to="/" className="secondary-button">
-            <ArrowLeft size={16} /> Înapoi la simulator
-          </Link>
-        </div>
+        <Link to="/" className="secondary-button" style={{ width: 'auto' }}>
+          <ArrowLeft size={16} /> Înapoi la simulator
+        </Link>
       </header>
 
-      <section className="panel-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', color: 'rgba(203,213,245,0.95)' }}>
-          <BookOpen size={18} />
+      <section className="mc-page__legend">
+        <BookOpen size={18} />
+        <div>
           <strong>Cum se citește această pagină</strong>
+          <div>
+            Fiecare metrică este însoțită de variabilitatea ei. Dacă două bare au intervalele
+            de încredere suprapuse, diferența între agenți nu este semnificativă statistic la 95%
+            și concluzia trebuie nuanțată în consecință.
+          </div>
         </div>
-        <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(203,213,245,0.85)', maxWidth: 720 }}>
-          Fiecare metrică este însoțită de variabilitatea ei. Dacă două bare au intervalele
-          de încredere suprapuse, diferența între agenți nu este semnificativă statistic
-          la nivelul 95% — concluzia trebuie nuanțată în consecință.
-        </p>
       </section>
 
       <Tabs.Root value={tab} onValueChange={setTab}>
-        <Tabs.List style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
+        <Tabs.List className="mc-page__tabs">
           {TABS.map((entry) => (
-            <Tabs.Trigger key={entry.id} value={entry.id} style={tabButtonStyle(tab === entry.id)}>
+            <Tabs.Trigger key={entry.id} value={entry.id} className="mc-tab">
               {entry.label}
             </Tabs.Trigger>
           ))}
         </Tabs.List>
-        <Tabs.Content value="distributions">
-          <RewardDistribution result={result} />
-        </Tabs.Content>
-        <Tabs.Content value="ci-bars">
-          <MetricCIBars result={result} />
-        </Tabs.Content>
-        <Tabs.Content value="pareto">
-          <RiskRewardScatter result={result} />
-        </Tabs.Content>
-        <Tabs.Content value="per-map">
-          <PerMapHeatmap result={result} />
-        </Tabs.Content>
-        <Tabs.Content value="failures">
-          <FailureBreakdown result={result} />
-        </Tabs.Content>
-        <Tabs.Content value="occupancy">
-          <OccupancyHeatmap result={result} />
-        </Tabs.Content>
-        <Tabs.Content value="export">
-          <ExportPanel result={result} />
-        </Tabs.Content>
+        <div style={{ marginTop: 12 }}>
+          <Tabs.Content value="distributions"><RewardDistribution result={result} /></Tabs.Content>
+          <Tabs.Content value="ci-bars"><MetricCIBars result={result} /></Tabs.Content>
+          <Tabs.Content value="pareto"><RiskRewardScatter result={result} /></Tabs.Content>
+          <Tabs.Content value="per-map"><PerMapHeatmap result={result} /></Tabs.Content>
+          <Tabs.Content value="failures"><FailureBreakdown result={result} /></Tabs.Content>
+          <Tabs.Content value="occupancy"><OccupancyHeatmap result={result} /></Tabs.Content>
+          <Tabs.Content value="export"><ExportPanel result={result} /></Tabs.Content>
+        </div>
       </Tabs.Root>
 
-      <footer className="muted" style={{ fontSize: '0.78rem', textAlign: 'center' }}>
+      <footer className="mc-page__footer">
         Agenți incluși: {result.summary.agents.map((row) => algorithmLabel(row.algorithm)).join(' · ')}
       </footer>
     </div>

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   Legend,
@@ -13,6 +12,7 @@ import {
 } from 'recharts';
 import type { MonteCarloResult } from '../types';
 import {
+  CHART_THEME,
   algorithmLabel,
   colorFor,
   computeBoxStats,
@@ -50,24 +50,18 @@ export function RewardDistribution({ result }: { result: MonteCarloResult }) {
   }, [result, metric]);
 
   return (
-    <section className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+    <section className="mc-card">
+      <header className="mc-card__header">
         <div>
-          <h2 style={{ margin: 0 }}>Distribuții per agent</h2>
-          <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-            Cutia: cuartile 25-75. Whisker-ele: percentile 5-95. Punctul: media.
+          <h2>Distribuții per agent</h2>
+          <p className="mc-card__caption">
+            Cutia: cuartilele 25-75. Whisker-ele: percentilele 5-95. Punctul portocaliu: media.
           </p>
         </div>
         <select
+          className="mc-select"
           value={metric}
           onChange={(event) => setMetric(event.target.value as MetricKey)}
-          style={{
-            background: 'var(--surface-strong, #1f2937)',
-            color: 'inherit',
-            border: '1px solid var(--border, #334155)',
-            borderRadius: 8,
-            padding: '0.4rem 0.6rem',
-          }}
         >
           {Object.entries(METRIC_LABELS).map(([value, label]) => (
             <option value={value} key={value}>{label}</option>
@@ -75,45 +69,45 @@ export function RewardDistribution({ result }: { result: MonteCarloResult }) {
         </select>
       </header>
 
-      <div style={{ width: '100%', height: 360 }}>
+      <div className="mc-chart">
         <ResponsiveContainer>
-          <ComposedChart data={data} margin={{ top: 10, right: 24, bottom: 10, left: 16 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
-            <XAxis dataKey="label" tick={{ fill: '#cbd5f5', fontSize: 12 }} interval={0} angle={-12} dy={8} height={70} />
-            <YAxis tick={{ fill: '#cbd5f5', fontSize: 12 }} label={{ value: METRIC_LABELS[metric], angle: -90, position: 'insideLeft', fill: '#cbd5f5' }} />
+          <ComposedChart data={data} margin={{ top: 10, right: 24, bottom: 24, left: 16 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: CHART_THEME.axis, fontSize: 12 }}
+              interval={0}
+              angle={-12}
+              dy={10}
+              height={70}
+            />
+            <YAxis
+              tick={{ fill: CHART_THEME.axis, fontSize: 12 }}
+              label={{ value: METRIC_LABELS[metric], angle: -90, position: 'insideLeft', fill: CHART_THEME.axisLabel, fontSize: 12 }}
+            />
             <Tooltip
-              contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8 }}
+              contentStyle={{ background: CHART_THEME.tooltipBg, border: `1px solid ${CHART_THEME.tooltipBorder}`, borderRadius: 8, color: CHART_THEME.tooltipText }}
               formatter={(value, name) => [formatNumber(Number(value)), String(name)]}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="whiskerLow" stackId="box" fill="transparent" name="p5" />
-            <Bar dataKey="boxLow" stackId="box" fill="transparent" name="p25" />
-            <Bar dataKey="boxHigh" stackId="box" name="p25-p75 (cutie)" fill="#38bdf8" fillOpacity={0.55} stroke="#38bdf8" />
-            <Bar dataKey="whiskerHigh" stackId="box" name="p75-p95" fill="#38bdf8" fillOpacity={0.18} stroke="#38bdf8" strokeDasharray="3 2" />
-            <Line type="monotone" dataKey="p50" stroke="#facc15" strokeWidth={2} dot={{ r: 4, fill: '#facc15' }} name="Mediană" />
-            <Line type="monotone" dataKey="mean" stroke="#f97316" strokeWidth={0} dot={{ r: 5, fill: '#f97316' }} name="Medie" />
+            <Legend wrapperStyle={{ fontSize: 12, color: CHART_THEME.axis }} />
+            <Bar dataKey="whiskerLow" stackId="box" fill="transparent" name="p5" legendType="none" />
+            <Bar dataKey="boxLow" stackId="box" fill="transparent" name="p25" legendType="none" />
+            <Bar dataKey="boxHigh" stackId="box" name="p25-p75 (cutie)" fill="#bae6fd" stroke="#0284c7" />
+            <Bar dataKey="whiskerHigh" stackId="box" name="p75-p95" fill="#e0f2fe" stroke="#38bdf8" strokeDasharray="3 2" />
+            <Line type="monotone" dataKey="p50" stroke={CHART_THEME.median} strokeWidth={0} dot={{ r: 4, fill: CHART_THEME.median }} name="Mediană" />
+            <Line type="monotone" dataKey="mean" stroke={CHART_THEME.mean} strokeWidth={0} dot={{ r: 5, fill: CHART_THEME.mean }} name="Medie" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+      <div className="mc-stat-grid">
         {data.map((row) => (
-          <div
-            key={row.algorithm}
-            style={{
-              border: `1px solid ${row.color}55`,
-              borderRadius: 10,
-              padding: '0.7rem 0.85rem',
-              background: 'rgba(15,23,42,0.4)',
-            }}
-          >
-            <strong style={{ color: row.color }}>{row.label}</strong>
-            <div style={{ fontSize: '0.78rem', color: 'rgba(203,213,245,0.85)', marginTop: 4, lineHeight: 1.5 }}>
-              <div>media {formatNumber(row.mean)} · mediană {formatNumber(row.p50)}</div>
-              <div>p25-p75: {formatNumber(row.p25)} … {formatNumber(row.p75)}</div>
-              <div>min {formatNumber(row.min)} · max {formatNumber(row.max)}</div>
-              <div>n = {row.count}</div>
-            </div>
+          <div key={row.algorithm} className="mc-stat-card" style={{ borderLeftColor: row.color }}>
+            <div className="mc-stat-card__title">{row.label}</div>
+            <div className="mc-stat-card__row">media {formatNumber(row.mean)} · mediană {formatNumber(row.p50)}</div>
+            <div className="mc-stat-card__row">p25-p75: {formatNumber(row.p25)} … {formatNumber(row.p75)}</div>
+            <div className="mc-stat-card__row">min {formatNumber(row.min)} · max {formatNumber(row.max)}</div>
+            <div className="mc-stat-card__row">n = {row.count}</div>
           </div>
         ))}
       </div>

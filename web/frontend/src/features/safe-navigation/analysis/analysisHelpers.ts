@@ -1,21 +1,31 @@
 import type { MonteCarloResult, SafeEpisodeResult } from '../types';
 
 const AGENT_COLORS: Record<string, string> = {
-  random: '#f97316',
-  Random: '#f97316',
-  rule_based: '#facc15',
-  'Rule-Based': '#facc15',
-  astar: '#22d3ee',
-  'A*': '#22d3ee',
-  risk_aware_astar: '#a855f7',
-  'Risk-Aware A*': '#a855f7',
-  tabular_q: '#ef4444',
-  'Tabular Q-Learning': '#ef4444',
-  feature_q: '#34d399',
-  'Feature-Based Q-Learning': '#34d399',
-  sarsa: '#60a5fa',
-  Sarsa: '#60a5fa',
+  random: '#f59e0b',
+  Random: '#f59e0b',
+  rule_based: '#ca8a04',
+  'Rule-Based': '#ca8a04',
+  astar: '#0ea5e9',
+  'A*': '#0ea5e9',
+  risk_aware_astar: '#7c3aed',
+  'Risk-Aware A*': '#7c3aed',
+  tabular_q: '#dc2626',
+  'Tabular Q-Learning': '#dc2626',
+  feature_q: '#0f766e',
+  'Feature-Based Q-Learning': '#0f766e',
 };
+
+export const CHART_THEME = {
+  grid: '#e2e8f0',
+  axis: '#475569',
+  axisLabel: '#1f2937',
+  tooltipBg: '#ffffff',
+  tooltipBorder: '#d5deea',
+  tooltipText: '#142033',
+  median: '#0f766e',
+  mean: '#dc2626',
+  errorBar: '#0f172a',
+} as const;
 
 export function colorFor(algorithm: string): string {
   if (AGENT_COLORS[algorithm]) return AGENT_COLORS[algorithm];
@@ -39,7 +49,6 @@ const ALGORITHM_LABELS: Record<string, string> = {
   'Tabular Q-Learning': 'Q-Learning tabular',
   feature_q: 'Q-Learning pe trăsături',
   'Feature-Based Q-Learning': 'Q-Learning pe trăsături',
-  sarsa: 'SARSA',
 };
 
 export function algorithmLabel(value: string): string {
@@ -216,7 +225,7 @@ export function svgToPng(svg: SVGSVGElement, scale = 2): Promise<string> {
         reject(new Error('Canvas indisponibil'));
         return;
       }
-      ctx.fillStyle = '#0b1220';
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL('image/png'));
