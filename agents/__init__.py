@@ -6,6 +6,7 @@ from agents.feature_q_learning_agent import FeatureBasedQLearningAgent
 from agents.q_learning_agent import TabularQLearningAgent
 from agents.random_agent import RandomAgent
 from agents.rule_based_agent import RuleBasedAgent
+from agents.sarsa_agent import SarsaAgent
 
 __all__ = [
     "BaseAgent",
@@ -15,4 +16,5 @@ __all__ = [
     "RiskAwareAStarAgent",
     "TabularQLearningAgent",
     "FeatureBasedQLearningAgent",
+    "SarsaAgent",
 ]
