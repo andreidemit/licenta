@@ -84,4 +84,23 @@ export const safeNavigationApi = {
         random_seed: config.random_seed,
       });
     },
+  monteCarloRaw: (payload: MonteCarloRawRequest) =>
+    post<MonteCarloResult>('/api/safe-navigation/monte-carlo', payload),
+};
+
+export type MonteCarloRawRequest = {
+  algorithms: string[];
+  experiment_profile: ExperimentProfileId;
+  scenario: string;
+  rows: number;
+  cols: number;
+  wall_probability: number;
+  danger_probability: number;
+  movement_noise: number;
+  risk_weight: number;
+  max_steps: number;
+  training_episodes: number;
+  number_of_maps: number;
+  episodes_per_map: number;
+  random_seed: number;
 };

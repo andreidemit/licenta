@@ -1,5 +1,6 @@
 import { BarChart3, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { TooltipLabel } from './TooltipLabel';
 import type { MonteCarloResult, MonteCarloSummaryRow } from './types';
 import { algorithmUseCases, getExperimentProfile } from './experimentProfiles';
 
@@ -42,6 +43,14 @@ function algorithmKey(value: string) {
 function useCaseFor(value: string) {
   return algorithmUseCases[algorithmKey(value)] ?? 'Folosit ca reper în comparația cu celelalte strategii.';
 }
+
+const columnTooltips = {
+  algorithm: 'Strategia evaluată în experimentul Monte Carlo.',
+  success: 'Procentul episoadelor în care agentul a ajuns la obiectiv.',
+  steps: 'Numărul mediu de pași executați per episod. Mai mic înseamnă trasee mai eficiente.',
+  risk: 'Expunerea medie acumulată la risc pe traseu. Mai mic înseamnă navigare mai sigură.',
+  reward: 'Recompensa medie totală. Include pași, coliziuni, pericol, risc și succes.',
+};
 
 function profileTakeaway(profile: NonNullable<MonteCarloResult['profile']> | ReturnType<typeof getExperimentProfile>) {
   return 'expected_takeaway' in profile ? profile.expected_takeaway : profile.expectedTakeaway;
@@ -171,11 +180,15 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
         <span>{overallComment}</span>
       </div>
       <Link to="/safe-navigation/monte-carlo" className="comparison-dashboard__entry">
-        <ExternalLink size={14} /> Deschide analiza statistică detaliată
+        <ExternalLink size={14} /> Deschide laboratorul Monte Carlo
       </Link>
       <div className="comparison-table">
         <div className="table-head">
-          <span>Algoritm</span><span>Succes</span><span>Pași</span><span>Risc</span><span>Recompensă</span>
+          <span><TooltipLabel text={columnTooltips.algorithm}>Algoritm</TooltipLabel></span>
+          <span><TooltipLabel text={columnTooltips.success}>Succes</TooltipLabel></span>
+          <span><TooltipLabel text={columnTooltips.steps}>Pași</TooltipLabel></span>
+          <span><TooltipLabel text={columnTooltips.risk}>Risc</TooltipLabel></span>
+          <span><TooltipLabel text={columnTooltips.reward}>Recompensă</TooltipLabel></span>
         </div>
         {sortedRows.map((row) => (
           <div className="table-row" key={row.algorithm}>
@@ -194,13 +207,19 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
       <div className="bar-list">
         {sortedRows.map((row) => (
           <div key={row.algorithm}>
-            <label><span>{algorithmLabel(row.algorithm)} - succes</span><b>{pct(row.success_rate)}</b></label>
+            <label>
+              <span><TooltipLabel text={columnTooltips.success}>{algorithmLabel(row.algorithm)} - succes</TooltipLabel></span>
+              <b>{pct(row.success_rate)}</b>
+            </label>
             <div className="bar"><i style={{ width: `${row.success_rate * 100}%` }} /></div>
           </div>
         ))}
         {sortedRows.map((row) => (
           <div key={`${row.algorithm}-risk`}>
-            <label><span>{algorithmLabel(row.algorithm)} - expunere la risc</span><b>{num(row.average_risk_exposure)}</b></label>
+            <label>
+              <span><TooltipLabel text={columnTooltips.risk}>{algorithmLabel(row.algorithm)} - expunere la risc</TooltipLabel></span>
+              <b>{num(row.average_risk_exposure)}</b>
+            </label>
             <div className="bar risk"><i style={{ width: `${(row.average_risk_exposure / maxRisk) * 100}%` }} /></div>
           </div>
         ))}

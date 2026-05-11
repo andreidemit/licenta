@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TooltipLabel } from '../TooltipLabel';
 import type { MonteCarloResult } from '../types';
 import { CHART_THEME, algorithmLabel, formatPercent, groupEpisodesByAlgorithm } from './analysisHelpers';
 
@@ -68,7 +69,11 @@ export function FailureBreakdown({ result }: { result: MonteCarloResult }) {
         <div>
           <h2>Distribuția evenimentelor de finalizare</h2>
           <p className="mc-card__caption">
-            Procent din episoadele unui agent: succes vs intrare în pericol vs coliziune vs timeout.
+            Procent din episoadele unui agent:{' '}
+            <TooltipLabel text="Agentul ajunge la obiectiv.">succes</TooltipLabel> vs{' '}
+            <TooltipLabel text="Agentul intră într-o celulă periculoasă.">intrare în pericol</TooltipLabel> vs{' '}
+            <TooltipLabel text="Agentul încearcă să intre într-un perete sau obstacol.">coliziune</TooltipLabel> vs{' '}
+            <TooltipLabel text="Agentul atinge limita maximă de pași fără finalizare.">timeout</TooltipLabel>.
           </p>
         </div>
       </header>

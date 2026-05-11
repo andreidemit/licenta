@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TooltipLabel } from '../TooltipLabel';
 import type { MonteCarloResult, MonteCarloSummaryRow } from '../types';
 import { CHART_THEME, algorithmLabel, colorFor, formatNumber, formatPercent } from './analysisHelpers';
 
@@ -23,6 +24,7 @@ type MetricSpec = {
     | 'average_risk_exposure'
     | 'average_reward';
   label: string;
+  tooltip: string;
   format: 'percent' | 'number';
   ciLow?: keyof MonteCarloSummaryRow;
   ciHigh?: keyof MonteCarloSummaryRow;
@@ -30,13 +32,13 @@ type MetricSpec = {
 };
 
 const METRICS: MetricSpec[] = [
-  { id: 'success_rate', label: 'Rată de succes', format: 'percent', ciLow: 'success_rate_ci95_low', ciHigh: 'success_rate_ci95_high' },
-  { id: 'collision_rate', label: 'Rată coliziuni', format: 'percent', ciLow: 'collision_rate_ci95_low', ciHigh: 'collision_rate_ci95_high' },
-  { id: 'danger_entry_rate', label: 'Rată intrări în pericol', format: 'percent', ciLow: 'danger_entry_rate_ci95_low', ciHigh: 'danger_entry_rate_ci95_high' },
-  { id: 'timeout_rate', label: 'Rată timeout', format: 'percent', ciLow: 'timeout_rate_ci95_low', ciHigh: 'timeout_rate_ci95_high' },
-  { id: 'average_reward', label: 'Recompensă medie', format: 'number', distribution: 'reward_distribution' },
-  { id: 'average_steps', label: 'Pași medii', format: 'number', distribution: 'steps_distribution' },
-  { id: 'average_risk_exposure', label: 'Expunere medie la risc', format: 'number', distribution: 'risk_distribution' },
+  { id: 'success_rate', label: 'Rată de succes', tooltip: 'Proporția episoadelor în care agentul ajunge la obiectiv.', format: 'percent', ciLow: 'success_rate_ci95_low', ciHigh: 'success_rate_ci95_high' },
+  { id: 'collision_rate', label: 'Rată coliziuni', tooltip: 'Proporția episoadelor în care apar încercări de intrare în pereți.', format: 'percent', ciLow: 'collision_rate_ci95_low', ciHigh: 'collision_rate_ci95_high' },
+  { id: 'danger_entry_rate', label: 'Rată intrări în pericol', tooltip: 'Proporția episoadelor în care agentul intră în celule periculoase.', format: 'percent', ciLow: 'danger_entry_rate_ci95_low', ciHigh: 'danger_entry_rate_ci95_high' },
+  { id: 'timeout_rate', label: 'Rată timeout', tooltip: 'Proporția episoadelor care ating limita de pași fără să finalizeze.', format: 'percent', ciLow: 'timeout_rate_ci95_low', ciHigh: 'timeout_rate_ci95_high' },
+  { id: 'average_reward', label: 'Recompensă medie', tooltip: 'Scorul mediu total al episodului, incluzând penalizări și bonusul de succes.', format: 'number', distribution: 'reward_distribution' },
+  { id: 'average_steps', label: 'Pași medii', tooltip: 'Numărul mediu de pași executați per episod.', format: 'number', distribution: 'steps_distribution' },
+  { id: 'average_risk_exposure', label: 'Expunere medie la risc', tooltip: 'Riscul acumulat mediu pe traseu; valori mai mici indică rute mai sigure.', format: 'number', distribution: 'risk_distribution' },
 ];
 
 export function MetricCIBars({ result }: { result: MonteCarloResult }) {
@@ -78,7 +80,11 @@ export function MetricCIBars({ result }: { result: MonteCarloResult }) {
         <div>
           <h2>Bare cu interval de încredere 95%</h2>
           <p className="mc-card__caption">
-            Bara reprezintă media; whisker-ele indică intervalul de încredere bootstrap (1000 re-eșantionări).
+            <TooltipLabel text="CI = confidence interval / interval de încredere. Estimează plaja probabilă a mediei reale.">
+              CI 95%
+            </TooltipLabel>{' '}
+            pentru <TooltipLabel text={metric.tooltip}>{metric.label}</TooltipLabel>. Bara reprezintă media;
+            whisker-ele indică intervalul bootstrap (1000 re-eșantionări).
           </p>
         </div>
         <select
@@ -120,10 +126,10 @@ export function MetricCIBars({ result }: { result: MonteCarloResult }) {
         <table className="mc-table">
           <thead>
             <tr>
-              <th>Agent</th>
-              <th className="mc-table__num">Valoare</th>
-              <th className="mc-table__num">CI 95% jos</th>
-              <th className="mc-table__num">CI 95% sus</th>
+              <th><TooltipLabel text="Strategia evaluată în experimentul Monte Carlo.">Agent</TooltipLabel></th>
+              <th className="mc-table__num"><TooltipLabel text={metric.tooltip}>Valoare</TooltipLabel></th>
+              <th className="mc-table__num"><TooltipLabel text="Limita inferioară a intervalului de încredere 95%.">CI 95% jos</TooltipLabel></th>
+              <th className="mc-table__num"><TooltipLabel text="Limita superioară a intervalului de încredere 95%.">CI 95% sus</TooltipLabel></th>
             </tr>
           </thead>
           <tbody>

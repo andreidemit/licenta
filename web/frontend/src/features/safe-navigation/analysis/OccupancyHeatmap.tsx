@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { TooltipLabel } from '../TooltipLabel';
 import type { MonteCarloResult } from '../types';
 import { algorithmLabel, buildOccupancyHeatmap, colorFor, groupEpisodesByAlgorithm } from './analysisHelpers';
 
@@ -54,7 +55,10 @@ export function OccupancyHeatmap({ result }: { result: MonteCarloResult }) {
         <div>
           <h2>Heatmap de ocupare a grilei</h2>
           <p className="mc-card__caption">
-            Frecvența cu care fiecare celulă este vizitată de agentul selectat, agregat pe toate episoadele MC.
+            Frecvența cu care fiecare celulă este vizitată de agentul selectat, agregat pe toate episoadele{' '}
+            <TooltipLabel text="MC = Monte Carlo: rulări repetate pe mai multe hărți și episoade.">
+              MC
+            </TooltipLabel>.
           </p>
         </div>
         <select

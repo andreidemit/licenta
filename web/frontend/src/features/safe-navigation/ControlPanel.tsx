@@ -1,13 +1,14 @@
 import { useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 import {
   Activity,
   ArrowLeft,
   ArrowRight,
   BarChart3,
-  Bot,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Dice5,
-  GraduationCap,
   Lightbulb,
   Play,
   RefreshCw,
@@ -15,10 +16,16 @@ import {
   Shuffle,
 } from 'lucide-react';
 import { ExperimentDashboard } from './ExperimentDashboard';
-import { ExplanationPanel } from './ExplanationPanel';
 import { GridWorldView } from './GridWorldView';
-import { MetricsPanel } from './MetricsPanel';
 import { ScenarioConfigDialog } from './ScenarioConfigDialog';
+import { TooltipLabel } from './TooltipLabel';
+import { ExportPanel } from './analysis/ExportPanel';
+import { FailureBreakdown } from './analysis/FailureBreakdown';
+import { MetricCIBars } from './analysis/MetricCIBars';
+import { OccupancyHeatmap } from './analysis/OccupancyHeatmap';
+import { PerMapHeatmap } from './analysis/PerMapHeatmap';
+import { RewardDistribution } from './analysis/RewardDistribution';
+import { RiskRewardScatter } from './analysis/RiskRewardScatter';
 import { getExperimentProfile } from './experimentProfiles';
 import type {
   MonteCarloResult,
@@ -44,7 +51,15 @@ const scenarios = [
   ['custom', 'Personalizat', 'Configurează dimensiunea, densitățile și seed-ul.'],
 ];
 
-const learningAlgorithms = new Set(['tabular_q', 'feature_q']);
+const monteCarloTabs = [
+  { id: 'distributions', label: 'Distribuții', tooltip: 'Arată variabilitatea metricilor pe episoade pentru fiecare agent.' },
+  { id: 'ci-bars', label: 'Intervale 95%', tooltip: 'CI 95% = interval de încredere 95%, estimat prin bootstrap.' },
+  { id: 'pareto', label: 'Risc / Recompensă', tooltip: 'Scatter plot pentru compromis între siguranță și scorul total.' },
+  { id: 'per-map', label: 'Per-hartă', tooltip: 'Compară performanța fiecărui agent pe fiecare seed de hartă.' },
+  { id: 'failures', label: 'Eșecuri', tooltip: 'Descompune finalizările în succes, pericol, coliziune, timeout sau alte cazuri.' },
+  { id: 'occupancy', label: 'Ocupare', tooltip: 'Heatmap cu celulele vizitate de traseele agenților.' },
+  { id: 'export', label: 'Export', tooltip: 'Descarcă rezultatele și graficele pentru raport sau prezentare.' },
+];
 
 export type WizardStage = 'scenario' | 'run' | 'results';
 
@@ -55,7 +70,6 @@ type Props = {
   environment?: SafeEnvironment;
   result?: SafeEpisodeResult;
   monteCarlo?: MonteCarloResult;
-  explanation: string;
   busy: boolean;
   busyAction?: 'map' | 'episode' | 'monte-carlo';
   pendingMapConfig: boolean;
@@ -65,7 +79,6 @@ type Props = {
   onStageChange: (stage: WizardStage) => void;
   onChange: (config: SafeNavigationConfig) => void;
   onPreview: (config?: SafeNavigationConfig) => void;
-  onEpisode: () => void;
   onMonteCarlo: () => void;
   onTogglePath: () => void;
   onToggleRisk: () => void;
@@ -100,18 +113,6 @@ function algorithmLabel(value: string) {
   return algorithms.find(([id]) => id === value)?.[1] ?? backendLabels[value] ?? value;
 }
 
-function algorithmNarrative(value: string) {
-  const notes: Record<string, string> = {
-    random: 'Baseline-ul aleator arată cât de dificil este mediul fără planificare sau învățare.',
-    rule_based: 'Agentul pe reguli testează dacă reguli locale simple pot evita riscul imediat.',
-    astar: 'A* verifică eficiența planificării pe hărți noi, optimizând în principal distanța.',
-    risk_aware_astar: 'A* conștient de risc testează compromisul dintre traseu mai lung și expunere mai mică.',
-    tabular_q: 'Q-Learning tabular testează cât de bine se învață o hartă fixă prin coordonate absolute.',
-    feature_q: 'Q-Learning pe trăsături testează transferul unor tipare locale pe hărți noi.',
-  };
-  return notes[value] ?? 'Strategia selectată va fi evaluată pe aceeași hartă și aceleași metrici.';
-}
-
 function scenarioLabel(value: string) {
   const labels: Record<string, string> = {
     easy: 'ușor',
@@ -120,6 +121,78 @@ function scenarioLabel(value: string) {
     custom: 'personalizat',
   };
   return labels[value] ?? value;
+}
+
+function pct(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function fixed(value: number, digits = 1) {
+  return Number.isFinite(value) ? value.toFixed(digits) : '-';
+}
+
+function unsafeRate(row: MonteCarloResult['summary']['agents'][number]) {
+  return row.collision_rate + row.danger_entry_rate + row.timeout_rate;
+}
+
+function buildDynamicInterpretation(monteCarlo?: MonteCarloResult) {
+  const rows = monteCarlo?.summary.agents ?? [];
+  if (!rows.length) {
+    return {
+      title: 'Interpretarea rezultatelor',
+      summary: 'Rulează comparația Monte Carlo pentru a primi o concluzie adaptată la rezultate.',
+      bullets: ['Dashboard-ul va evidenția succesul, riscul, eficiența și robustețea fiecărui agent.'],
+    };
+  }
+
+  const bySuccess = [...rows].sort((a, b) => {
+    if (b.success_rate !== a.success_rate) return b.success_rate - a.success_rate;
+    return a.average_risk_exposure - b.average_risk_exposure;
+  });
+  const best = bySuccess[0];
+  const worst = bySuccess[bySuccess.length - 1];
+  const safest = [...rows].sort((a, b) => a.average_risk_exposure - b.average_risk_exposure)[0];
+  const fastest = [...rows].sort((a, b) => a.average_steps - b.average_steps)[0];
+  const bestReward = [...rows].sort((a, b) => b.average_reward - a.average_reward)[0];
+  const robust = [...rows].sort((a, b) => {
+    const unsafeDiff = unsafeRate(a) - unsafeRate(b);
+    if (unsafeDiff !== 0) return unsafeDiff;
+    return b.success_rate - a.success_rate;
+  })[0];
+
+  let title = `${algorithmLabel(best.algorithm)} conduce comparația`;
+  let summary = `${algorithmLabel(best.algorithm)} are cea mai bună rată de succes (${pct(best.success_rate)}).`;
+
+  if (best.success_rate < 0.35) {
+    title = 'Niciun agent nu este robust în această configurație';
+    summary = `Cel mai bun rezultat este doar ${pct(best.success_rate)} succes (${algorithmLabel(best.algorithm)}), deci scenariul este prea dificil sau bugetul de antrenare/evaluare este insuficient.`;
+  } else if (best.algorithm === safest.algorithm && best.algorithm === robust.algorithm) {
+    title = `${algorithmLabel(best.algorithm)} este recomandarea principală`;
+    summary = `${algorithmLabel(best.algorithm)} combină cel mai bun succes cu cel mai mic risc și cele mai puține evenimente nesigure. Este cel mai echilibrat rezultat al acestei rulări.`;
+  } else if (best.algorithm === safest.algorithm) {
+    title = `${algorithmLabel(best.algorithm)} câștigă și la succes, și la siguranță`;
+    summary = `${algorithmLabel(best.algorithm)} ajunge cel mai des la obiectiv și are cea mai mică expunere la risc. Diferența de eficiență trebuie verificată în raport cu ${algorithmLabel(fastest.algorithm)}.`;
+  } else if (safest.success_rate >= best.success_rate - 0.1) {
+    title = `Alegerea depinde de compromisul succes-risc`;
+    summary = `${algorithmLabel(best.algorithm)} conduce la succes (${pct(best.success_rate)}), dar ${algorithmLabel(safest.algorithm)} reduce riscul cu o rată de succes apropiată (${pct(safest.success_rate)}). Pentru navigare sigură, ${algorithmLabel(safest.algorithm)} poate fi preferabil.`;
+  } else if (best.success_rate - worst.success_rate > 0.4) {
+    title = `${algorithmLabel(best.algorithm)} domină clar la robustețe`;
+    summary = `Diferența dintre cel mai bun și cel mai slab agent este mare (${pct(best.success_rate)} vs ${pct(worst.success_rate)} succes), deci alegerea algoritmului contează semnificativ în acest scenariu.`;
+  } else {
+    summary = `${algorithmLabel(best.algorithm)} conduce la succes, însă ${algorithmLabel(safest.algorithm)} minimizează riscul și ${algorithmLabel(fastest.algorithm)} produce cele mai scurte trasee.`;
+  }
+
+  return {
+    title,
+    summary,
+    bullets: [
+      `Lider succes: ${algorithmLabel(best.algorithm)} (${pct(best.success_rate)} succes, risc mediu ${fixed(best.average_risk_exposure)}).`,
+      `Cel mai sigur: ${algorithmLabel(safest.algorithm)} (risc mediu ${fixed(safest.average_risk_exposure)}).`,
+      `Cel mai eficient: ${algorithmLabel(fastest.algorithm)} (${fixed(fastest.average_steps)} pași medii).`,
+      `Cel mai bun scor/recompensă: ${algorithmLabel(bestReward.algorithm)} (${fixed(bestReward.average_reward)} recompensă medie).`,
+      `Profil operațional stabil: ${algorithmLabel(robust.algorithm)} (${pct(unsafeRate(robust))} rată combinată de coliziuni/pericol/timeout).`,
+    ],
+  };
 }
 
 function stageState(stage: WizardStage, activeStage: WizardStage, scenarioReady: boolean, hasResults: boolean) {
@@ -144,7 +217,7 @@ function StageNavigation({
 }) {
   const steps: { id: WizardStage; label: string; description: string }[] = [
     { id: 'scenario', label: 'Configurare scenariu', description: 'Alege sau creează harta.' },
-    { id: 'run', label: 'Rulare experiment', description: 'Alege agentul și pornește simularea.' },
+    { id: 'run', label: 'Rulare experiment', description: 'Rulează comparația Monte Carlo.' },
     { id: 'results', label: 'Rezultate', description: 'Analizează traseul și comparațiile.' },
   ];
   return (
@@ -195,12 +268,7 @@ function StageNarrativePanel({
   const algorithm = algorithmLabel(config.algorithm);
   const profile = getExperimentProfile(config.experiment_profile);
   const hasComparison = !!monteCarlo?.summary.agents.length;
-  const bestComparison = hasComparison
-    ? [...monteCarlo.summary.agents].sort((a, b) => {
-        if (b.success_rate !== a.success_rate) return b.success_rate - a.success_rate;
-        return a.average_risk_exposure - b.average_risk_exposure;
-      })[0]
-    : undefined;
+  const interpretation = buildDynamicInterpretation(monteCarlo);
 
   if (stage === 'scenario') {
     return (
@@ -219,13 +287,13 @@ function StageNarrativePanel({
   if (stage === 'run') {
     return (
       <section className="panel-card stage-narrative-card">
-        <h3><GraduationCap size={16} /> Ipoteza de rulare</h3>
-        <p>{algorithmNarrative(config.algorithm)} Profilul Monte Carlo urmărește: {profile.expectedTakeaway}</p>
+        <h3><BarChart3 size={16} /> Ipoteza de rulare</h3>
+        <p>Experimentul compară strategiile pe același set de hărți generate. Profilul Monte Carlo urmărește: {profile.expectedTakeaway}</p>
         <ul>
-          <li>Agent curent: <b>{algorithm}</b>.</li>
+          <li>Agenți comparați: <b>Random, Rule-Based, A*, Risk-Aware A*, Tabular Q și Feature-Based Q</b>.</li>
           <li>Hartă: <b>{environment ? `${environment.rows}x${environment.cols}` : 'negenerată'}</b>, scenariu {scenarioLabel(config.scenario)}.</li>
           <li>Profil: <b>{profile.shortLabel}</b> - {profile.protocol}</li>
-          <li>{learningAlgorithms.has(config.algorithm) ? `Se antrenează ${config.training_episodes} episoade înainte de test.` : 'Se rulează direct, fără fază de antrenare.'}</li>
+          <li>Agenții Q sunt antrenați {config.training_episodes} episoade înainte de evaluarea Monte Carlo.</li>
         </ul>
       </section>
     );
@@ -234,22 +302,24 @@ function StageNarrativePanel({
   return (
     <section className="panel-card stage-narrative-card results-narrative">
       <h3><Activity size={16} /> Interpretarea rezultatelor</h3>
-      {result ? (
+      {monteCarlo ? (
+        <p><b>{interpretation.title}.</b> {interpretation.summary}</p>
+      ) : result ? (
         <p>
           {algorithm} {result.success ? 'a atins obiectivul' : result.timeout ? 'a intrat în timeout' : 'nu a finalizat cu succes'} în {result.steps} pași,
           cu risc {result.total_risk_exposure.toFixed(1)} și recompensă {result.total_reward.toFixed(1)}.
         </p>
       ) : (
-        <p>Rulează un episod pentru a vedea traseul și explicația metricilor pe harta curentă.</p>
+        <p>Rulează comparația Monte Carlo pentru a vedea interpretarea statistică pe hărți generate.</p>
       )}
       <ul>
-        <li>Traseul arată decizia pas cu pas.</li>
-        <li>Metricile separă eficiența de siguranță.</li>
-        <li>
-          {bestComparison
-            ? `Monte Carlo indică momentan ${algorithmLabel(bestComparison.algorithm)} ca lider la succes.`
-            : 'Monte Carlo va arăta robustețea pe hărți generate.'}
-        </li>
+        {(hasComparison ? interpretation.bullets : [
+          'Comparația separă eficiența de siguranță.',
+          'Rezultatele sunt agregate, nu bazate pe un singur episod norocos.',
+          'Monte Carlo va arăta robustețea pe hărți generate.',
+        ]).map((item) => (
+          <li key={item}>{item}</li>
+        ))}
       </ul>
     </section>
   );
@@ -401,7 +471,6 @@ function RunStage({
   showRisk,
   showCoordinates,
   onChange,
-  onEpisode,
   onMonteCarlo,
   onBack,
   onResults,
@@ -409,12 +478,11 @@ function RunStage({
   onToggleRisk,
   onToggleCoordinates,
   hasResults,
-}: Pick<Props, 'config' | 'environment' | 'busy' | 'pendingMapConfig' | 'showPath' | 'showRisk' | 'showCoordinates' | 'onChange' | 'onEpisode' | 'onMonteCarlo' | 'onTogglePath' | 'onToggleRisk' | 'onToggleCoordinates'> & {
+}: Pick<Props, 'config' | 'environment' | 'busy' | 'pendingMapConfig' | 'showPath' | 'showRisk' | 'showCoordinates' | 'onChange' | 'onMonteCarlo' | 'onTogglePath' | 'onToggleRisk' | 'onToggleCoordinates'> & {
   onBack: () => void;
   onResults: () => void;
   hasResults: boolean;
 }) {
-  const isLearningAgent = learningAlgorithms.has(config.algorithm);
   const patch = (next: Partial<SafeNavigationConfig>) => onChange({ ...config, ...next });
   const canRun = !!environment && !pendingMapConfig && !busy;
 
@@ -423,33 +491,21 @@ function RunStage({
       <div className="stage-heading">
         <div>
           <p className="eyebrow">2. Rulare experiment</p>
-          <h2>Configurează agentul și pornește simularea</h2>
-          <p>Etapa folosește harta generată în pasul anterior. Schimbările de scenariu trebuie aplicate înainte de rulare.</p>
+          <h2>Rulează comparația Monte Carlo</h2>
+          <p>Etapa folosește harta și profilul alese anterior, apoi compară toate strategiile pe hărți generate.</p>
         </div>
       </div>
 
       <div className="run-stage-grid">
         <section className="panel-card run-config-card">
-          <h3><Bot size={17} /> Strategie agent</h3>
-          <label>
-            Alege algoritmul
-            <select value={config.algorithm} onChange={(event) => patch({ algorithm: event.target.value })}>
-              {algorithms.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-            </select>
-          </label>
+          <h3><BarChart3 size={17} /> Experiment Monte Carlo</h3>
           <div className="run-param-grid">
             <label>Pași maximi<input type="number" value={config.max_steps} onChange={(event) => patch({ max_steps: Number(event.target.value) })} /></label>
-            {isLearningAgent ? (
-              <label>Episoade antrenare<input type="number" value={config.training_episodes} onChange={(event) => patch({ training_episodes: Number(event.target.value) })} /></label>
-            ) : (
-              <div className="run-info-box">
-                <GraduationCap size={16} />
-                <span>Acest agent este evaluat direct, fără antrenare.</span>
-              </div>
-            )}
+            <label>Episoade antrenare Q<input type="number" value={config.training_episodes} onChange={(event) => patch({ training_episodes: Number(event.target.value) })} /></label>
           </div>
           <div className="run-summary-list">
-            <span>Algoritm: <b>{algorithmLabel(config.algorithm)}</b></span>
+            <span>Algoritmi: <b>{algorithms.length} strategii comparate</b></span>
+            <span>Profil: <b>{getExperimentProfile(config.experiment_profile).shortLabel}</b></span>
             <span>Seed hartă: <b>{config.random_seed}</b></span>
             <span>Status hartă: <b>{pendingMapConfig ? 'neaplicată' : environment ? 'generată' : 'lipsă'}</b></span>
           </div>
@@ -474,8 +530,7 @@ function RunStage({
 
       <div className="stage-actions">
         <button className="secondary-button" onClick={onBack}><ArrowLeft size={16} /> Înapoi</button>
-        <button className="primary-button" disabled={!canRun} onClick={onEpisode}><Play size={16} /> Rulează episod</button>
-        <button className="secondary-button" disabled={!canRun} onClick={onMonteCarlo}><BarChart3 size={16} /> Compară Monte Carlo</button>
+        <button className="primary-button" disabled={!canRun} onClick={onMonteCarlo}><Play size={16} /> Rulează Monte Carlo</button>
         <button className="secondary-button" disabled={!hasResults} onClick={onResults}>Continuă la rezultate <ArrowRight size={16} /></button>
       </div>
     </section>
@@ -487,70 +542,91 @@ function ResultsStage({
   environment,
   result,
   monteCarlo,
-  explanation,
   busy,
   busyAction,
-  showPath,
-  showRisk,
-  showCoordinates,
   onBack,
   onScenario,
-  onEpisode,
-  onTogglePath,
-  onToggleRisk,
-  onToggleCoordinates,
-}: Pick<Props, 'config' | 'environment' | 'result' | 'monteCarlo' | 'explanation' | 'busy' | 'busyAction' | 'showPath' | 'showRisk' | 'showCoordinates' | 'onEpisode' | 'onTogglePath' | 'onToggleRisk' | 'onToggleCoordinates'> & {
+  onMonteCarlo,
+}: Pick<Props, 'config' | 'environment' | 'result' | 'monteCarlo' | 'busy' | 'busyAction' | 'onMonteCarlo'> & {
   onBack: () => void;
   onScenario: () => void;
 }) {
+  const [tab, setTab] = useState(monteCarloTabs[0].id);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const isMonteCarloBusy = busyAction === 'monte-carlo';
+
   return (
     <section className="wizard-stage results-stage">
       <div className="stage-heading">
         <div>
           <p className="eyebrow">3. Rezultate</p>
-          <h2>Analizează traseul, metricile și comparațiile</h2>
-          <p>Rezultatele combină traseul vizual, metricile episodului și comparația Monte Carlo dacă a fost rulată.</p>
+          <h2>Rezultatele comparației Monte Carlo</h2>
+          <p>Analiza este agregată pe agenți, hărți și episoade; nu mai interpretăm un singur traseu izolat.</p>
         </div>
       </div>
 
-      <div className="results-stage-grid">
-        <div className="results-main">
-          <GridWorldView
-            environment={environment}
-            result={result}
-            showPath={showPath}
-            showRisk={showRisk}
-            showCoordinates={showCoordinates}
-            onTogglePath={onTogglePath}
-            onToggleRisk={onToggleRisk}
-            onToggleCoordinates={onToggleCoordinates}
-          />
-          <ExperimentDashboard result={monteCarlo} busy={busyAction === 'monte-carlo'} />
+      {monteCarlo || isMonteCarloBusy ? (
+        <div className="mc-results-stage">
+          <div className="mc-results-stage__overview">
+            <ExperimentDashboard result={monteCarlo} busy={isMonteCarloBusy} />
+            <StageNarrativePanel
+              stage="results"
+              config={config}
+              environment={environment}
+              result={result}
+              monteCarlo={monteCarlo}
+            />
+          </div>
+
+          {monteCarlo ? (
+            <section className="mc-details-panel">
+              <button
+                type="button"
+                className="mc-details-toggle"
+                onClick={() => setDetailsOpen((value) => !value)}
+                aria-expanded={detailsOpen}
+              >
+                <span>
+                  <strong>More details</strong>
+                  <small>Distribuții, intervale 95%, risc/recompensă și grafice suplimentare</small>
+                </span>
+                {detailsOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+
+              {detailsOpen ? (
+                <Tabs.Root value={tab} onValueChange={setTab} className="mc-results-tabs">
+                  <Tabs.List className="mc-page__tabs">
+                    {monteCarloTabs.map((entry) => (
+                      <Tabs.Trigger key={entry.id} value={entry.id} className="mc-tab">
+                        <TooltipLabel text={entry.tooltip}>{entry.label}</TooltipLabel>
+                      </Tabs.Trigger>
+                    ))}
+                  </Tabs.List>
+                  <div className="mc-results-stage__content">
+                    <Tabs.Content value="distributions"><RewardDistribution result={monteCarlo} /></Tabs.Content>
+                    <Tabs.Content value="ci-bars"><MetricCIBars result={monteCarlo} /></Tabs.Content>
+                    <Tabs.Content value="pareto"><RiskRewardScatter result={monteCarlo} /></Tabs.Content>
+                    <Tabs.Content value="per-map"><PerMapHeatmap result={monteCarlo} /></Tabs.Content>
+                    <Tabs.Content value="failures"><FailureBreakdown result={monteCarlo} /></Tabs.Content>
+                    <Tabs.Content value="occupancy"><OccupancyHeatmap result={monteCarlo} /></Tabs.Content>
+                    <Tabs.Content value="export"><ExportPanel result={monteCarlo} /></Tabs.Content>
+                  </div>
+                </Tabs.Root>
+              ) : null}
+            </section>
+          ) : null}
         </div>
-        <div className="results-side">
-          <StageNarrativePanel
-            stage="results"
-            config={config}
-            environment={environment}
-            result={result}
-            monteCarlo={monteCarlo}
-          />
-          <MetricsPanel config={config} environment={environment} result={result} monteCarlo={monteCarlo} compact showStory={false} />
-          <ExplanationPanel
-            config={config}
-            environment={environment}
-            result={result}
-            monteCarlo={monteCarlo}
-            text={explanation}
-            compact
-          />
-        </div>
-      </div>
+      ) : (
+        <section className="panel-card mc-results-empty">
+          <h3><BarChart3 size={17} /> Nu există încă o comparație Monte Carlo</h3>
+          <p>Revino la etapa de rulare și pornește experimentul pentru a vedea dashboard-ul statistic.</p>
+        </section>
+      )}
 
       <div className="stage-actions">
         <button className="secondary-button" onClick={onBack}><ArrowLeft size={16} /> Înapoi la rulare</button>
         <button className="secondary-button" onClick={onScenario}>Schimbă scenariul</button>
-        <button className="primary-button" disabled={!environment || busy} onClick={onEpisode}><Play size={16} /> Rulează din nou</button>
+        <button className="primary-button" disabled={!environment || busy} onClick={onMonteCarlo}><Play size={16} /> Rulează Monte Carlo din nou</button>
       </div>
     </section>
   );
@@ -563,7 +639,6 @@ export function ControlPanel({
   environment,
   result,
   monteCarlo,
-  explanation,
   busy,
   busyAction,
   pendingMapConfig,
@@ -573,7 +648,6 @@ export function ControlPanel({
   onStageChange,
   onChange,
   onPreview,
-  onEpisode,
   onMonteCarlo,
   onTogglePath,
   onToggleRisk,
@@ -620,7 +694,6 @@ export function ControlPanel({
             showCoordinates={showCoordinates}
             hasResults={hasResults}
             onChange={onChange}
-            onEpisode={onEpisode}
             onMonteCarlo={onMonteCarlo}
             onBack={() => onStageChange('scenario')}
             onResults={() => onStageChange('results')}
@@ -635,18 +708,11 @@ export function ControlPanel({
             environment={environment}
             result={result}
             monteCarlo={monteCarlo}
-            explanation={explanation}
             busy={busy}
             busyAction={busyAction}
-            showPath={showPath}
-            showRisk={showRisk}
-            showCoordinates={showCoordinates}
             onBack={() => onStageChange('run')}
             onScenario={() => onStageChange('scenario')}
-            onEpisode={onEpisode}
-            onTogglePath={onTogglePath}
-            onToggleRisk={onToggleRisk}
-            onToggleCoordinates={onToggleCoordinates}
+            onMonteCarlo={onMonteCarlo}
           />
         ) : null}
       </main>

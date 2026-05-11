@@ -10,6 +10,7 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts';
+import { TooltipLabel } from '../TooltipLabel';
 import type { MonteCarloResult } from '../types';
 import { CHART_THEME, algorithmLabel, colorFor, formatNumber, groupEpisodesByAlgorithm } from './analysisHelpers';
 
@@ -36,7 +37,15 @@ export function RiskRewardScatter({ result }: { result: MonteCarloResult }) {
         <div>
           <h2>Trade-off risc vs recompensă</h2>
           <p className="mc-card__caption">
-            Un punct = un episod. Sus-stânga indică un agent eficient și sigur; jos-dreapta este zona costisitoare.
+            Un punct = un episod.{' '}
+            <TooltipLabel text="Recompensă mare și risc mic: traseu bun atât ca eficiență, cât și ca siguranță.">
+              Sus-stânga
+            </TooltipLabel>{' '}
+            indică un agent eficient și sigur;{' '}
+            <TooltipLabel text="Recompensă mică și risc mare: traseu costisitor sau nesigur.">
+              jos-dreapta
+            </TooltipLabel>{' '}
+            este zona costisitoare.
           </p>
         </div>
       </header>

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { TooltipLabel } from '../TooltipLabel';
 import type { MonteCarloResult } from '../types';
 import { algorithmLabel, colorFor, formatPercent } from './analysisHelpers';
 
@@ -48,9 +49,17 @@ export function PerMapHeatmap({ result }: { result: MonteCarloResult }) {
         <table className="mc-heatmap">
           <thead>
             <tr>
-              <th className="mc-heatmap__row-label">Agent \\ Seed</th>
+              <th className="mc-heatmap__row-label">
+                <TooltipLabel text="Rândurile sunt agenții comparați; coloanele sunt seed-urile hărților generate.">
+                  Agent \ Seed
+                </TooltipLabel>
+              </th>
               {data.seeds.map((seed) => (
-                <th key={seed}>{seed}</th>
+                <th key={seed}>
+                  <TooltipLabel text={`Seed-ul hărții generate. Aceeași valoare reproduce aceeași hartă procedurală: ${seed}.`}>
+                    {seed}
+                  </TooltipLabel>
+                </th>
               ))}
             </tr>
           </thead>

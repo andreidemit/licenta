@@ -459,6 +459,111 @@ button { color: inherit; }
   padding-right: 0;
 }
 
+.mc-results-stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.mc-results-stage__overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.55fr);
+  gap: 10px;
+  min-height: 0;
+}
+
+.mc-results-stage .comparison-dashboard,
+.mc-results-stage__overview .comparison-dashboard {
+  flex: initial;
+  max-height: none;
+}
+
+.mc-results-tabs {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mc-results-stage__content {
+  min-height: 0;
+}
+
+.mc-results-stage__content .comparison-dashboard {
+  max-height: none;
+}
+
+.mc-details-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.mc-details-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.mc-details-toggle:hover,
+.mc-details-toggle:focus-visible {
+  border-color: var(--primary);
+  background: #f0fdfa;
+  outline: none;
+}
+
+.mc-details-toggle span {
+  display: grid;
+  gap: 2px;
+}
+
+.mc-details-toggle strong {
+  color: var(--primary-dark);
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mc-details-toggle small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.mc-results-empty {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.mc-results-empty h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.mc-results-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .stage-actions {
   display: flex;
   flex: 0 0 auto;
@@ -985,6 +1090,25 @@ button:disabled {
 .safe-metric-tooltip {
   max-width: 260px;
   line-height: 1.35;
+}
+
+.safe-tooltip-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: inherit;
+  gap: 4px;
+  color: inherit;
+  cursor: help;
+}
+
+.safe-tooltip-label svg {
+  flex: 0 0 auto;
+  color: var(--subtle);
+}
+
+.safe-tooltip-label:hover svg,
+.safe-tooltip-label:focus-visible svg {
+  color: var(--primary);
 }
 
 .run-summary-card dt {
@@ -2021,4 +2145,243 @@ button:disabled {
 
 .comparison-dashboard__entry:hover {
   background: var(--primary-dark);
+}
+
+.mc-config {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.mc-config__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.mc-config__header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.mc-config__subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  max-width: 720px;
+  line-height: 1.5;
+}
+
+.mc-config__header .secondary-button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.mc-config__profile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.mc-config__profile label {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+
+.mc-config__profile .mc-select {
+  min-width: 240px;
+}
+
+.mc-config__apply {
+  width: auto;
+}
+
+.mc-config__profile-hint {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.mc-config__fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px 14px;
+  margin: 0;
+  background: var(--panel);
+}
+
+.mc-config__fieldset legend {
+  padding: 0 6px;
+  color: var(--primary-dark);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mc-config__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.mc-config__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
+.mc-config__field span {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.mc-config__field input,
+.mc-config__field select {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.mc-config__field input:focus,
+.mc-config__field select:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.mc-config__field small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.mc-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mc-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mc-checkbox:hover {
+  border-color: var(--primary);
+}
+
+.mc-checkbox--checked {
+  border-color: var(--primary);
+  background: #f0fdfa;
+}
+
+.mc-checkbox input {
+  margin-top: 3px;
+  accent-color: var(--primary);
+}
+
+.mc-checkbox span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+}
+
+.mc-checkbox strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.mc-checkbox small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.mc-config__warning {
+  margin: 8px 0 0;
+  color: #b91c1c;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.mc-config__estimate {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: var(--ink);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.mc-config__estimate strong {
+  color: var(--primary-dark);
+}
+
+.mc-config__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.mc-config__actions .primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  padding: 9px 18px;
+  font-size: 0.82rem;
+}
+
+.mc-config__message {
+  color: var(--primary-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.mc-config__error {
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.mc-spin {
+  animation: mc-spin 0.9s linear infinite;
+}
+
+@keyframes mc-spin {
+  to { transform: rotate(360deg); }
 }

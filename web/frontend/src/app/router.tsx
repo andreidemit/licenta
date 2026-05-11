@@ -15,7 +15,7 @@ const EvaluatePage = lazy(() =>
 const BuilderPage = lazy(() => import('../pages/BuilderPage').then((m) => ({ default: m.BuilderPage })));
 const ComparePage = lazy(() => import('../pages/ComparePage').then((m) => ({ default: m.ComparePage })));
 const SafeNavigationApp = lazy(() => import('../App').then((m) => ({ default: m.App })));
-const MonteCarloAnalysisPage = lazy(() =>
+const MonteCarloExperimentPage = lazy(() =>
   import('../features/safe-navigation/analysis/MonteCarloAnalysisPage').then((m) => ({
     default: m.MonteCarloAnalysisPage,
   })),
@@ -86,7 +86,7 @@ const router = createBrowserRouter([
   },
   {
     path: '/safe-navigation/monte-carlo',
-    element: <Suspense fallback={<PageFallback />}><MonteCarloAnalysisPage /></Suspense>,
+    element: <Suspense fallback={<PageFallback />}><MonteCarloExperimentPage /></Suspense>,
     errorElement: <RouteError />,
   },
 ]);

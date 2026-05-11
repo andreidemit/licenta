@@ -219,7 +219,6 @@ export function App() {
         environment={environment}
         result={episodeResult}
         monteCarlo={monteCarlo}
-        explanation={explanation}
         busy={busy}
         busyAction={busyAction}
         pendingMapConfig={pendingMapConfig}
@@ -229,7 +228,6 @@ export function App() {
         onStageChange={setActiveStage}
         onChange={updateConfig}
         onPreview={(nextConfig) => generateMap(nextConfig)}
-        onEpisode={runEpisode}
         onMonteCarlo={runMonteCarlo}
         onTogglePath={() => setShowPath((value) => !value)}
         onToggleRisk={() => setShowRisk((value) => !value)}

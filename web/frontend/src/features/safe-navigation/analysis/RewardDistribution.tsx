@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TooltipLabel } from '../TooltipLabel';
 import type { MonteCarloResult } from '../types';
 import {
   CHART_THEME,
@@ -26,6 +27,12 @@ const METRIC_LABELS: Record<MetricKey, string> = {
   total_reward: 'Recompensă totală',
   steps: 'Pași per episod',
   total_risk_exposure: 'Expunere la risc',
+};
+
+const METRIC_TOOLTIPS: Record<MetricKey, string> = {
+  total_reward: 'Recompensa totală a episodului, incluzând bonusuri și penalizări.',
+  steps: 'Numărul de pași executați până la succes, eșec sau timeout.',
+  total_risk_exposure: 'Suma riscului întâlnit pe traseu; valori mai mici indică rute mai sigure.',
 };
 
 export function RewardDistribution({ result }: { result: MonteCarloResult }) {
@@ -55,7 +62,15 @@ export function RewardDistribution({ result }: { result: MonteCarloResult }) {
         <div>
           <h2>Distribuții per agent</h2>
           <p className="mc-card__caption">
-            Cutia: cuartilele 25-75. Whisker-ele: percentilele 5-95. Punctul portocaliu: media.
+            <TooltipLabel text="Q1-Q3: intervalul dintre percentila 25 și percentila 75, adică jumătatea centrală a episoadelor.">
+              Cutia
+            </TooltipLabel>: cuartilele 25-75.{' '}
+            <TooltipLabel text="Whisker-ele arată percentilele 5-95, reducând efectul episoadelor extreme.">
+              Whisker-ele
+            </TooltipLabel>: percentilele 5-95.{' '}
+            <TooltipLabel text="Media aritmetică a valorilor pe toate episoadele agentului.">
+              Punctul portocaliu
+            </TooltipLabel>: media.
           </p>
         </div>
         <select
@@ -104,8 +119,13 @@ export function RewardDistribution({ result }: { result: MonteCarloResult }) {
         {data.map((row) => (
           <div key={row.algorithm} className="mc-stat-card" style={{ borderLeftColor: row.color }}>
             <div className="mc-stat-card__title">{row.label}</div>
-            <div className="mc-stat-card__row">media {formatNumber(row.mean)} · mediană {formatNumber(row.p50)}</div>
-            <div className="mc-stat-card__row">p25-p75: {formatNumber(row.p25)} … {formatNumber(row.p75)}</div>
+            <div className="mc-stat-card__row">
+              <TooltipLabel text={METRIC_TOOLTIPS[metric]}>media</TooltipLabel> {formatNumber(row.mean)} ·{' '}
+              <TooltipLabel text="Mediana este percentila 50: jumătate din episoade au valori sub acest prag.">mediană</TooltipLabel> {formatNumber(row.p50)}
+            </div>
+            <div className="mc-stat-card__row">
+              <TooltipLabel text="Intervalul intercuartilic: percentila 25 până la percentila 75.">p25-p75</TooltipLabel>: {formatNumber(row.p25)} … {formatNumber(row.p75)}
+            </div>
             <div className="mc-stat-card__row">min {formatNumber(row.min)} · max {formatNumber(row.max)}</div>
             <div className="mc-stat-card__row">n = {row.count}</div>
           </div>

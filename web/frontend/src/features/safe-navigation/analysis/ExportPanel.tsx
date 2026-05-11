@@ -51,6 +51,7 @@ export function ExportPanel({ result }: { result: MonteCarloResult }) {
         <button
           type="button"
           className="secondary-button"
+          title="Exportă câte un rând per agent, cu mediile, ratele și intervalele de încredere."
           onClick={() => downloadFile('monte-carlo-summary.csv', summaryToCsv(result))}
         >
           <FileSpreadsheet size={16} /> CSV rezumat agregat
@@ -58,6 +59,7 @@ export function ExportPanel({ result }: { result: MonteCarloResult }) {
         <button
           type="button"
           className="secondary-button"
+          title="Exportă fiecare episod individual, util pentru analize externe sau debugging."
           onClick={() => downloadFile('monte-carlo-episodes.csv', episodesToCsv(result))}
         >
           <FileText size={16} /> CSV episoade brute
@@ -65,6 +67,7 @@ export function ExportPanel({ result }: { result: MonteCarloResult }) {
         <button
           type="button"
           className="secondary-button"
+          title="Exportă configurația, profilul și rezumatul agregat în format JSON."
           onClick={() =>
             downloadFile(
               'monte-carlo-result.json',
@@ -75,7 +78,13 @@ export function ExportPanel({ result }: { result: MonteCarloResult }) {
         >
           <Download size={16} /> JSON rezumat
         </button>
-        <button type="button" className="secondary-button" onClick={exportPng} disabled={busy}>
+        <button
+          type="button"
+          className="secondary-button"
+          title="Exportă graficele SVG vizibile din pagina Monte Carlo ca imagini PNG."
+          onClick={exportPng}
+          disabled={busy}
+        >
           <ImageIcon size={16} /> {busy ? 'Se exportă...' : 'PNG pentru fiecare grafic'}
         </button>
       </div>
