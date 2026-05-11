@@ -28,7 +28,7 @@ CELL_RGB = {
     CellType.OBSTACLE: (100, 100, 100),
     CellType.MUD: (139, 119, 101),
     CellType.FOOD: (255, 215, 0),
-    CellType.DANGER: (220, 20, 60),
+    CellType.DANGER: (255, 30, 60),
     CellType.TARGET: (0, 191, 255),
     CellType.START: (50, 205, 50),
 }

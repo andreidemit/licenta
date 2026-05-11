@@ -10,6 +10,7 @@ const algorithmNotes: Record<string, string> = {
   risk_aware_astar: 'Planifică folosind atât distanța, cât și costul de risc. Poate alege un traseu mai lung dacă acesta evită zonele periculoase.',
   tabular_q: 'Învață valori Q legate de coordonate absolute. Poate performa bine pe harta de antrenare, dar transferul pe hărți noi este limitat.',
   feature_q: 'Învață din trăsături locale, precum pereți apropiați, pericole apropiate și direcția obiectivului, deci tiparele pot fi transferate mai bine.',
+  sarsa: 'Algoritm on-policy: actualizează Q(s,a) cu acțiunea efectiv aleasă în starea următoare, nu cu maximul. Este mai conservator decât Q-Learning în zone cu risc.',
 };
 
 function fmt(value?: number, digits = 1) {
@@ -29,6 +30,8 @@ function algorithmLabel(value: string) {
     'Tabular Q-Learning': 'Q-Learning tabular',
     feature_q: 'Q-Learning pe trăsături',
     'Feature-Based Q-Learning': 'Q-Learning pe trăsături',
+    sarsa: 'SARSA tabular',
+    'SARSA tabular': 'SARSA tabular',
   };
   return labels[value] ?? value;
 }
@@ -44,7 +47,7 @@ function scenarioLabel(value: string) {
 }
 
 function selectedAlgorithmContext(config: SafeNavigationConfig) {
-  if (config.algorithm === 'tabular_q' || config.algorithm === 'feature_q') {
+  if (config.algorithm === 'tabular_q' || config.algorithm === 'feature_q' || config.algorithm === 'sarsa') {
     return `Înainte de evaluare, backend-ul antrenează agentul timp de ${config.training_episodes} episoade pe harta generată, apoi rulează un episod greedy de test.`;
   }
   if (config.algorithm === 'astar' || config.algorithm === 'risk_aware_astar') {
@@ -71,6 +74,7 @@ function detailedAlgorithmExplanation(config: SafeNavigationConfig) {
     risk_aware_astar: 'A* conștient de risc extinde planificarea clasică: nu caută doar drumul scurt, ci adaugă penalizări pentru celulele periculoase și zonele apropiate de pericol. De aceea poate prefera un traseu mai lung, dar mai sigur.',
     tabular_q: `Q-Learning tabular învață valori pentru poziții exacte din hartă. În această configurație este antrenat ${config.training_episodes} episoade, apoi testat. Poate merge bine pe harta de antrenare, dar generalizează mai greu când harta se schimbă.`,
     feature_q: `Q-Learning pe trăsături nu memorează doar coordonate, ci folosește semnale locale: pereți apropiați, pericole apropiate și direcția obiectivului. După ${config.training_episodes} episoade de antrenare, poate transfera mai bine tipare de siguranță pe hărți noi.`,
+    sarsa: `SARSA este un algoritm on-policy: actualizează Q(s,a) cu valoarea acțiunii efectiv alese în pasul următor, nu cu maximul posibil (ca Q-Learning). Aceasta îl face mai conservator — preferă trasee mai sigure — cu prețul unei convergențe ușor mai lente. Antrenament: ${config.training_episodes} episoade.`,
   };
   return notes[config.algorithm] || 'Algoritmul selectat este evaluat pe harta curentă folosind aceleași metrici ca restul strategiilor.';
 }
@@ -140,7 +144,7 @@ export function ExplanationPanel({
   const profile = getExperimentProfile(config.experiment_profile);
 
   if (compact) {
-    const compactContext = config.algorithm === 'tabular_q' || config.algorithm === 'feature_q'
+    const compactContext = config.algorithm === 'tabular_q' || config.algorithm === 'feature_q' || config.algorithm === 'sarsa'
       ? `A fost antrenat ${config.training_episodes} episoade, apoi evaluat pe traseul afișat.`
       : 'Este o strategie rulată direct, fără antrenare; traseul apare imediat după planificare.';
     return (

@@ -8,6 +8,7 @@ from agents import (
     RandomAgent,
     RiskAwareAStarAgent,
     RuleBasedAgent,
+    SarsaAgent,
     TabularQLearningAgent,
 )
 from environment.grid_world import RewardConfig
@@ -88,6 +89,8 @@ def create_agent(algorithm: str, rows: int, cols: int, risk_weight: float = 1.0,
         return TabularQLearningAgent(rows=rows, cols=cols, random_seed=seed)
     if key in ("feature_q", "feature-based-q-learning", "feature q-learning"):
         return FeatureBasedQLearningAgent(random_seed=seed)
+    if key in ("sarsa", "sarsa_tabular", "sarsa tabular"):
+        return SarsaAgent(rows=rows, cols=cols, random_seed=seed)
     raise ValueError(f"Algoritm necunoscut: {algorithm}")
 
 

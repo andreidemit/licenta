@@ -436,6 +436,23 @@ class Renderer:
                 pygame.draw.rect(self.screen, color, rect)
                 pygame.draw.rect(self.screen, COLOR_GRID_LINE, rect, 1)
 
+                # Marchează celulele de pericol cu un X alb și bordură portocalie
+                if cell == CellType.DANGER:
+                    cx = col * CELL_SIZE + CELL_SIZE // 2
+                    cy = row * CELL_SIZE + CELL_SIZE // 2
+                    pad = max(3, CELL_SIZE // 5)
+                    pygame.draw.line(
+                        self.screen, (255, 220, 0),
+                        (col * CELL_SIZE + pad, row * CELL_SIZE + pad),
+                        (col * CELL_SIZE + CELL_SIZE - pad, row * CELL_SIZE + CELL_SIZE - pad), 2
+                    )
+                    pygame.draw.line(
+                        self.screen, (255, 220, 0),
+                        (col * CELL_SIZE + CELL_SIZE - pad, row * CELL_SIZE + pad),
+                        (col * CELL_SIZE + pad, row * CELL_SIZE + CELL_SIZE - pad), 2
+                    )
+                    pygame.draw.rect(self.screen, (255, 160, 0), rect, 2)
+
         # Marchează ținta cu un simbol distinct
         if environment.target_pos:
             tr, tc = environment.target_pos
