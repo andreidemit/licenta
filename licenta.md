@@ -4,12 +4,12 @@
 
 ---
 
-# Simularea Comportamentului Inteligent prin Q-Learning: Navigare Autonomă și Supraviețuire
+# Simulator Grid-Based pentru Evaluarea Strategiilor de Navigare Sigură în Medii Generate Procedural
 
 **Lucrare de Licență**
 
 **Autor:** Andrei Demit
-**Coordonator științific:** Conf. dr. [Coordonator]
+**Coordonator științific:** Lect. univ. dr. Florentina Suter
 **Specializarea:** Informatică
 
 **București, 2026**
@@ -20,29 +20,37 @@
 
 ### Rezumat în Limba Română
 
-Lucrarea de față prezintă proiectarea, implementarea și analiza experimentală a unei platforme de simulare pentru agenți autonomi în medii discrete. Nucleul sistemului este un agent Q-Learning tabular care navighează o grilă procedural generată de dimensiune 20×20, conținând obstacole, zone de noroi, surse de hrană, zone de pericol și o destinație țintă. Contribuția centrală a acestei componente constă în integrarea unui mecanism de homeostazie energetică în spațiul de stări al agentului, permițând unui agent cu resurse limitate să învețe politici diferite în funcție de nivelul de energie.
+Lucrarea de față prezintă proiectarea, implementarea și analiza experimentală a unui simulator grid-based pentru evaluarea strategiilor de navigare sigură în medii necunoscute, generate procedural. Scopul lucrării nu este doar verificarea binară a faptului că un agent ajunge sau nu la destinație, ci compararea strategiilor după mai multe criterii relevante pentru navigarea autonomă: rata de succes, riscul acumulat, coliziunile, costul traseului, eficiența și capacitatea de generalizare pe hărți noi.
 
-Spațiul de stări este definit ca un triplet $(rând, coloană, nivel\_energie)$, unde nivelul de energie continuu este discretizat în patru grupe, rezultând un Q-table de dimensiune $20 \times 20 \times 4 \times 5 = 8.000$ de intrări, gestionat eficient ca o matrice NumPy. Algoritmul Q-Learning actualizează valorile acestui tabel prin ecuația Bellman la fiecare pas al simulării, iar politica epsilon-greedy asigură echilibrul dintre explorare și exploatare pe parcursul antrenamentului.
+Valoarea proiectului constă în transformarea problemei din „agentul a ajuns la țintă?” în întrebarea mai matură „care strategie este mai potrivită pentru navigare sigură în medii necunoscute?”. În acest sens, sistemul compară strategii bazate pe aleatoriu, reguli, planificare și învățare: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning. Toți agenții sunt rulați în același tip de mediu GridWorld, ceea ce permite o comparație coerentă între comportamente diferite.
+
+Simulatorul include un generator procedural de hărți validat prin BFS, un model explicit de risc calculat în funcție de apropierea față de celulele periculoase și o infrastructură de evaluare Monte Carlo pe distribuții de medii. Astfel, performanța nu este judecată doar pe o hartă fixă, ci pe mai multe hărți generate cu seed-uri controlate. Metricile colectate includ `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` și `average_computation_time_ms`.
+
+Componenta Q-Learning energetică rămâne o parte importantă a lucrării, dar nu mai reprezintă singurul obiectiv. Aceasta funcționează ca studiu de caz pentru învățare prin consolidare tabulară cu homeostazie energetică: spațiul de stări este definit ca un triplet $(rând, coloană, nivel\_energie)$, unde nivelul de energie continuu este discretizat în patru grupe, rezultând un Q-table de dimensiune $20 \times 20 \times 4 \times 5 = 8.000$ de intrări. Această componentă arată cum o strategie de învățare poate lua decizii diferite în aceeași poziție în funcție de resursele interne ale agentului.
 
 Lucrarea evaluează patru scenarii ale sistemului energetic: Scenariul A (energie foarte mare, navigare pură), Scenariul B (energie limitată la 100 de unități), Scenariul C (mediu dinamic, cu obstacole relocate în timpul antrenamentului) și WAREHOUSE (depozit industrial cu rafturi, stații de încărcare și zone de risc). Pachetul reproductibil generat de `src.final_report` pe grid 20×20, seed 42 și 2.000 de episoade obține rată de succes pe ultimele 100 de episoade de 100% în Scenariul A, 96% în Scenariul B, 100% în Scenariul C și 100% în scenariul WAREHOUSE. Evaluările greedy finale ajung la țintă în 34, 38, 12, respectiv 77 de pași.
 
-Pe lângă nucleul Q-Learning energetic, proiectul include și un cadru separat de „safe navigation” pentru comparația strategiilor de navigare în medii necunoscute. Acesta implementează agenți Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning, un model de risc derivat din apropierea de celule periculoase și experimente Monte Carlo pe hărți generate procedural. Întregul sistem este expus printr-un backend FastAPI și o interfață React/Vite hostabilă în Azure Cloud, ceea ce transformă implementarea într-o aplicație demonstrabilă și reproductibilă, nu doar într-un script de antrenare.
+În experimentul Monte Carlo pentru scenariul `medium` (5 hărți, 2 episoade per hartă, seed 42), A* și Risk-Aware A* ating ambele 100% succes, dar Risk-Aware A* reduce expunerea medie la risc de la 161.0 la 125.0 și costul total mediu de la 195.4 la 124.6. Acest rezultat susține ideea centrală a lucrării: o strategie poate fi preferabilă nu pentru că ajunge mai des la țintă, ci pentru că ajunge cu risc mai mic și cost mai bun. Întregul sistem este expus printr-un backend FastAPI și o interfață React/Vite hostabilă în Azure Cloud, ceea ce transformă implementarea într-o aplicație demonstrabilă și reproductibilă, nu doar într-un script de antrenare.
 
-**Cuvinte cheie:** Q-Learning, reinforcement learning, navigare autonomă, homeostazie energetică, simulare discretă, navigare sigură, Monte Carlo, FastAPI, React, Azure Cloud.
+**Cuvinte cheie:** simulare grid-based, navigare sigură, hărți generate procedural, risc, coliziuni, cost traseu, Q-Learning, A*, Monte Carlo, FastAPI, React, Azure Cloud.
 
 ---
 
 ### Abstract in English
 
-This thesis presents the design, implementation and experimental analysis of a simulation platform for autonomous agents in discrete environments. The core system is a tabular Q-Learning agent that navigates a procedurally generated 20×20 grid containing obstacles, mud zones, food sources, danger zones and a target destination. The central contribution of this component is the integration of an energy homeostasis mechanism into the agent's state space, enabling a resource-constrained agent to learn different policies depending on its current energy level.
+This thesis presents the design, implementation and experimental analysis of a grid-based simulator for evaluating safe navigation strategies in unknown procedurally generated environments. The goal is not merely to check whether an agent reaches the destination, but to compare strategies using a richer set of criteria: success rate, accumulated risk, collisions, path cost, efficiency and generalisation to unseen maps.
 
-The state space is defined as a triplet $(row, column, energy\_level)$, where the continuous energy level is discretised into four buckets, yielding a Q-table of size $20 \times 20 \times 4 \times 5 = 8{,}000$ entries, managed efficiently as a NumPy array. The Q-Learning algorithm updates this table via the Bellman equation at every simulation step, while an epsilon-greedy policy balances exploration and exploitation throughout training.
+The value of the project lies in reframing the problem from "did the agent reach the goal?" to "which strategy is more suitable for safe navigation in unknown environments?". The system compares random, rule-based, planning-based and learning-based approaches: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning and Feature-Based Q-Learning. All agents are evaluated in the same GridWorld setting, which enables a coherent comparison of different behaviours.
+
+The simulator includes a procedurally generated BFS-validated map generator, an explicit risk model based on proximity to dangerous cells, and a Monte Carlo evaluation pipeline across distributions of maps. Therefore, performance is not judged on a single fixed map, but across several generated maps with controlled seeds. The collected metrics include `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` and `average_computation_time_ms`.
+
+The energy-aware Q-Learning component remains an important part of the thesis, but it is no longer the only objective. It acts as a case study for tabular reinforcement learning with energy homeostasis: the state space is defined as a triplet $(row, column, energy\_level)$, where the continuous energy level is discretised into four buckets, yielding a Q-table of size $20 \times 20 \times 4 \times 5 = 8{,}000$ entries. This component shows how a learning strategy can choose different actions in the same location depending on the internal resources of the agent.
 
 The work evaluates four scenarios of the energy-aware simulator: Scenario A (very high energy, pure navigation), Scenario B (energy capped at 100 units), Scenario C (dynamic environment, with obstacles relocated during training), and WAREHOUSE (an industrial warehouse layout with shelves, charging stations and risk zones). The reproducible final report generated by `src.final_report` on a 20×20 grid, seed 42 and 2,000 training episodes reaches 100% success in Scenario A, 96% in Scenario B, 100% in Scenario C and 100% in WAREHOUSE over the last 100 episodes. Final greedy evaluations reach the goal in 34, 38, 12 and 77 steps respectively.
 
-In addition to the energy-aware Q-Learning core, the project includes a separate safe-navigation framework for comparing navigation strategies in unknown grid worlds. It implements Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning and Feature-Based Q-Learning agents, a risk model based on proximity to dangerous cells, and Monte Carlo experiments across procedurally generated maps. The whole system is exposed through a FastAPI backend and a React/Vite frontend that can be hosted in Azure Cloud, turning the implementation into a reproducible and demonstrable simulation application.
+In the Monte Carlo experiment for the `medium` scenario (5 maps, 2 episodes per map, seed 42), both A* and Risk-Aware A* reach 100% success, but Risk-Aware A* reduces average risk exposure from 161.0 to 125.0 and average total cost from 195.4 to 124.6. This result supports the central argument of the thesis: a strategy can be preferable not because it reaches the goal more often, but because it reaches it with lower risk and better cost. The whole system is exposed through a FastAPI backend and a React/Vite frontend that can be hosted in Azure Cloud, turning the implementation into a reproducible and demonstrable simulation application.
 
-**Keywords:** Q-Learning, reinforcement learning, autonomous navigation, energy homeostasis, discrete simulation, safe navigation, Monte Carlo, FastAPI, React, Azure Cloud.
+**Keywords:** grid-based simulation, safe navigation, procedurally generated maps, risk, collisions, path cost, Q-Learning, A*, Monte Carlo, FastAPI, React, Azure Cloud.
 
 ---
 
@@ -54,18 +62,18 @@ In addition to the energy-aware Q-Learning core, the project includes a separate
    - 1.3 Contribuții originale
    - 1.4 Structura lucrării
 2. Stadiul Artei
-   - 2.1 Reinforcement Learning — context general
-   - 2.2 Q-Learning clasic și variante
-   - 2.3 Deep Q-Networks (DQN) și limitările față de Q-Learning tabular
-   - 2.4 Algoritmi de navigare autonomă în robotică
-   - 2.5 Homeostazia energetică în sisteme artificiale
+   - 2.1 Simulare grid-based și evaluare pe agenți
+   - 2.2 Reinforcement Learning — context general
+   - 2.3 Q-Learning clasic și variante
+   - 2.4 Algoritmi de planificare: A* și navigare risk-aware
+   - 2.5 Navigare autonomă și siguranță operațională
    - 2.6 Poziționarea lucrării față de literatura existentă
 3. Fundamentare Teoretică
    - 3.1 Procese Markov de Decizie (MDP)
    - 3.2 Ecuația Bellman și convergența Q-Learning
    - 3.3 Politica Epsilon-Greedy
    - 3.4 Discretizarea spațiului de stări
-   - 3.5 Homeostazia energetică ca constrângere de supraviețuire
+   - 3.5 Homeostazia energetică ca o constrângere de supraviețuire
    - 3.6 Simulare în timp discret
 4. Proiectare și Implementare
    - 4.1 Arhitectura modulară a sistemului
@@ -80,12 +88,13 @@ In addition to the energy-aware Q-Learning core, the project includes a separate
    - 4.10 Deployment Azure Cloud
 5. Experimentare și Rezultate
    - 5.1 Setup experimental
-   - 5.2 Scenariul A: Navigare pură
-   - 5.3 Scenariul B: Dilema supraviețuitorului
-   - 5.4 Scenariul C: Mediu dinamic
-   - 5.5 Scenariul WAREHOUSE
-   - 5.6 Navigare sigură și comparație Monte Carlo
-   - 5.7 Comparație scenarii și discuții
+   - 5.2 Rezultate agregate pentru scenariile A, B, C și WAREHOUSE
+   - 5.3 Scenariul A: Navigare cu energie foarte mare
+   - 5.4 Scenariul B: Supraviețuire cu energie limitată
+   - 5.5 Scenariul C: Mediu dinamic cu obstacole relocate
+   - 5.6 Scenariul WAREHOUSE: depozit industrial simplificat
+   - 5.7 Navigare sigură și comparație Monte Carlo
+   - 5.8 Discuții
 6. Aplicații în Lumea Reală
    - 6.1 Robotică industrială — depozite autonome
    - 6.2 Vehicule autonome de livrare
@@ -113,37 +122,37 @@ In addition to the energy-aware Q-Learning core, the project includes a separate
 
 ### 1.1 Motivație și Context
 
-Inteligența artificială modernă se confruntă cu o provocare fundamentală care transcende simpla recunoaștere de tipare sau clasificare de imagini: crearea de agenți autonomi capabili să ia decizii secvențiale optime într-un mediu incert și dinamic. Această provocare, cunoscută sub numele de problema de control secvențial, stă la baza unor aplicații cu impact uriaș: roboți industriali care navigează depozite fără hărți predefinite, drone care caută supraviețuitori în clădiri distruse, vehicule autonome care optimizează rutele de livrare în timp real. Reinforcement Learning (RL) a apărut ca paradigma dominantă pentru abordarea acestei clase de probleme, oferind un cadru matematic riguros în care un agent învață să acționeze optim prin interacțiune directă cu mediul său, fără a necesita date de antrenament etichetate în prealabil.
+Navigarea autonomă în medii necunoscute este o problemă de decizie secvențială în care succesul nu poate fi redus la întrebarea simplă „agentul a ajuns la destinație?”. În aplicații reale, o strategie care ajunge la țintă traversând zone periculoase, lovind obstacole sau consumând un traseu foarte scump poate fi inferioară unei strategii puțin mai lente, dar mai sigure și mai robuste. Roboții de depozit, dronele de inspecție, vehiculele autonome de livrare și agenții din jocuri trebuie să aleagă trasee nu doar posibile, ci potrivite pentru constrângerile mediului.
 
-În contextul particular al navigării autonome, una dintre cele mai relevante și, în același timp, subestimate dimensiuni ale problemei este gestionarea resurselor interne ale agentului. Un robot de depozit care rămâne fără baterie în mijlocul unui culoar nu doar că eșuează sarcina curentă, ci poate bloca întreaga infrastructură logistică. O dronă de căutare-salvare cu baterie epuizată înainte de a localiza victima reprezintă o resursă irosită în cel mai critic moment. Prin urmare, navigarea autonomă nu poate fi tratată ca o problemă pur spațială — ea are o dimensiune energetică esențială care trebuie integrată explicit în procesul de luare a deciziilor.
+Lucrarea propune un simulator grid-based pentru evaluarea strategiilor de navigare sigură în medii generate procedural. În loc să optimizeze exclusiv atingerea țintei, simulatorul colectează metrici care descriu calitatea comportamentului: rata de succes, costul traseului, coliziunile, intrările în pericol, expunerea acumulată la risc, numărul de pași și timpul de calcul. Această abordare mută accentul de la o demonstrație punctuală la un cadru de simulare comparativă.
 
-Această lucrare propune și implementează o soluție elegantă la această dualitate: extinderea spațiului de stări al unui agent Q-Learning clasic cu o componentă energetică discretizată, permițând agentului să dezvolte politici diferite în funcție de nivelul actual de energie. Un agent care are 80% energie restantă poate lua cel mai scurt drum spre destinație; același agent cu 15% energie trebuie să devieze spre o sursă de hrană înainte de a continua misiunea. Această capacitate — numită în lucrare homeostazie energetică — transformă un simplu navigator în un agent de supraviețuire cu comportament adaptiv emergent.
+Din perspectiva tehnicilor de simulare, proiectul este relevant deoarece separă mediul, agentul, modelul de risc și mecanismul de evaluare. Hărțile sunt generate procedural, sunt validate topologic prin BFS și pot fi rulate repetat cu seed-uri controlate. Agenții sunt interschimbabili, astfel încât aceeași hartă poate fi parcursă de o strategie aleatoare, una euristică, un algoritm A*, o variantă A* sensibilă la risc sau un agent Q-Learning. Experimentele Monte Carlo permit evaluarea pe distribuții de hărți, nu doar pe un exemplu ales manual.
 
-Motivația pentru abordarea tabular Q-Learning, în locul rețelelor neurale profunde de tipul Deep Q-Networks, este deliberată și susținută teoretic. Spațiul de stări al problemei analizate ($20 \times 20 \times 4 \times 5 = 8.000$ de intrări) este suficient de mic pentru a fi gestionat tabular, oferind avantaje cruciale: convergență garantată teoretic, trasabilitate completă a deciziilor agentului, timp de antrenament redus și o legătură directă și transparentă între teoria matematică a RL și implementarea concretă. Această transparență este deosebit de valoroasă într-un context academic, unde înțelegerea mecanismelor de bază primează față de performanța brută pe benchmarkuri de înaltă complexitate.
+Componenta Q-Learning cu homeostazie energetică păstrează legătura cu învățarea prin consolidare și arată cum un agent poate dezvolta comportamente diferite în funcție de resursele interne. Totuși, în forma actuală, lucrarea nu mai este doar despre Q-Learning. Q-Learning devine una dintre strategiile analizate într-un simulator mai larg, alături de algoritmi de planificare și baseline-uri euristice. Această repoziționare face proiectul mai potrivit pentru o lucrare coordonată din zona tehnicilor de simulare.
 
 ### 1.2 Obiectivele Lucrării
 
 Lucrarea de față urmărește atingerea unui set de obiective precise, organizate pe trei niveluri de complexitate crescândă.
 
-**Obiectivul fundamental** este implementarea unui sistem Q-Learning tabular funcțional, capabil să antreneze un agent să navigheze eficient o grilă 2D procedural generată. Sistemul trebuie să demonstreze convergența algoritmului, măsurată prin rata de succes și recompensa medie per episod pe un orizont de antrenament suficient.
+**Obiectivul fundamental** este construirea unui simulator grid-based configurabil pentru evaluarea strategiilor de navigare sigură în medii necunoscute, generate procedural. Simulatorul trebuie să permită rularea mai multor agenți pe același tip de mediu și compararea lor prin metrici care descriu atât atingerea țintei, cât și siguranța traseului.
 
-**Obiectivele de nivel intermediar** vizează extinderea sistemului de bază cu mecanisme specifice problemei: (1) integrarea componentei energetice în spațiul de stări, cu discretizare în patru grupe de energie; (2) implementarea unui sistem de recompense care penalizează și recompensează acțiunile agentului în mod adecvat problemei de supraviețuire; (3) validarea topologică a hărților generate prin algoritmul de parcurgere în lățime (BFS), garantând existența unui drum de la start la destinație; și (4) evaluarea sistemului în patru scenarii: A, B, C și WAREHOUSE.
+**Obiectivele de nivel intermediar** vizează modelarea componentelor principale ale simulării: (1) generarea procedurală de hărți GridWorld validabile prin BFS; (2) definirea unui model de risc în funcție de apropierea față de pericole; (3) implementarea unei interfețe comune pentru agenți; (4) implementarea strategiilor Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning; și (5) colectarea de metrici precum succes, risc, coliziuni, cost, pași și timp de calcul.
 
-**Obiectivele de nivel avansat** includ: analiza sensibilității sistemului la variațiile hiperparametrilor, evaluarea adaptabilității agentului la schimbări bruște de mediu, implementarea unui modul de vizualizare interactivă care oferă insight-uri despre politica învățată prin heatmap-uri de valori Q și săgeți de direcție, expunerea simulatorului printr-un API web, construirea unei interfețe React pentru demonstrație și adăugarea unui cadru comparativ de navigare sigură bazat pe experimente Monte Carlo.
+**Obiectivele de nivel avansat** includ evaluarea generalizării pe hărți generate procedural, rularea experimentelor Monte Carlo, analiza compromisului dintre traseu scurt și traseu sigur, expunerea simulatorului printr-un API web, construirea unei interfețe React pentru demonstrație și publicarea aplicației într-un mediu cloud Azure. Componenta Q-Learning energetică este păstrată ca studiu de caz complementar pentru învățare prin consolidare și supraviețuire energetică.
 
 ### 1.3 Contribuții Originale
 
-Lucrarea aduce mai multe contribuții originale față de implementările standard de Q-Learning descrise în literatura didactică:
+Lucrarea aduce mai multe contribuții originale față de un proiect clasic de navigare pe grilă sau un tutorial standard de Q-Learning:
 
-**Contribuția 1 — Homeostazia energetică ca dimensiune a stării.** Deși ideea de a include nivelul de resurse în starea agentului nu este nouă în literature RL, implementarea sa specifică în contextul unui agent de navigare pe grilă cu recompense calibrate pentru supraviețuire reprezintă o arhitectură concretă și evaluată experimental. Discretizarea energiei în patru buckets ($< 25\%$, $25\text{–}50\%$, $50\text{–}75\%$, $\geq 75\%$) și integrarea ei transparentă în Q-table-ul tabular constituie o alegere de design justificată teoretic și validată practic.
+**Contribuția 1 — Simulator comparativ pentru navigare sigură.** Sistemul implementează un mediu GridWorld în care strategii diferite pot fi evaluate sub aceleași condiții. Această separare între mediu, agent și simulator permite compararea directă a strategiilor Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning.
 
-**Contribuția 2 — Generare procedurală BFS-validată cu densități configurabile.** Sistemul de generare a hărților garantează, prin validare topologică prin BFS, că fiecare hartă generată are cel puțin un drum de la poziția de start la destinație. Această proprietate este non-trivială în contextul generării aleatoare cu densitate de obstacole de 15%, și este esențială pentru comparabilitatea experimentelor între scenarii.
+**Contribuția 2 — Evaluare multi-criterială a siguranței.** Lucrarea nu măsoară doar succesul, ci și coliziunile, intrările în pericol, expunerea acumulată la risc, costul total, numărul de pași, timeout-urile și timpul de calcul. Această alegere permite analiza compromisurilor dintre eficiență și siguranță.
 
-**Contribuția 3 — Evaluare comparativă pe scenarii cu dificultate progresivă.** Organizarea experimentelor în scenariile A, B, C și WAREHOUSE permite o analiză sistematică a capacităților și limitelor algoritmului Q-Learning tabular. Fiecare scenariu introduce o constrângere suplimentară: navigare simplificată, energie limitată, mediu modificat în timpul antrenamentului și layout industrial fix.
+**Contribuția 3 — Generalizare pe hărți generate procedural.** Hărțile sunt generate cu seed-uri controlate și validate prin BFS. Experimentele Monte Carlo evaluează strategiile pe mai multe configurații, reducând dependența de o singură hartă favorabilă.
 
-**Contribuția 4 — Studiu de caz industrial prin WarehouseEnvironment.** Implementarea clasei `WarehouseEnvironment` demonstrează cum aceeași interfață de mediu poate modela un depozit industrial simplificat, cu rafturi, culoare, stații de încărcare și zone de risc. Aceasta păstrează același agent și același Q-table, schimbând doar distribuția spațială a celulelor.
+**Contribuția 4 — Model explicit de risc și planificare risk-aware.** Clasa `RiskModel` transformă apropierea de pericole într-un cost numeric, iar `RiskAwareAStarAgent` demonstrează cum o strategie poate prefera un traseu mai sigur chiar dacă acesta nu este strict cel mai scurt.
 
-**Contribuția 5 — Cadrul comparativ de navigare sigură.** Pachetele `agents/`, `environment/`, `simulation/` și `experiments/` implementează un al doilea simulator GridWorld orientat spre evaluarea siguranței traseului. Acesta permite compararea strategiilor Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning pe hărți generate procedural, folosind metrici precum rata de succes, coliziuni, intrări în pericol, expunere la risc și timp de calcul.
+**Contribuția 5 — Componentă Q-Learning energetică interpretabilă.** Nucleul din `src/` păstrează un agent Q-Learning tabular cu homeostazie energetică. Discretizarea energiei în patru buckets și scenariile A/B/C/WAREHOUSE oferă un studiu de caz clar despre învățare prin consolidare cu resurse interne.
 
 **Contribuția 6 — Aplicație web și reproductibilitate operațională.** Motorul Python este expus printr-un backend FastAPI, iar frontend-ul React/Vite permite antrenarea, evaluarea, editarea mediilor, compararea rulărilor și rularea experimentelor de navigare sigură din browser. Configurația Azure inclusă în repository demonstrează că aplicația poate fi publicată ca sistem cloud, nu doar rulată local.
 
@@ -151,13 +160,13 @@ Lucrarea aduce mai multe contribuții originale față de implementările standa
 
 Lucrarea este organizată în opt capitole, fiecare contribuind la construcția progresivă a argumentului central.
 
-**Capitolul 2** prezintă stadiul artei în domeniul Reinforcement Learning, cu accent pe Q-Learning și variantele sale, navigarea autonomă în robotică și gestionarea energiei în sisteme artificiale. Capitolul poziționează explicit lucrarea față de literatura existentă.
+**Capitolul 2** prezintă stadiul artei în simularea pe grile, navigarea autonomă, planificarea traseului, Q-Learning și evaluarea siguranței. Capitolul poziționează lucrarea ca simulator comparativ, nu ca implementare izolată a unui singur algoritm.
 
 **Capitolul 3** oferă fundamentarea matematică necesară: formalizarea Proceselor Markov de Decizie, derivarea și analiza ecuației Bellman, politica epsilon-greedy și justificarea teoretică a discretizării spațiului de stări.
 
 **Capitolul 4** descrie în detaliu arhitectura modulară a sistemului implementat — nucleul Q-Learning energetic din `src/`, cadrul comparativ de navigare sigură din `agents/`, `environment/`, `simulation/` și `experiments/`, plus API-ul FastAPI, interfața React și infrastructura Azure.
 
-**Capitolul 5** prezintă rezultatele experimentale pentru scenariile A, B, C și WAREHOUSE, artefactele generate automat de pachetul final și comparațiile Monte Carlo între agenții de navigare sigură.
+**Capitolul 5** prezintă rezultatele experimentale pentru scenariile A, B, C și WAREHOUSE, apoi comparațiile Monte Carlo între strategiile de navigare sigură, cu accent pe risc, coliziuni, cost și generalizare.
 
 **Capitolul 6** discută aplicabilitatea arhitecturii propuse în opt domenii din lumea reală, de la robotică industrială la neuroștiință computațională.
 
@@ -179,65 +188,41 @@ Această comandă execută scenariile A, B, C și WAREHOUSE, generează artefact
 
 ## Capitolul 2: Stadiul Artei
 
-### 2.1 Reinforcement Learning — Context General
+### 2.1 Simulare Grid-Based și Evaluare pe Agenți
 
-Reinforcement Learning (RL) este o paradigmă de învățare automată în care un agent dobândește cunoaștere prin interacțiunea directă cu un mediu, primind semnale de recompensă care orientează comportamentul viitor. Spre deosebire de învățarea supervizată, care necesită un corpus de date etichetate, sau de învățarea nesupervizată, care extrage structuri latente din date, RL nu are nevoie de un profesor explicit — agentul descoperă singur ce comportamente sunt benefice și care sunt dăunătoare, prin trial-and-error repetate. Cadrul formal al RL este cel al Proceselor Markov de Decizie (MDP), descris în detaliu în Capitolul 3.
+Mediile grid-based sunt utilizate frecvent în cercetare și educație deoarece oferă o reprezentare discretă, ușor de inspectat, pentru probleme de navigare, planificare și învățare. O hartă bidimensională împărțită în celule poate modela obstacole, zone periculoase, costuri diferite de deplasare, poziții de start și obiective. Deși este o simplificare față de un mediu fizic continuu, această reprezentare este suficient de expresivă pentru a analiza comportamente algoritmice importante.
 
-Istoria RL este mai lungă decât ar sugera popularitatea sa recentă. Rădăcinile conceptuale se găsesc în lucrările de psihologie behavioristă ale lui Thorndike (1911), care a formulat „legea efectului" — comportamentele urmate de consecințe pozitive tind să fie repetate. Formalizarea matematică a venit mai târziu, prin lucrările lui Bellman (1957) privind programarea dinamică și ecuația de optimalitate care îi poartă numele. Algoritmul Q-Learning însuși a fost introdus de Watkins (1989) în teza sa de doctorat și demonstrat convergent de Watkins și Dayan (1992).
+În contextul acestei lucrări, mediul GridWorld nu este doar o scenă pentru un singur agent, ci un instrument de simulare comparativă. Aceeași hartă poate fi parcursă de mai multe strategii, iar rezultatele pot fi analizate statistic. Această abordare este potrivită pentru tehnici de simulare deoarece permite controlul parametrilor, repetabilitatea prin seed-uri, generarea de scenarii multiple și agregarea metricilor.
 
-Interesul academic pentru RL a crescut exponențial odată cu demonstrarea, de către echipa DeepMind, că o rețea neurală combinată cu Q-Learning (DQN) poate depăși performanța umană la jocuri Atari (Mnih et al., 2015). Ulterior, AlphaGo (Silver et al., 2016) a demonstrat că RL poate rezolva chiar și probleme considerate inaccesibile inteligenței artificiale clasice. Aceste succese au catalizat o avalanșă de cercetare în domeniu, de la algoritmii Policy Gradient și Actor-Critic, la tehnici de Multi-Agent RL și Hierarchical RL.
+### 2.2 Reinforcement Learning — Context General
 
-### 2.2 Q-Learning Clasic și Variante
+Reinforcement Learning (RL) este o paradigmă de învățare automată în care un agent dobândește cunoaștere prin interacțiunea directă cu un mediu, primind semnale de recompensă care orientează comportamentul viitor. Spre deosebire de învățarea supervizată, RL nu are nevoie de exemple etichetate; agentul descoperă singur ce comportamente sunt benefice prin încercare și eroare.
 
-Q-Learning este un algoritm de RL model-free și off-policy, propus de Watkins (1989). Termenul „model-free" indică faptul că agentul nu construiește un model explicit al dinamicii mediului — nu învață funcția de tranziție $P(s'|s,a)$, ci direct valorile optime ale acțiunilor. Termenul „off-policy" înseamnă că agentul poate învăța politica optimă chiar dacă urmează o politică diferită (cum ar fi epsilon-greedy) în timpul antrenamentului.
+Cadrul formal al RL este cel al Proceselor Markov de Decizie (MDP). În această lucrare, Q-Learning este folosit pentru a ilustra învățarea unei politici în medii discrete. Totuși, RL este tratat ca una dintre familiile de strategii, alături de algoritmi euristici și algoritmi de planificare.
 
-**Double Q-Learning** (van Hasselt, 2010) abordează o problemă fundamentală a Q-Learning clasic: tendința de a supraevalua valorile acțiunilor (overestimation bias). Cauza este că operatorul $\max$ din ecuația Bellman utilizează aceleași valori Q pentru a selecta și a evalua acțiunea următoare, introducând un bias pozitiv sistematic. Double Q-Learning menține două Q-table-uri independente și le utilizează alternant: unul pentru selecția acțiunii, celălalt pentru evaluarea ei, eliminând astfel bias-ul.
+### 2.3 Q-Learning Clasic și Variante
 
-**Dyna-Q** (Sutton, 1991) este o extensie model-based a Q-Learning, care utilizează experiențele reale ale agentului pentru a construi un model aproximativ al mediului, și apoi utilizează acel model pentru a genera experiențe artificiale suplimentare („imagined experiences"). Aceste experiențe imaginate sunt folosite pentru actualizări Q suplimentare, accelerând semnificativ convergența — în special în medii cu recompense rare (sparse rewards).
+Q-Learning este un algoritm de RL model-free și off-policy, propus de Watkins (1989). Agentul nu învață explicit funcția de tranziție a mediului, ci estimează direct valoarea acțiunilor printr-un tabel Q. Pentru un mediu discret și relativ mic, această abordare este interpretabilă și ușor de analizat: valorile pot fi inspectate, exportate și vizualizate ca heatmap-uri.
 
-**Q($\lambda$)** combină Q-Learning cu urme de eligibilitate (eligibility traces), propagând recompensele înapoi nu doar un pas, ci pe un orizont mai lung controlat de parametrul $\lambda$. Aceasta echivalează cu o interpolare între TD(0) (actualizare la fiecare pas) și Monte Carlo (actualizare la finalul episodului), oferind un control fin al compromisului dintre bias și varianță.
+În proiect există două utilizări ale Q-Learning. Prima este componenta energetică din `src/`, unde starea include poziția și bucket-ul de energie. A doua este simulatorul de navigare sigură, unde `TabularQLearningAgent` învață pe coordonate absolute, iar `FeatureBasedQLearningAgent` folosește features locale pentru a încerca o generalizare mai bună pe hărți nevăzute.
 
-**Prioritized Experience Replay** (Schaul et al., 2015) este o îmbunătățire importantă pentru DQN și variante sale, care memorează experiențele trecute și le reutilizează selectiv, acordând prioritate celor cu eroare TD mare. Deși specifică metodelor bazate pe rețele neurale, principiul de reutilizare a experiențelor este aplicabil și în forma tabular prin Dyna-Q.
+### 2.4 Algoritmi de Planificare: A* și Navigare Risk-Aware
 
-### 2.3 Deep Q-Networks (DQN) și Limitările față de Q-Learning Tabular
+Navigarea autonomă precede reinforcement learning și include algoritmi clasici de planificare precum Dijkstra și A*. A* combină costul deja acumulat cu o euristică pentru distanța rămasă, de obicei distanța Manhattan în medii grid-based. În medii complet observabile, A* este eficient și oferă o bază solidă pentru comparația cu strategiile învățate.
 
-Deep Q-Networks (DQN) (Mnih et al., 2015) reprezintă fuziunea dintre Q-Learning și rețelele neurale profunde. În loc să mențină un Q-table explicit, DQN aproximează funcția $Q(s, a)$ printr-o rețea neurală convoluțională, capabilă să proceseze direct imagini ca input. DQN introduce două inovații cheie pentru stabilizarea antrenamentului: **experience replay** (stocarea și resamplerea experiențelor trecute) și **target network** (o copie „înghețată" a rețelei principale, utilizată pentru calculul țintei Bellman).
+Totuși, traseul cel mai scurt nu este întotdeauna cel mai sigur. O variantă risk-aware poate introduce în funcția de cost o penalizare pentru apropierea de zone periculoase. Astfel, agentul poate prefera o rută mai lungă, dar cu expunere mai mică la risc. Această idee este centrală pentru lucrare: strategia optimă depinde de criteriul de evaluare, nu doar de atingerea țintei.
 
-Cu toate acestea, DQN și descendenții săi (Double DQN, Dueling DQN, Rainbow) au limitări semnificative față de Q-Learning tabular în contextul problemelor cu spații de stări mici și deterministe:
+### 2.5 Navigare Autonomă și Siguranță Operațională
 
-**Lipsa garanțiilor de convergență.** Convergența DQN nu este garantată teoretic în cazul general — rețelele neurale introduc instabilitate în procesul de actualizare Bellman. Q-Learning tabular, în schimb, are o demonstrație formală de convergență la politica optimă, sub condiții mild privind rata de învățare și explorarea.
+În sisteme reale, siguranța traseului este la fel de importantă ca succesul final. Un robot de depozit care lovește rafturi, o dronă care intră într-o zonă periculoasă sau un vehicul autonom care alege o rută riscantă pot avea costuri operaționale mari chiar dacă ajung în cele din urmă la destinație. Din acest motiv, metricile de evaluare trebuie să includă coliziuni, expunere la risc, cost energetic sau operațional și stabilitate pe scenarii diferite.
 
-**Complexitate computațională inutilă.** Pentru un spațiu de stări de 8.000 de intrări, antrenarea unei rețele neurale profunde este o supracomplicare masivă. Evaluarea unui Q-table tabular necesită un acces simplu la matrice în $O(1)$; evaluarea DQN necesită o propagare înainte completă prin sute sau mii de neuroni.
-
-**Opacitate interpretativă.** Un Q-table tabular este complet transparent — valorile Q pot fi inspectate direct, vizualizate ca heatmapuri, și interpretate în termeni de utilitate a stărilor. O rețea neurală profundă este, prin natură, o cutie neagră, ale cărei reprezentări interne sunt dificil de interpretat.
-
-**Date de antrenament necesare.** DQN necesită milioane de iterații pentru a produce politici stabile pe jocuri Atari. Q-Learning tabular poate converge pe problema noastră în câteva sute de episoade, cu un cost computațional de ordinul secundelor pe hardware standard.
-
-### 2.4 Algoritmi de Navigare Autonomă în Robotică
-
-Navigarea autonomă este un domeniu vast care precede reinforcement learning, cu rădăcini în robotica clasică. Algoritmii de planificare a traseului (path planning) precum **A\*** (Hart, Nilsson, Raphael, 1968) și **Dijkstra** (1959) oferă soluții optimale în medii complet cunoscute, dar necesită o hartă completă a mediului și nu se adaptează la schimbări dinamice.
-
-**Simultaneous Localization and Mapping (SLAM)** este o familie de algoritmi care permit unui robot să construiască o hartă a mediului necunoscut simultan cu localizarea sa în acea hartă. SLAM este esențial pentru roboți reali care operează în medii noi, dar introduce o complexitate computațională semnificativă și dependențe de senzori specializați (LIDAR, stereo cameras).
-
-**Potential Fields** (Khatib, 1986) modelează navigarea ca un câmp de forțe: destinația exercită o forță de atracție, obstacolele exercită forțe de repulsie, iar robotul urmează gradientul câmpului rezultant. Metoda este eficientă computațional, dar suferă de problema minimelor locale — robotul poate rămâne blocat în configurații unde forțele se echilibrează fără a ajunge la destinație.
-
-**RL-based navigation** abordează limitele metodelor clasice oferind adaptabilitate: agentul nu are nevoie de o hartă completă și poate gestiona incertitudini și schimbări dinamice. Lucrări recente demonstrează succesul RL în navigare în spații continue cu obstacole dinamice (Zhu et al., 2017), navigare bazată pe viziune (Anderson et al., 2018) și coordonarea flotelor de roboți (Sartoretti et al., 2019).
-
-### 2.5 Homeostazia Energetică în Sisteme Artificiale
-
-Conceptul de homeostazie provine din biologie și descrie capacitatea unui organism de a-și menține parametrii interni (temperatură, pH, glucoză) în intervale funcționale, în fața perturbărilor externe. Transferul acestui concept în sisteme artificiale a generat o linie de cercetare relevantă pentru lucrarea de față.
-
-**Homeostatic Reinforcement Learning** (Keramati & Gutkin, 2011) propune un cadru teoretic în care recompensa nu este definită exogen, ci derivă din starea internă a agentului: acțiunile care mențin parametrii interni în intervale optime sunt recompensate, celelalte sunt penalizate. Aceasta produce comportamente de supraviețuire emergente, similar cu comportamentul animal drive-reduction.
-
-**Energy-aware path planning** este o subdisciplină a roboticii care tratează explicit consumul de energie ca obiectiv de optimizat, în paralel cu lungimea traseului. Lucrări precum Mei et al. (2004) demonstrează că ignorarea consumului energetic poate duce la eșecuri catastrofale ale misiunii, chiar dacă traseul ales este optim geometric. Constrângerile energetice modifică topologic spațiul soluțiilor: traseul optimal din perspectivă energetică poate fi considerabil mai lung decât cel geometric-optim.
-
-**Battery management in mobile robots** (Liu & Golley, 2012) abordează problema stațiilor de reîncărcare: când și unde trebuie să se întoarcă un robot la o stație pentru a nu rămâne fără baterie, maximizând în același timp productivitatea misiunii. Această problemă are o structură identică cu cea a agentului din Scenariul B al lucrării de față: agentul trebuie să decidă când să devieze spre o sursă de energie, în funcție de nivelul curent de energie și de distanța față de destinație.
+Componenta de homeostazie energetică din lucrare se înscrie în aceeași direcție: agentul nu trebuie doar să ajungă la destinație, ci să ajungă fără să își epuizeze resursele. Aceasta conectează RL cu planificarea safety-aware și cu simularea comportamentelor autonome sub constrângeri.
 
 ### 2.6 Poziționarea Lucrării față de Literatura Existentă
 
-Lucrarea de față se poziționează la intersecția mai multor linii de cercetare: Q-Learning clasic cu spații de stări tabular, navigare autonomă pe grile, și homeostazia energetică în sisteme artificiale. Originalitatea constă nu în introducerea unor algoritmi noi, ci în combinarea acestor elemente într-o arhitectură coerentă, ușor de înțeles și de extins, cu o evaluare sistematică pe scenarii de complexitate crescândă.
+Lucrarea se poziționează la intersecția dintre simularea pe grile, navigarea autonomă, planificarea traseului și învățarea prin consolidare. Originalitatea nu constă în inventarea unui algoritm nou, ci în construirea unui simulator coerent care permite evaluarea mai multor strategii pe aceeași clasă de medii și cu aceleași metrici.
 
-Față de tutorialele standard de Q-Learning pe grile (cum ar fi FrozenLake din OpenAI Gym), lucrarea adaugă componenta energetică, generarea procedurală BFS-validată și scenariile cu mediu dinamic. Față de lucrările de Homeostatic RL (Keramati & Gutkin, 2011), lucrarea oferă o implementare concretă, simplă și reproductibilă, care poate servi ca punct de plecare pentru cercetare mai avansată. Față de robotica industrială reală (Amazon Kiva, ROS), lucrarea oferă un mediu de simulare simplificat dar suficient de bogat pentru a captura aspectele esențiale ale problemei.
+Față de tutorialele standard de Q-Learning, lucrarea nu se oprește la întrebarea dacă un agent învață o hartă fixă. Față de o demonstrație simplă de A*, lucrarea nu optimizează doar distanța. Contribuția principală este comparația multi-criterială: succes, risc, coliziuni, cost, pași, timp de calcul și generalizare pe hărți generate procedural.
 
 ---
 
@@ -755,7 +740,7 @@ Application Insights + Log Analytics
 
 Fișierul `Dockerfile` construiește imaginea backend-ului, iar `infra/main.bicep` definește resursele Azure: Static Web App, Container Registry, Storage Account, File Share, Log Analytics, Application Insights, Container Apps Environment și Container App. Workflow-urile GitHub Actions din `.github/workflows/` separă provisioning-ul infrastructurii, deployment-ul backend-ului și deployment-ul frontend-ului.
 
-Această componentă nu schimbă algoritmul Q-Learning, dar este relevantă pentru demonstrație: aplicația poate fi accesată de coordonator sau comisie din browser, cu backend Python real, artefacte persistente și interfață completă pentru experimente.
+Această componentă nu schimbă logica algoritmilor, dar este relevantă pentru demonstrație: aplicația poate fi accesată de coordonator sau comisie din browser, cu backend Python real, artefacte persistente și interfață completă pentru experimente. În varianta actuală, ruta principală prezintă simulatorul de navigare sigură, iar laboratorul Q-Learning rămâne disponibil ca flux complementar.
 
 ---
 
@@ -763,7 +748,9 @@ Această componentă nu schimbă algoritmul Q-Learning, dar este relevantă pent
 
 ### 5.1 Setup Experimental și Reproductibilitate
 
-Experimentele principale sunt generate prin modulul `src.final_report`, care rulează scenariile A, B, C și WAREHOUSE, exportă CSV-uri, grafice, imagini de hartă, heatmap-uri Q, trasee greedy și manifest JSON. Comanda standard utilizată pentru pachetul final este:
+Evaluarea proiectului are două componente complementare. Prima componentă este pachetul Q-Learning energetic, generat prin modulul `src.final_report`, care rulează scenariile A, B, C și WAREHOUSE, exportă CSV-uri, grafice, imagini de hartă, heatmap-uri Q, trasee greedy și manifest JSON. A doua componentă este simulatorul de navigare sigură, care compară mai multe strategii pe hărți generate procedural și agregă metrici de risc, coliziuni și cost prin experimente Monte Carlo.
+
+Comanda standard utilizată pentru pachetul Q-Learning energetic este:
 
 ```bash
 python3 -m src.final_report --episodes 2000 --save-qtables
@@ -787,7 +774,7 @@ Configurația standard pentru scenariile A, B și C este:
 
 Pentru scenariul WAREHOUSE, dimensiunea rămâne 20×20, dar harta nu este generată aleator: `WarehouseEnvironment` folosește un layout fix, cu rafturi, culoare, stații de încărcare și zone de pericol. Rezultatele raportate în acest capitol provin din `data/final_summary_20_42_2000.csv` și din artefactele asociate generate în directorul `data/`.
 
-Metricile principale sunt:
+Metricile principale pentru componenta Q-Learning energetică sunt:
 
 - **success_rate_last_100** — rata de succes pe ultimele 100 de episoade;
 - **avg_reward_last_100** — recompensa medie pe ultimele 100 de episoade;
@@ -796,6 +783,19 @@ Metricile principale sunt:
 - **greedy_reward** — recompensa totală a traseului greedy;
 - **greedy_energy** — energia rămasă la finalul traseului greedy;
 - **q_nonzero / q_total** — gradul de populare a Q-table-ului.
+
+Pentru componenta de navigare sigură, experimentul standard folosit în această versiune a documentației este:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m experiments.run_experiment \
+  --scenario medium \
+  --maps 5 \
+  --episodes-per-map 2 \
+  --training-episodes 100 \
+  --seed 42
+```
+
+Acest experiment produce 60 de episoade agregate: 6 algoritmi × 5 hărți × 2 episoade per hartă. Configurația este suficient de mică pentru reproducere rapidă și suficient de clară pentru a ilustra diferența dintre succes, risc și cost.
 
 ### 5.2 Rezultate Agregate pentru Scenariile A, B, C și WAREHOUSE
 
@@ -885,26 +885,30 @@ Algoritmii comparați sunt:
 
 Experimentul Monte Carlo generează mai multe hărți rezolvabile cu seed-uri controlate, rulează fiecare agent și agregă metricile. Această componentă adaugă proiectului o dimensiune de simulare statistică: performanța nu mai este judecată doar pe o singură hartă, ci pe o distribuție de medii.
 
-Metricile agregate sunt:
+Metricile agregate sunt: rata de succes, recompensa medie, numărul mediu de pași, numărul mediu de coliziuni, rata episoadelor cu coliziuni, numărul mediu de intrări în pericol, expunerea medie la risc, costul total mediu, rata de timeout și timpul mediu de calcul.
 
-- rata de succes;
-- recompensa medie;
-- numărul mediu de pași;
-- numărul mediu de coliziuni;
-- rata episoadelor cu coliziuni;
-- numărul mediu de intrări în pericol;
-- expunerea medie la risc;
-- costul total mediu;
-- rata de timeout;
-- timpul mediu de calcul.
+Pentru scenariul `medium`, cu 5 hărți, 2 episoade per hartă, 100 episoade de antrenare pentru agenții care necesită training și seed 42, rezultatele agregate sunt:
 
-Această parte completează Q-Learning-ul energetic cu o comparație între algoritmi clasici și algoritmi de învățare. În special, diferența dintre A* și Risk-Aware A* arată cum o funcție de cost modificată poate produce comportament mai sigur fără învățare, iar comparația dintre Tabular Q-Learning și Feature-Based Q-Learning ilustrează problema generalizării: coordonatele absolute învață bine pe harta de training, dar features locale pot transfera mai bine pe hărți nevăzute.
+| Algoritm | Success rate | Reward mediu | Pași medii | Coliziuni medii | Intrări pericol | Expunere risc | Cost total | Timeout |
+|----------|-------------:|-------------:|-----------:|----------------:|----------------:|--------------:|-----------:|--------:|
+| A* | 100% | -34.40 | 28.40 | 0.00 | 0.00 | 161.00 | 195.40 | 0% |
+| Risk-Aware A* | 100% | 0.40 | 29.60 | 0.00 | 0.00 | 125.00 | 124.60 | 0% |
+| Rule-Based | 50% | -1255.70 | 174.40 | 0.00 | 0.00 | 1175.20 | 2430.90 | 50% |
+| Random | 0% | -754.10 | 95.80 | 40.70 | 1.00 | 204.80 | 958.90 | 0% |
+| Tabular Q-Learning | 0% | -637.00 | 103.40 | 23.80 | 1.00 | 238.80 | 875.80 | 0% |
+| Feature-Based Q-Learning | 0% | -825.60 | 109.20 | 31.40 | 0.80 | 371.40 | 1197.00 | 20% |
+
+Rezultatul cel mai important nu este doar faptul că A* și Risk-Aware A* ating 100% succes, ci diferența de calitate a traseului. Risk-Aware A* parcurge în medie un traseu ușor mai lung (29.6 pași față de 28.4), dar reduce expunerea la risc de la 161.0 la 125.0 și costul total de la 195.4 la 124.6. Aceasta ilustrează exact miza lucrării: o strategie poate fi mai potrivită pentru navigare sigură chiar dacă nu minimizează strict numărul de pași.
+
+Agenții Random, Tabular Q-Learning și Feature-Based Q-Learning au performanțe slabe în acest experiment scurt. Interpretarea trebuie să fie prudentă: rezultatul nu demonstrează că RL este inutil, ci că strategiile bazate pe învățare au nevoie de antrenare suficientă, reprezentare de stare adecvată și mecanisme de generalizare pentru hărți nevăzute. În configurația curentă, algoritmii de planificare care folosesc direct harta completă sunt avantajați în evaluări scurte pe hărți noi.
+
+Această parte completează Q-Learning-ul energetic cu o comparație între algoritmi clasici și algoritmi de învățare. Diferența dintre A* și Risk-Aware A* arată cum o funcție de cost modificată poate produce comportament mai sigur fără învățare, iar comparația dintre Tabular Q-Learning și Feature-Based Q-Learning ilustrează problema generalizării: coordonatele absolute învață bine pe harta de training, dar features locale sunt direcția potrivită pentru transfer pe hărți nevăzute.
 
 ### 5.8 Discuții
 
-Rezultatele indică două concluzii complementare. Prima este că Q-Learning tabular este suficient de puternic pentru scenarii discrete moderate, mai ales când spațiul de stări este mic și interpretabil. A doua este că, pentru navigare pe hărți noi, algoritmii de planificare precum A* rămân foarte competitivi, iar variantele risk-aware pot fi preferabile când siguranța contează mai mult decât lungimea minimă a traseului.
+Rezultatele indică trei concluzii complementare. Prima este că Q-Learning tabular este suficient de puternic pentru scenarii discrete moderate, mai ales când spațiul de stări este mic și interpretabil. A doua este că, pentru navigare pe hărți noi, algoritmii de planificare precum A* rămân foarte competitivi. A treia, cea mai importantă pentru scopul lucrării, este că succesul singur nu este o metrică suficientă: două strategii cu aceeași rată de succes pot avea profiluri foarte diferite de risc și cost.
 
-Din perspectiva lucrării de licență, valoarea proiectului nu stă doar în obținerea unei politici Q bune, ci în platforma completă de simulare: generare procedurală validată BFS, scenarii parametrizabile, export de date, artefacte vizuale, API web, interfață cloud și comparații Monte Carlo. Aceasta aliniază proiectul atât cu tematica de Reinforcement Learning, cât și cu disciplina de tehnici de simulare.
+Din perspectiva lucrării de licență, valoarea proiectului nu stă doar în obținerea unei politici Q bune, ci în platforma completă de simulare: generare procedurală validată BFS, scenarii parametrizabile, model de risc, agenți interschimbabili, export de date, artefacte vizuale, API web, interfață cloud și comparații Monte Carlo. Aceasta aliniază proiectul atât cu tematica de Reinforcement Learning, cât și cu disciplina de tehnici de simulare.
 
 
 ## Capitolul 6: Aplicații în Lumea Reală
@@ -1104,17 +1108,17 @@ Totuși, scenariul rămâne o aproximare. Un depozit real ar include mai mulți 
 
 ### 8.1 Concluzii Principale
 
-Lucrarea de față a demonstrat că Q-Learning tabular, augmentat cu o componentă de homeostazie energetică în spațiul de stări, poate rezolva eficient probleme de navigare autonomă în medii discrete moderate. În același timp, proiectul a evoluat dincolo de un simplu script RL, devenind o platformă de simulare cu experimente reproductibile, aplicație web și comparații Monte Carlo între strategii de navigare.
+Lucrarea de față a demonstrat că un simulator grid-based poate fi folosit pentru evaluarea strategiilor de navigare sigură în medii necunoscute, generate procedural. Contribuția principală nu este doar antrenarea unui agent care ajunge la țintă, ci construirea unui cadru în care strategiile pot fi comparate după succes, risc, coliziuni, costul traseului, eficiență și generalizare.
 
-**Concluzia 1 — Q-Learning tabular este eficient și interpretabil pentru grile moderate.** Pe o grilă 20×20 cu 4 niveluri energetice și 5 acțiuni, Q-table-ul are 8.000 de intrări, suficient de puțin pentru a fi inspectabil și ușor de antrenat. Pachetul final obține 100% succes pe ultimele 100 de episoade în Scenariul A, 96% în Scenariul B, 100% în Scenariul C și 100% în WAREHOUSE. Această performanță confirmă că abordarea tabulară este potrivită pentru un proiect educațional și experimental în care interpretabilitatea este la fel de importantă ca performanța.
+**Concluzia 1 — Simulatorul mută analiza de la succes binar la calitatea traseului.** Întrebarea centrală nu mai este „agentul a ajuns sau nu?”, ci „care strategie este mai potrivită pentru navigare sigură în medii necunoscute?”. Metricile de risc, coliziuni și cost evidențiază diferențe pe care rata de succes le-ar ascunde.
 
-**Concluzia 2 — Homeostazia energetică îmbogățește comportamentul agentului.** Adăugarea energiei în starea MDP face ca aceeași poziție din hartă să poată avea politici diferite în funcție de nivelul energetic. Agentul nu optimizează doar distanța până la țintă, ci și supraviețuirea, evitarea costurilor mari și folosirea surselor de energie atunci când acestea sunt relevante.
+**Concluzia 2 — Risk-Aware A* arată valoarea navigării safety-aware.** În experimentul Monte Carlo `medium`, A* și Risk-Aware A* ating ambele 100% succes, dar Risk-Aware A* reduce expunerea la risc și costul total. Această diferență demonstrează că strategia optimă depinde de criteriul de evaluare, nu doar de atingerea destinației.
 
-**Concluzia 3 — Mediul poate fi schimbat fără rescrierea agentului.** `WarehouseEnvironment` arată că aceeași interfață de mediu poate descrie o hartă procedurală sau un layout industrial fix. `Trainer`, `Agent` și `QLearning` rămân neschimbate, ceea ce validează separarea responsabilităților din arhitectură.
+**Concluzia 3 — Q-Learning rămâne relevant ca strategie interpretabilă.** Pe o grilă 20×20 cu 4 niveluri energetice și 5 acțiuni, Q-table-ul are 8.000 de intrări, suficient de puțin pentru a fi inspectabil și ușor de antrenat. Pachetul energetic obține 100% succes pe ultimele 100 de episoade în Scenariul A, 96% în Scenariul B, 100% în Scenariul C și 100% în WAREHOUSE.
 
-**Concluzia 4 — Platforma susține reproductibilitatea experimentală.** Modulul `src.final_report` generează într-un singur flux CSV-uri, grafice, manifest JSON, Q-table-uri, heatmap-uri și trasee greedy. Acest lucru reduce riscul ca textul lucrării, prezentarea și codul să raporteze rezultate diferite.
+**Concluzia 4 — Homeostazia energetică îmbogățește comportamentul agentului.** Adăugarea energiei în starea MDP face ca aceeași poziție din hartă să poată avea politici diferite în funcție de nivelul energetic. Agentul nu optimizează doar distanța până la țintă, ci și supraviețuirea, evitarea costurilor mari și folosirea surselor de energie atunci când acestea sunt relevante.
 
-**Concluzia 5 — Cadrul de navigare sigură completează partea de tehnici de simulare.** Experimentele Monte Carlo din `experiments/compare_agents.py` compară mai mulți agenți pe distribuții de hărți generate procedural. Această componentă extinde proiectul dincolo de un singur agent RL și introduce evaluare statistică, baseline-uri și metrici de risc.
+**Concluzia 5 — Platforma susține reproductibilitatea experimentală.** Modulul `src.final_report` generează într-un singur flux CSV-uri, grafice, manifest JSON, Q-table-uri, heatmap-uri și trasee greedy. Modulul `experiments/compare_agents.py` adaugă evaluare Monte Carlo pe hărți generate procedural. Împreună, aceste fluxuri reduc riscul ca textul lucrării, prezentarea și codul să raporteze rezultate diferite.
 
 **Concluzia 6 — Aplicația web face proiectul demonstrabil.** Backend-ul FastAPI și frontend-ul React/Vite permit rularea experimentelor din browser, vizualizarea traseelor și descărcarea artefactelor. Infrastructura Azure arată că sistemul poate fi publicat ca aplicație cloud, utilă pentru demonstrația în fața coordonatorului sau a comisiei.
 
@@ -1231,6 +1235,6 @@ Lucrarea de față a demonstrat că Q-Learning tabular, augmentat cu o component
 
 **Declarație de autenticitate**
 
-Subsemnatul, Andrei Demit, declar pe propria răspundere că lucrarea de licență intitulată „Simularea Comportamentului Inteligent prin Q-Learning: Navigare Autonomă și Supraviețuire" este elaborată de mine, pe baza studiului literaturii de specialitate și a implementării originale, și nu conține fragmente plagiate din alte lucrări. Toate sursele bibliografice utilizate sunt citate conform normelor academice în vigoare.
+Subsemnatul, Andrei Demit, declar pe propria răspundere că lucrarea de licență intitulată „Simulator Grid-Based pentru Evaluarea Strategiilor de Navigare Sigură în Medii Generate Procedural" este elaborată de mine, pe baza studiului literaturii de specialitate și a implementării originale, și nu conține fragmente plagiate din alte lucrări. Toate sursele bibliografice utilizate sunt citate conform normelor academice în vigoare.
 
 *Semnătura:* _________________________ *Data:* _________________________

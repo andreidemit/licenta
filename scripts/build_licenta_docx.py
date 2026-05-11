@@ -111,7 +111,7 @@ def add_page_number(paragraph) -> None:
 def add_header_footer(doc: Document) -> None:
     section = doc.sections[0]
     header_p = section.header.paragraphs[0]
-    header_p.text = "Simularea Comportamentului Inteligent prin Q-Learning"
+    header_p.text = "Simulator Grid-Based pentru Navigare Sigură"
     header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for run in header_p.runs:
         set_font(run, size=9, color=(90, 90, 90))
@@ -169,9 +169,9 @@ def add_cover(doc: Document) -> None:
 
     p = doc.add_paragraph(style="Title")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.add_run("Simularea Comportamentului Inteligent prin Q-Learning:")
+    p.add_run("Simulator Grid-Based pentru Evaluarea Strategiilor")
     p.add_run().add_break()
-    p.add_run("Navigare Autonomă și Supraviețuire")
+    p.add_run("de Navigare Sigură în Medii Generate Procedural")
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -183,7 +183,7 @@ def add_cover(doc: Document) -> None:
 
     for text in [
         "Autor: Andrei Demit",
-        "Coordonator științific: Conf. dr. [Coordonator]",
+        "Coordonator științific: Lect. univ. dr. Florentina Suter",
         "Specializarea: Informatică",
     ]:
         p = doc.add_paragraph()
@@ -357,7 +357,7 @@ def main() -> None:
     convert_markdown_lines(final_doc, front)
     add_toc(final_doc)
     convert_markdown_lines(final_doc, body)
-    final_doc.core_properties.title = "Simularea Comportamentului Inteligent prin Q-Learning"
+    final_doc.core_properties.title = "Simulator Grid-Based pentru Evaluarea Strategiilor de Navigare Sigură"
     final_doc.core_properties.author = "Andrei Demit"
     final_doc.core_properties.subject = "Lucrare de licență"
     final_doc.save(OUTPUT)

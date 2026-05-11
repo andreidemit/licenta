@@ -1,10 +1,10 @@
-# Simularea Comportamentului Inteligent și Navigare Autonomă
+# Simulator Grid-Based pentru Navigare Sigură
 
 ## Direcția curentă: Safe Navigation Simulator
 
 **Titlu conceptual:** „Simularea și evaluarea strategiilor de navigare sigură pentru agenți autonomi în medii grid-based necunoscute”.
 
-Proiectul a fost extins dintr-un demo centrat pe Q-Learning într-un cadru modular de simulare. Q-Learning-ul rămâne disponibil, dar este acum doar una dintre strategiile comparate în același simulator, alături de agenți euristici și algoritmi de planificare.
+Proiectul este un cadru modular de simulare pentru evaluarea strategiilor de navigare sigură în medii necunoscute, generate procedural. Q-Learning-ul rămâne disponibil, dar este acum doar una dintre strategiile comparate în același simulator, alături de agenți euristici și algoritmi de planificare.
 
 ### Arhitectura nouă
 
@@ -97,9 +97,9 @@ PYTHONPATH=. python -m experiments.run_experiment \
 
 ---
 
-**Titlu**: Simularea comportamentului inteligent: Navigare și supraviețuire autonomă bazată pe interacțiunea cu mediul.
+**Titlu**: Simulator Grid-Based pentru Evaluarea Strategiilor de Navigare Sigură în Medii Generate Procedural.
 
-**Descriere**: Această lucrare își propune dezvoltarea unei aplicații software pentru simularea și analiza proceselor cognitive de învățare într-un sistem bazat pe agenți autonomi. Spre deosebire de abordările clasice bazate pe seturi de date statice (Supervised Learning), proiectul se concentrează pe paradigma Învățării prin Consolidare (Reinforcement Learning). Agentul virtual va fi plasat într-un mediu necunoscut și va trebui să își dezvolte propria 'înțelegere' a lumii prin interacțiune directă (încercare și eroare). Obiectivul principal este implementarea algoritmului Q-Learning pentru a permite agentului să învețe relațiile cauzale dintre obiecte (obstacole, resurse) și consecințe (recompense, penalizări), simulând astfel procese cognitive fundamentale precum memoria, curiozitatea (explorarea) și planificarea. Aplicația va include o interfață grafică pentru vizualizarea în timp real a procesului de învățare și a evoluției performanței agentului în scenarii cu grade variate de complexitate.
+**Descriere**: Această lucrare își propune dezvoltarea unui simulator software pentru evaluarea strategiilor de navigare sigură în medii GridWorld necunoscute, generate procedural. Proiectul nu analizează doar dacă agentul ajunge la destinație, ci compară strategiile după risc, coliziuni, costul traseului, eficiență și capacitatea de generalizare pe hărți noi. Sistemul include agenți Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning, rulați prin același motor de simulare și evaluați prin experimente Monte Carlo.
 
 Prin acest document detaliez arhitectura simulării, punând un accent major pe modelarea matematică a entităților, dinamica mediului, fluxurile de date și mecanismele de interacțiune.
 
@@ -108,27 +108,30 @@ Prin acest document detaliez arhitectura simulării, punând un accent major pe 
 ## Ce vrem să obținem
 
 ### Obiectiv principal
-O aplicație funcțională care demonstrează că un agent software poate **învăța singur** să navigheze și să supraviețuiască într-un mediu necunoscut, fără nicio programare explicită a regulilor — exclusiv prin interacțiune repetată cu mediul și feedback numeric (recompense/penalizări).
+O aplicație funcțională care permite compararea strategiilor de navigare sigură în medii necunoscute. Întrebarea principală nu este „agentul a ajuns sau nu?”, ci **„care strategie este mai potrivită pentru navigare sigură în medii generate procedural?”**.
 
-La finalul antrenamentului, agentul trebuie să fie capabil să:
-- Găsească drumul optim (sau aproape optim) de la start la țintă;
-- Gestioneze resursele limitate (energie) fără să moară înainte de a ajunge la țintă;
-- Se adapteze parțial la schimbări ale mediului după antrenament.
+La final, simulatorul trebuie să permită:
+- generarea de hărți GridWorld necunoscute și reproductibile prin seed;
+- rularea mai multor strategii pe aceeași distribuție de hărți;
+- măsurarea succesului, riscului, coliziunilor, costului traseului și timpului de calcul;
+- analiza generalizării strategiilor pe hărți noi;
+- demonstrarea vizuală prin UI web și API FastAPI.
 
 ### Rezultate concrete așteptate
 
 | Livrabil | Descriere |
 |---|---|
-| **Aplicație Python/Pygame** | Simulare vizuală interactivă cu GUI |
-| **Q-Table antrenată** | Politică optimă salvată pentru fiecare scenariu |
-| **Export CSV** | Metrici per episod: pași, reward, epsilon, outcome |
-| **Grafice convergență** | Rolling average reward — dovada că agentul a învățat |
-| **3 scenarii validate** | A (navigare), B (supraviețuire), C (adaptabilitate) |
+| **Simulator GridWorld** | Medii generate procedural, validare BFS, model de risc |
+| **Agenți comparabili** | Random, Rule-Based, A*, Risk-Aware A*, Tabular Q, Feature-Based Q |
+| **Evaluare Monte Carlo** | Rulări repetate pe hărți noi, cu seed-uri controlate |
+| **Metrici de siguranță** | Succes, risc, coliziuni, pericole, cost, pași, timeout |
+| **Aplicație web** | Backend FastAPI + frontend React pentru demo și analiză |
+| **Componentă Q-Learning energetică** | Scenarii A/B/C/WAREHOUSE pentru homeostazie și RL tabular |
 
 ### Ce NU face proiectul (limitări asumate)
-- Nu folosește rețele neuronale (Deep Q-Learning / DQN) — Q-Learning tabular clasic.
-- Nu generalizează la medii complet nevăzute — agentul memorează o politică optimă per configurație de hartă, nu abstractizează reguli universale. Aceasta este o caracteristică a RL tabular, nu un defect de implementare.
-- Nu pretinde să rezolve probleme de inteligență generală (cf. benchmark-uri precum ARC-AGI-3, 2026). Scopul este demonstrarea mecanismelor fundamentale de învățare prin interacțiune.
+- Nu folosește rețele neuronale sau DQN; proiectul compară strategii interpretabile și ușor de explicat academic.
+- Nu pretinde că un singur algoritm este universal optim; scopul este evaluarea compromisului dintre succes, risc și cost.
+- Nu modelează robotică fizică reală completă; mediul grid-based este o abstractizare controlată pentru simulare și analiză.
 
 ---
 

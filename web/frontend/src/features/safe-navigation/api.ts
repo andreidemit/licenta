@@ -1,4 +1,10 @@
-import type { MonteCarloResult, SafeEnvironment, SafeEpisodeResult, SafeNavigationConfig } from './types';
+import type {
+  MonteCarloResult,
+  SafeEnvironment,
+  SafeEpisodeResult,
+  SafeNavigationConfig,
+  SafeScenarioPreset,
+} from './types';
 
 const API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
 
@@ -41,7 +47,7 @@ export const safeNavigationApi = {
     get<{
       status: string;
       algorithms: { id: string; name: string; explanation: string }[];
-      scenarios: { id: string; rows: number; cols: number; wall_probability: number; danger_probability: number }[];
+      scenarios: SafeScenarioPreset[];
       defaults: SafeNavigationConfig;
     }>('/api/safe-navigation/status'),
   preview: (config: SafeNavigationConfig) =>

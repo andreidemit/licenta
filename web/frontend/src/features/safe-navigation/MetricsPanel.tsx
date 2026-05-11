@@ -1,4 +1,5 @@
 import { Activity, AlertTriangle, CheckCircle2, Gauge, Route } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import type { MonteCarloResult, SafeEnvironment, SafeEpisodeResult, SafeNavigationConfig } from './types';
 
 function fmt(value?: number, digits = 1) {
@@ -34,6 +35,39 @@ function scenarioLabel(value: string) {
     custom: 'personalizat',
   };
   return labels[value] ?? value;
+}
+
+const metricTooltips = {
+  steps: 'Câte acțiuni a executat agentul până la finalul episodului. Un număr mai mic înseamnă de obicei un traseu mai eficient.',
+  reward: 'Scorul primit din funcția de recompensă. Obiectivul crește scorul, iar pașii, riscul, coliziunile și eșecurile îl scad.',
+  risk: 'Suma expunerii la risc acumulată pe traseu. Crește când agentul intră în pericol sau se apropie de zone periculoase.',
+  collisions: 'De câte ori agentul a încercat să intre într-un perete sau obstacol. Coliziunile indică decizii nesigure sau explorare slabă.',
+  danger: 'De câte ori agentul a intrat într-o celulă periculoasă. Pentru navigare sigură, valoarea ideală este 0.',
+  cost: 'Costul total agregat al traseului. Ajută la compararea eficienței cu siguranța: un cost mai mic este mai bun.',
+};
+
+function MetricTile({
+  label,
+  value,
+  tooltip,
+}: {
+  label: string;
+  value: string | number;
+  tooltip: string;
+}) {
+  return (
+    <Tooltip delayDuration={120}>
+      <TooltipTrigger asChild>
+        <div className="metric-tooltip-trigger" tabIndex={0} aria-label={`${label}: ${tooltip}`}>
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="center" className="safe-metric-tooltip">
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function buildStory({
@@ -107,17 +141,21 @@ export function MetricsPanel({
   environment,
   result,
   monteCarlo,
+  compact = false,
+  showStory = true,
 }: {
   config: SafeNavigationConfig;
   environment?: SafeEnvironment;
   result?: SafeEpisodeResult;
   monteCarlo?: MonteCarloResult;
+  compact?: boolean;
+  showStory?: boolean;
 }) {
   const statusKey = result ? (result.success ? 'success' : result.timeout ? 'timeout' : 'failed') : 'ready';
   const statusLabel = result ? (result.success ? 'Succes' : result.timeout ? 'Timeout' : 'Eșec') : 'Gata';
   const story = buildStory({ config, environment, result, monteCarlo });
   return (
-    <aside className="metrics-panel">
+    <aside className={compact ? 'metrics-panel compact-metrics' : 'metrics-panel'}>
       <section className="panel-card run-summary-card">
         <div>
           <small>Algoritm curent</small>
@@ -125,36 +163,57 @@ export function MetricsPanel({
         </div>
         <b className={`badge ${statusKey}`}>{statusLabel}</b>
         <dl>
-          <div><dt>Pași</dt><dd>{result?.steps ?? '-'}</dd></div>
-          <div><dt>Recompensă</dt><dd>{fmt(result?.total_reward)}</dd></div>
-          <div><dt>Risc</dt><dd>{fmt(result?.total_risk_exposure)}</dd></div>
+          {compact ? (
+            <>
+              <MetricTile label="Pași" value={result?.steps ?? '-'} tooltip={metricTooltips.steps} />
+              <MetricTile label="Recompensă" value={fmt(result?.total_reward)} tooltip={metricTooltips.reward} />
+              <MetricTile label="Risc" value={fmt(result?.total_risk_exposure)} tooltip={metricTooltips.risk} />
+            </>
+          ) : (
+            <>
+              <div><dt>Pași</dt><dd>{result?.steps ?? '-'}</dd></div>
+              <div><dt>Recompensă</dt><dd>{fmt(result?.total_reward)}</dd></div>
+              <div><dt>Risc</dt><dd>{fmt(result?.total_risk_exposure)}</dd></div>
+            </>
+          )}
+          {compact ? (
+            <>
+              <MetricTile label="Coliziuni" value={result?.collisions ?? '-'} tooltip={metricTooltips.collisions} />
+              <MetricTile label="Pericol" value={result?.danger_entries ?? '-'} tooltip={metricTooltips.danger} />
+              <MetricTile label="Cost" value={fmt(result?.total_cost)} tooltip={metricTooltips.cost} />
+            </>
+          ) : null}
         </dl>
       </section>
 
-      <section className="panel-card story-card">
-        <h2><Route size={18} /> Poveste experimentală</h2>
-        {story.map(({ icon: Icon, text }) => (
-          <p key={text}><Icon size={15} /> {text}</p>
-        ))}
-      </section>
+      {showStory ? (
+        <section className="panel-card story-card">
+          <h2><Route size={18} /> Poveste experimentală</h2>
+          {story.map(({ icon: Icon, text }) => (
+            <p key={text}><Icon size={15} /> {text}</p>
+          ))}
+        </section>
+      ) : null}
 
-      <section className="panel-card live-metrics-card">
-        <h2><Activity size={18} /> Metrici live</h2>
-        <div className="status-row">
-          <span>{algorithmLabel(config.algorithm)}</span>
-          <b className={`badge ${statusKey}`}>{statusLabel}</b>
-        </div>
-        <div className="metric-grid">
-          <div><small>Pași</small><strong>{result?.steps ?? '-'}</strong></div>
-          <div><small>Recompensă totală</small><strong>{fmt(result?.total_reward)}</strong></div>
-          <div><small>Cost total</small><strong>{fmt(result?.total_cost)}</strong></div>
-          <div><small>Expunere la risc</small><strong>{fmt(result?.total_risk_exposure)}</strong></div>
-          <div><small>Coliziuni</small><strong>{result?.collisions ?? '-'}</strong></div>
-          <div><small>Intrări în pericol</small><strong>{result?.danger_entries ?? '-'}</strong></div>
-          <div><small>Lungime traseu</small><strong>{result?.path_length ?? '-'}</strong></div>
-          <div><small>Timp rulare</small><strong>{fmt(result?.computation_time_ms, 2)} ms</strong></div>
-        </div>
-      </section>
+      {!compact ? (
+        <section className="panel-card live-metrics-card">
+          <h2><Activity size={18} /> Metrici live</h2>
+          <div className="status-row">
+            <span>{algorithmLabel(config.algorithm)}</span>
+            <b className={`badge ${statusKey}`}>{statusLabel}</b>
+          </div>
+          <div className="metric-grid">
+            <div><small>Pași</small><strong>{result?.steps ?? '-'}</strong></div>
+            <div><small>Recompensă totală</small><strong>{fmt(result?.total_reward)}</strong></div>
+            <div><small>Cost total</small><strong>{fmt(result?.total_cost)}</strong></div>
+            <div><small>Expunere la risc</small><strong>{fmt(result?.total_risk_exposure)}</strong></div>
+            <div><small>Coliziuni</small><strong>{result?.collisions ?? '-'}</strong></div>
+            <div><small>Intrări în pericol</small><strong>{result?.danger_entries ?? '-'}</strong></div>
+            <div><small>Lungime traseu</small><strong>{result?.path_length ?? '-'}</strong></div>
+            <div><small>Timp rulare</small><strong>{fmt(result?.computation_time_ms, 2)} ms</strong></div>
+          </div>
+        </section>
+      ) : null}
     </aside>
   );
 }

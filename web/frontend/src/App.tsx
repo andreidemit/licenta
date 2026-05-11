@@ -2,16 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Server, ShieldAlert, ShieldCheck } from 'lucide-react';
 import './styles.css';
 import { safeNavigationApi } from './features/safe-navigation/api';
-import { ControlPanel } from './features/safe-navigation/ControlPanel';
-import { ExperimentDashboard } from './features/safe-navigation/ExperimentDashboard';
-import { ExplanationPanel } from './features/safe-navigation/ExplanationPanel';
-import { GridWorldView } from './features/safe-navigation/GridWorldView';
-import { MetricsPanel } from './features/safe-navigation/MetricsPanel';
+import { ControlPanel, type WizardStage } from './features/safe-navigation/ControlPanel';
 import type {
   MonteCarloResult,
   SafeEnvironment,
   SafeEpisodeResult,
   SafeNavigationConfig,
+  SafeScenarioPreset,
 } from './features/safe-navigation/types';
 
 const initialConfig: SafeNavigationConfig = {
@@ -30,18 +27,17 @@ const initialConfig: SafeNavigationConfig = {
 
 type BusyAction = 'map' | 'episode' | 'monte-carlo';
 
-function createRandomSeed() {
-  return Math.floor(Math.random() * 1_000_000);
-}
-
 export function App() {
   const [config, setConfig] = useState(initialConfig);
   const [environment, setEnvironment] = useState<SafeEnvironment>();
   const [episodeResult, setEpisodeResult] = useState<SafeEpisodeResult>();
   const [monteCarlo, setMonteCarlo] = useState<MonteCarloResult>();
+  const [scenarioPresets, setScenarioPresets] = useState<SafeScenarioPreset[]>([]);
   const [explanation, setExplanation] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState<BusyAction>();
+  const [activeStage, setActiveStage] = useState<WizardStage>('scenario');
+  const [pendingMapConfig, setPendingMapConfig] = useState(false);
   const [message, setMessage] = useState('Gata');
   const [errorMessage, setErrorMessage] = useState('');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
@@ -80,11 +76,7 @@ export function App() {
     }
   }, []);
 
-  const generateMap = useCallback(async (options?: { randomizeSeed?: boolean }) => {
-    const nextConfig = options?.randomizeSeed
-      ? { ...config, random_seed: createRandomSeed() }
-      : config;
-
+  const generateMap = useCallback(async (nextConfig = config) => {
     await runRequest(
       'map',
       'Se generează o hartă rezolvabilă...',
@@ -94,11 +86,41 @@ export function App() {
         setEnvironment(response.environment);
         setEpisodeResult(undefined);
         setMonteCarlo(undefined);
+        setPendingMapConfig(false);
+        setActiveStage('scenario');
         setExplanation(response.algorithm_explanation);
         setMessage(`Hartă generată cu sămânța ${nextConfig.random_seed}`);
       },
     );
   }, [config, runRequest]);
+
+  const updateConfig = useCallback((nextConfig: SafeNavigationConfig) => {
+    const mapFields: (keyof SafeNavigationConfig)[] = [
+      'scenario',
+      'rows',
+      'cols',
+      'wall_probability',
+      'danger_probability',
+      'movement_noise',
+      'risk_weight',
+      'random_seed',
+    ];
+    const mapChanged = mapFields.some((key) => nextConfig[key] !== config[key]);
+    const runChanged = nextConfig.algorithm !== config.algorithm
+      || nextConfig.max_steps !== config.max_steps
+      || nextConfig.training_episodes !== config.training_episodes;
+    setConfig(nextConfig);
+    if (mapChanged) {
+      setPendingMapConfig(true);
+      setActiveStage('scenario');
+      setMessage('Configurație actualizată. Generează harta pentru a o aplica.');
+    } else if (runChanged) {
+      setEpisodeResult(undefined);
+      setMonteCarlo(undefined);
+      if (activeStage === 'results') setActiveStage('run');
+      setMessage('Configurație de rulare actualizată.');
+    }
+  }, [activeStage, config]);
 
   const runEpisode = useCallback(async () => {
     await runRequest(
@@ -108,6 +130,8 @@ export function App() {
       (response) => {
         setEnvironment(response.environment);
         setEpisodeResult(response.result);
+        setPendingMapConfig(false);
+        setActiveStage('results');
         setExplanation(response.algorithm_explanation);
         setMessage(response.result.success ? 'Episod reușit' : 'Episod finalizat fără succes');
       },
@@ -128,6 +152,7 @@ export function App() {
       ]),
       (response) => {
         setMonteCarlo(response);
+        setActiveStage('results');
         setMessage(`Au fost comparate ${response.summary.episode_count} episoade`);
       },
     );
@@ -141,6 +166,7 @@ export function App() {
         const status = await safeNavigationApi.status();
         if (cancelled) return;
         setBackendStatus('online');
+        setScenarioPresets(status.scenarios);
         setErrorMessage('');
         setExplanation(status.algorithms.find((item) => item.id === config.algorithm)?.explanation ?? '');
         await generateMap();
@@ -182,44 +208,29 @@ export function App() {
         </section>
       )}
 
-      <div className="workspace">
-        <ControlPanel
-          config={config}
-          busy={busy}
-          onChange={setConfig}
-          onPreview={() => generateMap({ randomizeSeed: true })}
-          onEpisode={runEpisode}
-          onMonteCarlo={runMonteCarlo}
-        />
-        <div className="center-stack">
-          <GridWorldView
-            environment={environment}
-            result={episodeResult}
-            showPath={showPath}
-            showRisk={showRisk}
-            showCoordinates={showCoordinates}
-            onTogglePath={() => setShowPath((value) => !value)}
-            onToggleRisk={() => setShowRisk((value) => !value)}
-            onToggleCoordinates={() => setShowCoordinates((value) => !value)}
-          />
-          <ExperimentDashboard result={monteCarlo} busy={busyAction === 'monte-carlo'} />
-        </div>
-        <div className="right-stack">
-          <MetricsPanel
-            config={config}
-            environment={environment}
-            result={episodeResult}
-            monteCarlo={monteCarlo}
-          />
-          <ExplanationPanel
-            config={config}
-            environment={environment}
-            result={episodeResult}
-            monteCarlo={monteCarlo}
-            text={explanation}
-          />
-        </div>
-      </div>
+      <ControlPanel
+        activeStage={activeStage}
+        config={config}
+        scenarioPresets={scenarioPresets}
+        environment={environment}
+        result={episodeResult}
+        monteCarlo={monteCarlo}
+        explanation={explanation}
+        busy={busy}
+        busyAction={busyAction}
+        pendingMapConfig={pendingMapConfig}
+        showPath={showPath}
+        showRisk={showRisk}
+        showCoordinates={showCoordinates}
+        onStageChange={setActiveStage}
+        onChange={updateConfig}
+        onPreview={(nextConfig) => generateMap(nextConfig)}
+        onEpisode={runEpisode}
+        onMonteCarlo={runMonteCarlo}
+        onTogglePath={() => setShowPath((value) => !value)}
+        onToggleRisk={() => setShowRisk((value) => !value)}
+        onToggleCoordinates={() => setShowCoordinates((value) => !value)}
+      />
     </div>
   );
 }

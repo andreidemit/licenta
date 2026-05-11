@@ -47,6 +47,14 @@ export type SafeNavigationConfig = {
   random_seed: number;
 };
 
+export type SafeScenarioPreset = {
+  id: string;
+  rows: number;
+  cols: number;
+  wall_probability: number;
+  danger_probability: number;
+};
+
 export type MonteCarloSummaryRow = {
   algorithm: string;
   episodes: number;
