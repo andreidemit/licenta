@@ -15,6 +15,11 @@ const EvaluatePage = lazy(() =>
 const BuilderPage = lazy(() => import('../pages/BuilderPage').then((m) => ({ default: m.BuilderPage })));
 const ComparePage = lazy(() => import('../pages/ComparePage').then((m) => ({ default: m.ComparePage })));
 const LegacyApp = lazy(() => import('../App').then((m) => ({ default: m.App })));
+const MonteCarloAnalysisPage = lazy(() =>
+  import('../features/safe-navigation/analysis/MonteCarloAnalysisPage').then((m) => ({
+    default: m.MonteCarloAnalysisPage,
+  })),
+);
 
 function PageFallback() {
   return (
@@ -77,6 +82,11 @@ const router = createBrowserRouter([
   {
     path: '/legacy',
     element: <Suspense fallback={<PageFallback />}><LegacyApp /></Suspense>,
+    errorElement: <RouteError />,
+  },
+  {
+    path: '/safe-navigation/monte-carlo',
+    element: <Suspense fallback={<PageFallback />}><MonteCarloAnalysisPage /></Suspense>,
     errorElement: <RouteError />,
   },
 ]);

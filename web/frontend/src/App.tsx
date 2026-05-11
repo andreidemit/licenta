@@ -3,6 +3,7 @@ import { Server, ShieldAlert, ShieldCheck } from 'lucide-react';
 import './styles.css';
 import { safeNavigationApi } from './features/safe-navigation/api';
 import { ControlPanel, type WizardStage } from './features/safe-navigation/ControlPanel';
+import { setLatestMonteCarlo } from './features/safe-navigation/monteCarloStore';
 import type {
   MonteCarloResult,
   SafeEnvironment,
@@ -154,6 +155,7 @@ export function App() {
       ]),
       (response) => {
         setMonteCarlo(response);
+        setLatestMonteCarlo(response);
         setActiveStage('results');
         setMessage(`Au fost comparate ${response.summary.episode_count} episoade`);
       },

@@ -31,6 +31,7 @@ export type SafeEpisodeResult = {
   }[];
   computation_time_ms: number;
   total_cost: number;
+  map_seed?: number | null;
 };
 
 export type SafeNavigationConfig = {
@@ -64,20 +65,58 @@ export type SafeScenarioPreset = {
   danger_probability: number;
 };
 
+export type MonteCarloDistribution = {
+  mean: number;
+  std: number;
+  p05: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p95: number;
+  ci95_low: number;
+  ci95_high: number;
+  min: number;
+  max: number;
+};
+
 export type MonteCarloSummaryRow = {
+  algorithm: string;
+  episodes: number;
+  success_rate: number;
+  success_rate_ci95_low?: number;
+  success_rate_ci95_high?: number;
+  average_reward: number;
+  average_steps: number;
+  average_collisions: number;
+  collision_rate: number;
+  collision_rate_ci95_low?: number;
+  collision_rate_ci95_high?: number;
+  average_danger_entries: number;
+  danger_entry_rate: number;
+  danger_entry_rate_ci95_low?: number;
+  danger_entry_rate_ci95_high?: number;
+  average_risk_exposure: number;
+  average_total_cost: number;
+  timeout_rate: number;
+  timeout_rate_ci95_low?: number;
+  timeout_rate_ci95_high?: number;
+  average_computation_time_ms: number;
+  reward_distribution?: MonteCarloDistribution;
+  steps_distribution?: MonteCarloDistribution;
+  risk_distribution?: MonteCarloDistribution;
+};
+
+export type MonteCarloPerMapRow = {
+  map_seed: number;
   algorithm: string;
   episodes: number;
   success_rate: number;
   average_reward: number;
   average_steps: number;
-  average_collisions: number;
-  collision_rate: number;
-  average_danger_entries: number;
-  danger_entry_rate: number;
   average_risk_exposure: number;
-  average_total_cost: number;
+  collision_rate: number;
+  danger_entry_rate: number;
   timeout_rate: number;
-  average_computation_time_ms: number;
 };
 
 export type MonteCarloResult = {
@@ -94,6 +133,7 @@ export type MonteCarloResult = {
   summary: {
     episode_count: number;
     agents: MonteCarloSummaryRow[];
+    per_map?: MonteCarloPerMapRow[];
   };
   episodes: SafeEpisodeResult[];
 };

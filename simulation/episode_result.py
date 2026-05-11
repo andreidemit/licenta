@@ -28,6 +28,7 @@ class EpisodeResult:
     timeout: bool
     events: list[dict]
     computation_time_ms: float = 0.0
+    map_seed: int | None = None
 
     @property
     def path_length(self) -> int:
@@ -53,4 +54,5 @@ class EpisodeResult:
             "events": self.events,
             "computation_time_ms": self.computation_time_ms,
             "total_cost": self.total_cost,
+            "map_seed": self.map_seed,
         }

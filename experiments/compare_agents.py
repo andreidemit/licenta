@@ -172,7 +172,9 @@ def _run_transfer_experiment(
             seed = random_seed + map_index * 997
             for _ in range(episodes_per_map):
                 eval_env = _generate_env(generator, values, seed, movement_noise, risk_weight)
-                results.append(Simulator(eval_env, agent, max_steps=max_steps).run_episode(training=False))
+                episode = Simulator(eval_env, agent, max_steps=max_steps).run_episode(training=False)
+                episode.map_seed = seed
+                results.append(episode)
 
     return results
 
@@ -270,7 +272,9 @@ def run_monte_carlo_experiment(
                     movement_noise=movement_noise,
                     reward_config=RewardConfig(risk_weight=risk_weight),
                 )
-                results.append(Simulator(eval_env, agent, max_steps=max_steps).run_episode(training=False))
+                episode = Simulator(eval_env, agent, max_steps=max_steps).run_episode(training=False)
+                episode.map_seed = seed
+                results.append(episode)
 
     return {
         "config": {
