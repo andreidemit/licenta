@@ -24,6 +24,8 @@ const initialConfig: SafeNavigationConfig = {
   risk_weight: 1,
   max_steps: 300,
   training_episodes: 150,
+  number_of_maps: 6,
+  episodes_per_map: 2,
   random_seed: 42,
 };
 
@@ -111,7 +113,9 @@ export function App() {
     const mapChanged = mapFields.some((key) => nextConfig[key] !== config[key]);
     const runChanged = nextConfig.algorithm !== config.algorithm
       || nextConfig.max_steps !== config.max_steps
-      || nextConfig.training_episodes !== config.training_episodes;
+      || nextConfig.training_episodes !== config.training_episodes
+      || nextConfig.number_of_maps !== config.number_of_maps
+      || nextConfig.episodes_per_map !== config.episodes_per_map;
     setConfig(nextConfig);
     if (mapChanged) {
       setPendingMapConfig(true);

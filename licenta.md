@@ -24,7 +24,11 @@ Lucrarea de față prezintă proiectarea, implementarea și analiza experimental
 
 Valoarea proiectului constă în transformarea problemei din „agentul a ajuns la țintă?” în întrebarea mai matură „care strategie este mai potrivită pentru navigare sigură în medii necunoscute?”. În acest sens, sistemul compară strategii bazate pe aleatoriu, reguli, planificare și învățare: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning. Toți agenții sunt rulați în același tip de mediu GridWorld, ceea ce permite o comparație coerentă între comportamente diferite.
 
-Simulatorul include un generator procedural de hărți validat prin BFS, un model explicit de risc calculat în funcție de apropierea față de celulele periculoase și o infrastructură de evaluare Monte Carlo pe distribuții de medii. Astfel, performanța nu este judecată doar pe o hartă fixă, ci pe mai multe hărți generate cu seed-uri controlate. Metricile colectate includ `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` și `average_computation_time_ms`.
+Simulatorul include un generator procedural de hărți validat prin BFS, un model explicit de risc (`RiskModel`) care calculează o hartă de influență în jurul celulelor periculoase — cu costuri discrete de 100.0, 10.0, 5.0 și 2.0 pentru distanțele Manhattan 0, 1, 2 și 3 — și o infrastructură de evaluare Monte Carlo pe distribuții de medii. Performanța nu este judecată pe o singură hartă fixă, ci pe mai multe hărți generate cu seed-uri controlate, iar intervalele de încredere de 95% sunt calculate prin bootstrap cu 1.000 de iterații și seed determinist 1.234. Metricile colectate includ `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` și `average_computation_time_ms`.
+
+Cadrul comparativ este organizat în șase **profiluri experimentale** (`known_static`, `high_risk`, `stochastic_execution`, `same_map_learning`, `transfer_learning`, `training_cost`), fiecare simulând un context operațional distinct. Profilul `transfer_learning` este singurul cu `agent_lifecycle = shared_across_maps`: agenții Q sunt antrenați o singură dată pe hărți cu seed-uri offset cu `+50.000` față de hărțile de evaluare, iar politicile sunt testate pe seturi distincte. Celelalte profiluri folosesc `agent_lifecycle = per_map`, unde agentul este re-creat pentru fiecare hartă de evaluare.
+
+`FeatureBasedQLearningAgent` folosește un vector de stare de 11 componente — bitmask de pereți (4 direcții), bitmask de pericole (4 direcții), direcția verticală față de obiectiv (−1/0/+1), direcția orizontală față de obiectiv (−1/0/+1) și un bucket de distanță Manhattan (0: ≤ 2, 1: ≤ 5, 2: > 5) — ceea ce îi permite generalizarea pe hărți nevăzute, spre deosebire de `TabularQLearningAgent` care indexează pe coordonate absolute.
 
 Componenta Q-Learning energetică rămâne o parte importantă a lucrării, dar nu mai reprezintă singurul obiectiv. Aceasta funcționează ca studiu de caz pentru învățare prin consolidare tabulară cu homeostazie energetică: spațiul de stări este definit ca un triplet $(rând, coloană, nivel\_energie)$, unde nivelul de energie continuu este discretizat în patru grupe, rezultând un Q-table de dimensiune $20 \times 20 \times 4 \times 5 = 8.000$ de intrări. Această componentă arată cum o strategie de învățare poate lua decizii diferite în aceeași poziție în funcție de resursele interne ale agentului.
 
@@ -42,7 +46,11 @@ This thesis presents the design, implementation and experimental analysis of a g
 
 The value of the project lies in reframing the problem from "did the agent reach the goal?" to "which strategy is more suitable for safe navigation in unknown environments?". The system compares random, rule-based, planning-based and learning-based approaches: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning and Feature-Based Q-Learning. All agents are evaluated in the same GridWorld setting, which enables a coherent comparison of different behaviours.
 
-The simulator includes a procedurally generated BFS-validated map generator, an explicit risk model based on proximity to dangerous cells, and a Monte Carlo evaluation pipeline across distributions of maps. Therefore, performance is not judged on a single fixed map, but across several generated maps with controlled seeds. The collected metrics include `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` and `average_computation_time_ms`.
+The simulator includes a procedurally generated BFS-validated map generator, an explicit risk model (`RiskModel`) that computes an influence map around dangerous cells — with discrete costs of 100.0, 10.0, 5.0 and 2.0 for Manhattan distances 0, 1, 2 and 3 respectively — and a Monte Carlo evaluation pipeline across distributions of maps. Performance is not judged on a single fixed map, but across several maps with controlled seeds; 95% confidence intervals are computed via bootstrap with 1,000 iterations and a deterministic seed of 1,234. The collected metrics include `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` and `average_computation_time_ms`.
+
+The comparative framework is organised around six **experiment profiles** (`known_static`, `high_risk`, `stochastic_execution`, `same_map_learning`, `transfer_learning`, `training_cost`), each reproducing a distinct operational context. The `transfer_learning` profile is the only one with `agent_lifecycle = shared_across_maps`: Q-agents are trained once on maps whose seeds are offset by `+50,000` from the evaluation seeds, and policies are tested on disjoint sets. All other profiles use `agent_lifecycle = per_map`, re-creating the agent for each evaluation map.
+
+`FeatureBasedQLearningAgent` represents its state as an 11-component vector — a wall bitmask (4 directions), a danger bitmask (4 directions), the vertical direction to the goal (−1/0/+1), the horizontal direction to the goal (−1/0/+1) and a Manhattan distance bucket (0: ≤ 2, 1: ≤ 5, 2: > 5) — enabling generalisation to unseen maps, unlike `TabularQLearningAgent` which indexes on absolute grid coordinates.
 
 The energy-aware Q-Learning component remains an important part of the thesis, but it is no longer the only objective. It acts as a case study for tabular reinforcement learning with energy homeostasis: the state space is defined as a triplet $(row, column, energy\_level)$, where the continuous energy level is discretised into four buckets, yielding a Q-table of size $20 \times 20 \times 4 \times 5 = 8{,}000$ entries. This component shows how a learning strategy can choose different actions in the same location depending on the internal resources of the agent.
 
@@ -84,7 +92,15 @@ In the Monte Carlo experiment for the `medium` scenario (5 maps, 2 episodes per 
    - 4.6 Interfața grafică Pygame (renderer.py)
    - 4.7 Modulul de analiză (analytics.py)
    - 4.8 Serviciul web, API-ul FastAPI și interfața React
+     - 4.8.1 Backend FastAPI și rutele principale
+     - 4.8.2 Pagina de analiză Monte Carlo (`/safe-navigation/monte-carlo`)
+     - 4.8.3 Persistența stării între rute (`monteCarloStore.ts`)
    - 4.9 Cadrul de navigare sigură și comparație multi-agent
+     - 4.9.1 Modelul de mediu (`GridWorld`, `RiskModel`, `RewardConfig`)
+     - 4.9.2 Strategiile implementate
+     - 4.9.3 Vectorul de features al `FeatureBasedQLearningAgent`
+     - 4.9.4 Profiluri experimentale și ciclul de viață al agentului
+     - 4.9.5 Agregare statistică Monte Carlo și intervale de încredere
    - 4.10 Deployment Azure Cloud
 5. Experimentare și Rezultate
    - 5.1 Setup experimental
@@ -150,11 +166,11 @@ Lucrarea aduce mai multe contribuții originale față de un proiect clasic de n
 
 **Contribuția 3 — Generalizare pe hărți generate procedural.** Hărțile sunt generate cu seed-uri controlate și validate prin BFS. Experimentele Monte Carlo evaluează strategiile pe mai multe configurații, reducând dependența de o singură hartă favorabilă.
 
-**Contribuția 4 — Model explicit de risc și planificare risk-aware.** Clasa `RiskModel` transformă apropierea de pericole într-un cost numeric, iar `RiskAwareAStarAgent` demonstrează cum o strategie poate prefera un traseu mai sigur chiar dacă acesta nu este strict cel mai scurt.
+**Contribuția 4 — Model explicit de risc și planificare risk-aware.** Clasa `RiskModel` transformă apropierea de pericole într-un cost numeric cu valori discrete: 100.0 (celulă DANGER), 10.0 (distanță 1), 5.0 (distanță 2), 2.0 (distanță 3), 0.0 (distanță > 3). `RiskAwareAStarAgent` include acest cost în funcția $f(n) = g(n) + h(n) + w \cdot r(n)$, demonstrând cum o strategie poate prefera un traseu mai sigur chiar dacă acesta nu este strict cel mai scurt.
 
 **Contribuția 5 — Componentă Q-Learning energetică interpretabilă.** Nucleul din `src/` păstrează un agent Q-Learning tabular cu homeostazie energetică. Discretizarea energiei în patru buckets și scenariile A/B/C/WAREHOUSE oferă un studiu de caz clar despre învățare prin consolidare cu resurse interne.
 
-**Contribuția 6 — Aplicație web și reproductibilitate operațională.** Motorul Python este expus printr-un backend FastAPI, iar frontend-ul React/Vite permite antrenarea, evaluarea, editarea mediilor, compararea rulărilor și rularea experimentelor de navigare sigură din browser. Configurația Azure inclusă în repository demonstrează că aplicația poate fi publicată ca sistem cloud, nu doar rulată local.
+**Contribuția 6 — Aplicație web și reproductibilitate operațională.** Motorul Python este expus printr-un backend FastAPI, iar frontend-ul React/Vite permite antrenarea, evaluarea, editarea mediilor, compararea rulărilor și rularea experimentelor de navigare sigură din browser. Pagina dedicată `/safe-navigation/monte-carlo` expune șapte tab-uri de analiză statistică (distribuții, CI bars, scatter risc-recompensă, heatmap per hartă, breakdown eșecuri, heatmap de ocupanță, export CSV/PNG). Modulul `monteCarloStore.ts` cu persistență în `sessionStorage` asigură că rezultatele Monte Carlo sunt disponibile la navigarea între rute fără re-rularea experimentului. Configurația Azure inclusă în repository demonstrează că aplicația poate fi publicată ca sistem cloud.
 
 ### 1.4 Structura Lucrării
 
@@ -657,6 +673,8 @@ Graficele sunt salvate automat ca fișiere PNG în directorul `data/`, cu denumi
 
 ### 4.8 Serviciul Web, API-ul FastAPI și Interfața React
 
+#### 4.8.1 Backend FastAPI și rutele principale
+
 Versiunea curentă a proiectului nu este doar un simulator CLI/Pygame, ci și o aplicație web. Backend-ul din `web/backend/app.py` expune motorul Python prin FastAPI. Rutele principale sunt:
 
 | Rută | Rol |
@@ -670,29 +688,68 @@ Versiunea curentă a proiectului nu este doar un simulator CLI/Pygame, ci și o 
 | `/api/runs/{id}/artifacts/{key}/download` | Descarcă artefacte generate |
 | `/api/qtables` | Listează tabele Q disponibile pentru evaluare |
 | `/api/evaluate` | Rulează o politică greedy pe unul sau mai multe medii JSON |
-| `/api/safe-navigation/*` | Expune experimentele de navigare sigură |
+| `/api/safe-navigation/status` | Verifică disponibilitatea modulului de navigare sigură |
+| `/api/safe-navigation/algorithms` | Returnează lista algoritmilor expuși, cu explicații |
+| `/api/safe-navigation/preview` | Generează previzualizare hartă GridWorld cu harta de risc suprapusă |
+| `/api/safe-navigation/episode` | Rulează un episod al unui agent specificat |
+| `/api/safe-navigation/monte-carlo` | Rulează experimentul Monte Carlo pentru toți algoritmii selectați |
+| `/api/evaluation-scenarios` | Returnează profilurile experimentale disponibile |
 
 Persistența rulărilor este gestionată de `JobStore`, care scrie indexul în `data/runs/index.json`. Backend-ul validează modelele de request prin Pydantic (`TrainRequest`, `EvaluateRequest`, `EnvironmentPayload`, `SafeNavigationRequest`, `MonteCarloRequest`) și protejează descărcarea artefactelor prin verificarea că fișierele cerute se află sub directorul controlat `RUNS_ROOT`.
 
 Frontend-ul din `web/frontend/` este construit cu React, Vite, React Router, Tailwind CSS și componente UI de tip shadcn/Radix. Interfața include două zone funcționale:
 
 1. **Laboratorul Q-Learning energetic**, disponibil sub `/lab`, cu pagini pentru antrenare, rulări, detalii de rulare, evaluare pe medii noi, editor de mediu și comparație multi-run.
-2. **Simulatorul de navigare sigură**, disponibil pe ruta principală `/`, cu panou de configurare, vizualizare GridWorld, hartă de risc, replay al traseului, metrici și comparație Monte Carlo între algoritmi.
+2. **Simulatorul de navigare sigură**, disponibil pe ruta principală `/` și `/safe-navigation`, cu panou de configurare, vizualizare GridWorld, hartă de risc, replay al traseului, metrici și comparație Monte Carlo între algoritmi.
 
 Separarea este intenționată: laboratorul Q-Learning arată homeostazia energetică și artefactele de licență, iar simulatorul de navigare sigură arată comparația algoritmică și legătura directă cu tehnicile de simulare statistică.
 
+#### 4.8.2 Pagina de analiză Monte Carlo (`/safe-navigation/monte-carlo`)
+
+Pagina dedicată de analiză statistică este disponibilă la ruta `/safe-navigation/monte-carlo` și este montată în `web/frontend/src/app/router.tsx`. Aceasta afișează rezultatele ultimului experiment Monte Carlo rulat și include șapte tab-uri funcționale:
+
+| Tab | Componentă | Ce vizualizează |
+|-----|------------|-----------------|
+| **Distribuții** | `RewardDistribution.tsx` | Boxplot-uri per agent pentru recompensă, pași sau expunere la risc; comutator de metrică |
+| **Intervale de încredere** | `MetricCIBars.tsx` | Bare cu error bars CI 95% bootstrap pentru `success_rate`, `collision_rate`, `danger_entry_rate`, `timeout_rate`, `average_reward`, `average_steps`, `average_risk_exposure` |
+| **Risc / Recompensă** | `RiskRewardScatter.tsx` | Scatter Pareto: un punct = un episod, dimensiune = număr pași, culoare = agent |
+| **Per-hartă** | `PerMapHeatmap.tsx` | Heatmap agent × `map_seed` colorat după `success_rate` |
+| **Eșecuri** | `FailureBreakdown.tsx` | Stacked bar: episoade reușite / coliziune terminală / intrare în pericol / timeout |
+| **Ocupare grilă** | `OccupancyHeatmap.tsx` | Heatmap SVG agregat din toate path-urile per agentul selectat |
+| **Export** | `ExportPanel.tsx` | CSV rezumat + CSV episoade brute, JSON complet, PNG per chart |
+
+Toate componentele Recharts primesc datele din starea globală `MonteCarloAnalysisPage.tsx`, care coordonează filtrele de algoritm și ciclul de viață al rezultatelor.
+
+#### 4.8.3 Persistența stării între rute (`monteCarloStore.ts`)
+
+Un utilizator care navighează de la Wizard-ul Safe Navigation la pagina de analiză și înapoi nu trebuie să re-ruleze experimentul Monte Carlo. Modulul `web/frontend/src/features/safe-navigation/monteCarloStore.ts` implementează un store reactiv cu persistență în `sessionStorage`.
+
+Arhitectura este un singur obiect React Context + hook personalizat `useMonteCarloStore()`. La fiecare finalizare a unui experiment, rezultatul complet este serializat în `sessionStorage['monteCarlo']`. La montarea paginii de analiză, store-ul este inițializat din `sessionStorage`. Dacă tab-ul sau browser-ul este închis, datele sunt pierdute — comportamentul intenționat pentru a nu stoca gigabytes de date de sesiune.
+
+```typescript
+// Pattern de utilizare în componentele consumer
+const { result, setResult, clearResult } = useMonteCarloStore();
+```
+
+Separarea dintre persistență (sessionStorage) și stare reactivă (React Context) permite rerenderizare corectă fără polling și fără refetch de la backend.
+
 ### 4.9 Cadrul de Navigare Sigură și Comparație Multi-Agent
 
-Pentru a întări componenta de tehnici de simulare, proiectul include un cadru separat de navigare sigură în medii GridWorld necunoscute. Acesta este organizat astfel:
+#### 4.9.1 Modelul de mediu (`GridWorld`, `RiskModel`, `RewardConfig`)
 
-| Pachet | Responsabilitate |
-|--------|------------------|
-| `environment/` | Tipuri de celule, `GridWorld`, generare procedurală, model de risc |
-| `agents/` | Strategii de decizie: Random, Rule-Based, A*, Risk-Aware A*, Q-Learning |
-| `simulation/` | Motor generic de episod, tranziții, rezultate și agregări |
-| `experiments/` | Experimente Monte Carlo și comparație între agenți |
+Cadrul separat de navigare sigură utilizează un mediu `GridWorld` cu tipuri de celule `EMPTY`, `WALL`, `DANGER`, `START` și `GOAL`. Spre deosebire de `src/environment.py`, acesta nu include energie sau hrană — modelul este centrat exclusiv pe navigare cu risc.
 
-`GridWorld` folosește celule `EMPTY`, `WALL`, `DANGER`, `START` și `GOAL`. Spre deosebire de mediul energetic din `src/environment.py`, acest mediu introduce explicit expunerea la risc. Clasa `RiskModel` calculează o hartă de risc pe baza distanței Manhattan față de celulele `DANGER`: celula de pericol are cost mare, celulele la distanța 1 au cost intermediar, iar riscul scade până la distanța 3.
+Clasa `RiskModel` din `environment/risk_model.py` calculează o hartă de influență în funcție de distanța Manhattan față de celulele `DANGER`:
+
+| Distanță Manhattan față de DANGER | Cost de risc |
+|---:|---:|
+| 0 (celulă DANGER) | 100.0 |
+| 1 | 10.0 |
+| 2 | 5.0 |
+| 3 | 2.0 |
+| > 3 | 0.0 |
+
+Aceasta modelează realitatea: **apropierea de o zonă periculoasă are cost chiar fără intrare directă** (zona de siguranță din jurul echipamentelor industriale, distanța față de persoane). Costurile sunt parametrizabile prin `RiskModel(danger_cost, distance_1_cost, distance_2_cost, distance_3_cost)`.
 
 Funcția de recompensă este configurabilă prin `RewardConfig`:
 
@@ -704,18 +761,84 @@ Funcția de recompensă este configurabilă prin `RewardConfig`:
 | step | -1 | Cost de timp per pas |
 | closer | +2 | Shaping pentru apropierea de obiectiv |
 | farther | -2 | Penalizare pentru îndepărtare |
-| risk_weight | configurabil | Penalizare proporțională cu riscul local |
 
-Algoritmii comparați au roluri diferite:
+Recompensele de shaping (`closer`/`farther`) accelerează convergența Q-Learning fără a modifica politica optimă (potential-based shaping). Parametrul `movement_noise` din `GridWorld` introduce stochasticitate în execuție: cu probabilitate `movement_noise`, acțiunea este deviată lateral față de intenția agentului.
 
-- `RandomAgent` oferă baseline-ul minim;
-- `RuleBasedAgent` evită pereți/pericole imediate și reduce distanța Manhattan;
-- `AStarAgent` planifică drumul cel mai scurt cu euristică Manhattan;
-- `RiskAwareAStarAgent` optimizează distanța plus costul de risc;
-- `TabularQLearningAgent` învață valori Q pentru coordonate absolute;
-- `FeatureBasedQLearningAgent` învață pe baza unor features locale reutilizabile între hărți.
+#### 4.9.2 Strategiile implementate
 
-Experimentele Monte Carlo rulează acești agenți pe mai multe hărți generate procedural, cu seed-uri controlate. Metricile agregate includ rata de succes, recompensa medie, pași medii, coliziuni, intrări în pericol, expunere totală la risc, cost total și timp mediu de calcul. Această parte este importantă pentru lucrare deoarece trece de la un singur episod demonstrativ la evaluare statistică pe distribuții de medii.
+Fiecare strategie modelează o paradigmă diferită de luare a deciziei. Interfața comună `BaseAgent` din `agents/base_agent.py` impune metodele `select_action(observation)`, `learn(transition)`, `reset()`, `state_key(observation)` și opțional `explain()`.
+
+| Strategie | Paradigmă | `requires_training` | Observabilitate hartă |
+|---|---|---|---|
+| `RandomAgent` | Baseline aleator | Nu | Nu |
+| `RuleBasedAgent` | Euristică locală (evită pereți/pericole, reduce distanța Manhattan) | Nu | Parțial (vecini imediate) |
+| `AStarAgent` | Planificare globală (dijkstra cu euristică Manhattan) | Nu | Completă |
+| `RiskAwareAStarAgent` | Planificare cu cost de risc inclus în funcția $f(n) = g(n) + h(n) + w \cdot r(n)$ | Nu | Completă |
+| `TabularQLearningAgent` | RL pe coordonate absolute | Da | Nu (model-free) |
+| `FeatureBasedQLearningAgent` | RL pe vector de features locale | Da | Nu (model-free) |
+
+#### 4.9.3 Vectorul de features al `FeatureBasedQLearningAgent`
+
+`FeatureBasedQLearningAgent` reprezintă starea ca un tuple de 11 componente, extras prin metoda `state_key(observation)`:
+
+```python
+# 4 componente: bitmask pereți în direcțiile UP/DOWN/LEFT/RIGHT
+walls[0..3]   # 1 dacă celula vecină este WALL sau în afara grilei, 0 altfel
+
+# 4 componente: bitmask pericole în direcțiile UP/DOWN/LEFT/RIGHT
+dangers[0..3] # 1 dacă celula vecină este DANGER, 0 altfel
+
+# Direcția verticală față de obiectiv: -1 (obiectiv mai sus), 0 (același rând), +1 (mai jos)
+goal_vertical
+
+# Direcția orizontală față de obiectiv: -1 (stânga), 0 (aceeași coloană), +1 (dreapta)
+goal_horizontal
+
+# Bucket distanță Manhattan față de obiectiv: 0 (≤ 2), 1 (≤ 5), 2 (> 5)
+distance_bucket
+```
+
+Vectorul complet este `tuple(walls + dangers + [goal_vertical, goal_horizontal, distance_bucket])`. Reprezentarea este **independentă de coordonatele absolute** — același tuple poate apărea în colțul stâng-sus sau în centrul hărții, ceea ce permite agentului să transfere politica pe hărți nevăzute. Totuși, granularitatea limitată (bucket-uri de distanță, nu distanța exactă) introduce aliasing în stări cu configurații locale identice, dar contexte globale diferite.
+
+#### 4.9.4 Profiluri experimentale și ciclul de viață al agentului
+
+Modulul `experiments/compare_agents.py` definește șase **profiluri experimentale** în dicționarul `EXPERIMENT_PROFILES`. Fiecare profil include parametrul `agent_lifecycle` care controlează cum sunt create și reutilizate instanțele de agent:
+
+| Profil | Context operațional | `agent_lifecycle` | Algoritm avantajat |
+|--------|---------------------|-------------------|--------------------|
+| `known_static` | Hartă complet cunoscută, condiții deterministe | `per_map` | A*, Risk-Aware A* |
+| `high_risk` | Siguranța este obiectiv explicit, ponderat mai mult decât distanța | `per_map` | Risk-Aware A* |
+| `stochastic_execution` | Acțiunile pot devia lateral (`movement_noise > 0`) | `per_map` | Risk-Aware A*, Feature-Based Q |
+| `same_map_learning` | Training și evaluare pe aceeași hartă (coordonatele sunt stabile) | `per_map` | Tabular Q-Learning |
+| `transfer_learning` | Training pe hărți cu seed-uri diferite față de evaluare | `shared_across_maps` | Feature-Based Q-Learning |
+| `training_cost` | Compară costul de antrenare (episoade off-policy) cu costul de planificare | `per_map` | A*, Risk-Aware A*, Feature-Based Q |
+
+**Ciclul de viață `per_map`**: la fiecare hartă de evaluare, agentul este re-creat cu stare inițializată. Dacă agentul necesită training (`requires_training = True`), are loc o fază de antrenament izolată pe acea hartă înainte de evaluarea greedy. Politicile **nu se transferă** între hărți — fiecare măsurătoare reflectă o sesiune de învățare independentă.
+
+**Ciclul de viață `shared_across_maps`** (exclusiv `transfer_learning`): un singur agent este antrenat pe hărți cu seed-uri `base_seed + 50_000 + i` (offset de 50.000), apoi evaluat pe hărțile standard cu seed-urile `base_seed + i`. Separarea seed-urilor garantează că hărțile de training și evaluare sunt structural distincte, permițând măsurarea transferului de politici.
+
+#### 4.9.5 Agregare statistică Monte Carlo și intervale de încredere
+
+Modulul `simulation/metrics.py` implementează funcția `aggregate_results(results)` care primește lista de `EpisodeResult` și returnează statistici agregate per agent și per hartă.
+
+Intervalele de încredere de 95% sunt calculate prin **bootstrap non-parametric**:
+- **Iterații**: 1.000 de reeșantionări cu revenire
+- **Seed determinist**: 1.234 (reproductibil, dar nu independent între agenți)
+- **Statistică**: media reeșantionată; percentilele α/2 și 1−α/2 definesc CI
+
+```python
+_BOOTSTRAP_SAMPLES = 1000
+_BOOTSTRAP_SEED = 1234
+
+def _bootstrap_ci(values, confidence=0.95, iterations=_BOOTSTRAP_SAMPLES, seed=_BOOTSTRAP_SEED):
+    rng = random.Random(seed)
+    means = [sum(rng.choices(values, k=len(values))) / len(values) for _ in range(iterations)]
+    means.sort()
+    alpha = (1 - confidence) / 2
+    return _percentile(means, alpha * 100), _percentile(means, (1 - alpha) * 100)
+```
+
+Distributiile agregate includ: `mean`, `std`, percentilele `p05`, `p25`, `p50`, `p75`, `p95`, `min` și `max` pentru recompensă, pași și expunere la risc. Defalcarea `per_map[]` returnează success_rate per agent per `map_seed`, folosită de componenta `PerMapHeatmap` din frontend.
 
 ### 4.10 Deployment Azure Cloud
 
@@ -862,7 +985,22 @@ Față de scenariile procedurale, WAREHOUSE nu urmărește să fie o simulare fi
 
 ### 5.7 Navigare Sigură și Comparație Monte Carlo
 
-Pe lângă experimentele A/B/C/WAREHOUSE, codul curent include un cadru de navigare sigură orientat spre comparația algoritmilor pe distribuții de hărți. Acesta este accesibil prin API-ul `/api/safe-navigation/*` și prin interfața React principală.
+Pe lângă experimentele A/B/C/WAREHOUSE, cadrul de navigare sigură permite compararea algoritmilor pe distribuții de hărți prin șase **profiluri experimentale**, fiecare simulând un context operațional distinct.
+
+#### Profiluri experimentale
+
+| Profil | Context operațional real | `agent_lifecycle` | Algoritm avantajat |
+|--------|--------------------------|-------------------|--------------------|
+| `known_static` | Depozit cu plan fix, hartă complet accesibilă | `per_map` | A*, Risk-Aware A* |
+| `high_risk` | Zonă cu persoane prezente, siguranța primează | `per_map` | Risk-Aware A* |
+| `stochastic_execution` | Robot cu imprecizie mecanică, drift la acțiuni | `per_map` | Risk-Aware A*, Feature-Based Q |
+| `same_map_learning` | Robot care operează repetat în același spațiu | `per_map` | Tabular Q-Learning |
+| `transfer_learning` | Flotă pe locații diferite, politică transferată | `shared_across_maps` | Feature-Based Q-Learning |
+| `training_cost` | Comparație cost offline (training) vs online (planificare) | `per_map` | A* fără training vs. Q cu training |
+
+Concluzia principală este că **nu există o strategie universal optimă** — alegerea depinde de contextul operațional: dacă harta este disponibilă la planificare, dacă robotul operează repetat sau în locații variate, dacă siguranța este mai importantă decât distanța.
+
+#### Scenariile predefinite
 
 Scenariile predefinite sunt:
 
@@ -872,22 +1010,32 @@ Scenariile predefinite sunt:
 | medium | 15×15 | 0.20 | 0.10 |
 | hard | 20×20 | 0.25 | 0.15 |
 
-Algoritmii comparați sunt:
+#### Algoritmii comparați
 
 | Algoritm | Tip | Necesită antrenare | Observație |
 |----------|-----|-------------------|------------|
 | Random | baseline | Nu | Alege acțiuni aleatoriu |
 | Rule-Based | euristic | Nu | Evită pericole imediate și reduce distanța Manhattan |
 | A* | planificare | Nu | Caută traseu scurt cu euristică Manhattan |
-| Risk-Aware A* | planificare cu cost de risc | Nu | Preferă trasee mai sigure chiar dacă sunt mai lungi |
-| Tabular Q-Learning | RL tabular | Da | Învață Q pe coordonate absolute |
-| Feature-Based Q-Learning | RL pe features | Da | Învață pe pereți/pericole locale și direcția obiectivului |
+| Risk-Aware A* | planificare cu cost de risc | Nu | $f(n) = g(n) + h(n) + w \cdot r(n)$ unde $r(n)$ este costul de risc al celulei |
+| Tabular Q-Learning | RL tabular | Da | Învață Q pe coordonate absolute; nu generalizează pe hărți noi |
+| Feature-Based Q-Learning | RL pe features locale | Da | Vector de 11 features; generalizează parțial pe hărți nevăzute |
 
-Experimentul Monte Carlo generează mai multe hărți rezolvabile cu seed-uri controlate, rulează fiecare agent și agregă metricile. Această componentă adaugă proiectului o dimensiune de simulare statistică: performanța nu mai este judecată doar pe o singură hartă, ci pe o distribuție de medii.
+#### Rezultate: profilul `known_static`, scenariu `medium`
 
-Metricile agregate sunt: rata de succes, recompensa medie, numărul mediu de pași, numărul mediu de coliziuni, rata episoadelor cu coliziuni, numărul mediu de intrări în pericol, expunerea medie la risc, costul total mediu, rata de timeout și timpul mediu de calcul.
+Experimentul Monte Carlo standard folosit pentru documentare:
 
-Pentru scenariul `medium`, cu 5 hărți, 2 episoade per hartă, 100 episoade de antrenare pentru agenții care necesită training și seed 42, rezultatele agregate sunt:
+```bash
+PYTHONPATH=. .venv/bin/python -m experiments.run_experiment \
+  --scenario medium \
+  --maps 5 \
+  --episodes-per-map 2 \
+  --training-episodes 100 \
+  --seed 42 \
+  --profile known_static
+```
+
+Rezultat: **60 episoade** agregate (6 algoritmi × 5 hărți × 2 episoade per hartă). Intervalele de încredere CI 95% sunt calculate prin bootstrap cu 1.000 de iterații și seed 1.234 — reproductibile, dar nu independente între agenți.
 
 | Algoritm | Success rate | Reward mediu | Pași medii | Coliziuni medii | Intrări pericol | Expunere risc | Cost total | Timeout |
 |----------|-------------:|-------------:|-----------:|----------------:|----------------:|--------------:|-----------:|--------:|
@@ -898,11 +1046,11 @@ Pentru scenariul `medium`, cu 5 hărți, 2 episoade per hartă, 100 episoade de 
 | Tabular Q-Learning | 0% | -637.00 | 103.40 | 23.80 | 1.00 | 238.80 | 875.80 | 0% |
 | Feature-Based Q-Learning | 0% | -825.60 | 109.20 | 31.40 | 0.80 | 371.40 | 1197.00 | 20% |
 
-Rezultatul cel mai important nu este doar faptul că A* și Risk-Aware A* ating 100% succes, ci diferența de calitate a traseului. Risk-Aware A* parcurge în medie un traseu ușor mai lung (29.6 pași față de 28.4), dar reduce expunerea la risc de la 161.0 la 125.0 și costul total de la 195.4 la 124.6. Aceasta ilustrează exact miza lucrării: o strategie poate fi mai potrivită pentru navigare sigură chiar dacă nu minimizează strict numărul de pași.
+Rezultatul cel mai important nu este că A* și Risk-Aware A* ating ambele 100% succes, ci **diferența de calitate a traseului**. Risk-Aware A* parcurge un traseu ușor mai lung (+4%), dar reduce expunerea la risc cu **22%** (161.0 → 125.0) și costul total cu **36%** (195.4 → 124.6). Aceasta ilustrează exact miza lucrării: o strategie poate fi mai potrivită pentru navigare sigură chiar dacă nu minimizează strict numărul de pași.
 
-Agenții Random, Tabular Q-Learning și Feature-Based Q-Learning au performanțe slabe în acest experiment scurt. Interpretarea trebuie să fie prudentă: rezultatul nu demonstrează că RL este inutil, ci că strategiile bazate pe învățare au nevoie de antrenare suficientă, reprezentare de stare adecvată și mecanisme de generalizare pentru hărți nevăzute. În configurația curentă, algoritmii de planificare care folosesc direct harta completă sunt avantajați în evaluări scurte pe hărți noi.
+Agenții Random, Tabular Q-Learning și Feature-Based Q-Learning au performanțe slabe în configurația `known_static` cu training scurt (100 episoade). Interpretarea trebuie să fie prudentă: profilul `same_map_learning` arată că Tabular Q-Learning devine relevant când coordonatele sunt stabile — acolo succesul crește semnificativ după training suficient pe aceeași hartă. Profilul `transfer_learning` cu `shared_across_maps` arată că Feature-Based Q-Learning transferă parțial tipare locale, spre deosebire de Tabular Q care eșuează pe hărți nevăzute.
 
-Această parte completează Q-Learning-ul energetic cu o comparație între algoritmi clasici și algoritmi de învățare. Diferența dintre A* și Risk-Aware A* arată cum o funcție de cost modificată poate produce comportament mai sigur fără învățare, iar comparația dintre Tabular Q-Learning și Feature-Based Q-Learning ilustrează problema generalizării: coordonatele absolute învață bine pe harta de training, dar features locale sunt direcția potrivită pentru transfer pe hărți nevăzute.
+Această parte completează Q-Learning-ul energetic cu o comparație sistematică. Diferența dintre A* și Risk-Aware A* arată cum o funcție de cost modificată produce comportament mai sigur fără învățare. Diferența dintre Tabular Q și Feature-Based Q ilustrează problema generalizării: coordonatele absolute sunt precise pe harta de training, dar vectorul de features locale este direcția potrivită pentru transfer.
 
 ### 5.8 Discuții
 
@@ -1112,15 +1260,17 @@ Lucrarea de față a demonstrat că un simulator grid-based poate fi folosit pen
 
 **Concluzia 1 — Simulatorul mută analiza de la succes binar la calitatea traseului.** Întrebarea centrală nu mai este „agentul a ajuns sau nu?”, ci „care strategie este mai potrivită pentru navigare sigură în medii necunoscute?”. Metricile de risc, coliziuni și cost evidențiază diferențe pe care rata de succes le-ar ascunde.
 
-**Concluzia 2 — Risk-Aware A* arată valoarea navigării safety-aware.** În experimentul Monte Carlo `medium`, A* și Risk-Aware A* ating ambele 100% succes, dar Risk-Aware A* reduce expunerea la risc și costul total. Această diferență demonstrează că strategia optimă depinde de criteriul de evaluare, nu doar de atingerea destinației.
+**Concluzia 2 — Risk-Aware A* demonstrează valoarea planificării safety-aware.** În experimentul Monte Carlo `known_static` pe scenariu `medium`, A* și Risk-Aware A* ating ambele 100% succes, dar Risk-Aware A* reduce expunerea la risc cu 22% (161.0 → 125.0) și costul total cu 36% (195.4 → 124.6). Această diferență nu este capturată de o metrică de succes binar — tocmai de aceea cadrul multi-criterial este esențial.
 
-**Concluzia 3 — Q-Learning rămâne relevant ca strategie interpretabilă.** Pe o grilă 20×20 cu 4 niveluri energetice și 5 acțiuni, Q-table-ul are 8.000 de intrări, suficient de puțin pentru a fi inspectabil și ușor de antrenat. Pachetul energetic obține 100% succes pe ultimele 100 de episoade în Scenariul A, 96% în Scenariul B, 100% în Scenariul C și 100% în WAREHOUSE.
+**Concluzia 3 — Cele șase profiluri experimentale reproduc contexte operaționale reale.** `known_static` simulează un depozit cu hartă fixă, `high_risk` prioritizează siguranța față de distanță, `stochastic_execution` testează robustețea la zgomot în acțiuni, `same_map_learning` arată când Q-Learning tabular devine relevant, `transfer_learning` separă seed-urile de training și evaluare (offset +50.000) pentru a măsura transferul real de politici, iar `training_cost` compară costul offline al RL cu costul online al planificării.
 
-**Concluzia 4 — Homeostazia energetică îmbogățește comportamentul agentului.** Adăugarea energiei în starea MDP face ca aceeași poziție din hartă să poată avea politici diferite în funcție de nivelul energetic. Agentul nu optimizează doar distanța până la țintă, ci și supraviețuirea, evitarea costurilor mari și folosirea surselor de energie atunci când acestea sunt relevante.
+**Concluzia 4 — Q-Learning rămâne relevant ca strategie interpretabilă.** Pe o grilă 20×20 cu 4 niveluri energetice și 5 acțiuni, Q-table-ul are 8.000 de intrări, suficient de puțin pentru a fi inspectabil și ușor de antrenat. Pachetul energetic obține 100% succes pe ultimele 100 de episoade în Scenariul A, 96% în Scenariul B, 100% în Scenariul C și 100% în WAREHOUSE.
 
-**Concluzia 5 — Platforma susține reproductibilitatea experimentală.** Modulul `src.final_report` generează într-un singur flux CSV-uri, grafice, manifest JSON, Q-table-uri, heatmap-uri și trasee greedy. Modulul `experiments/compare_agents.py` adaugă evaluare Monte Carlo pe hărți generate procedural. Împreună, aceste fluxuri reduc riscul ca textul lucrării, prezentarea și codul să raporteze rezultate diferite.
+**Concluzia 5 — Homeostazia energetică îmbogățește comportamentul agentului.** Adăugarea energiei în starea MDP face ca aceeași poziție din hartă să poată avea politici diferite în funcție de nivelul energetic. Agentul nu optimizează doar distanța până la țintă, ci și supraviețuirea, evitarea costurilor mari și folosirea surselor de energie atunci când acestea sunt relevante.
 
-**Concluzia 6 — Aplicația web face proiectul demonstrabil.** Backend-ul FastAPI și frontend-ul React/Vite permit rularea experimentelor din browser, vizualizarea traseelor și descărcarea artefactelor. Infrastructura Azure arată că sistemul poate fi publicat ca aplicație cloud, utilă pentru demonstrația în fața coordonatorului sau a comisiei.
+**Concluzia 6 — Platforma susține reproductibilitatea experimentală.** Modulul `src.final_report` generează într-un singur flux CSV-uri, grafice, manifest JSON, Q-table-uri, heatmap-uri și trasee greedy. Modulul `experiments/compare_agents.py` adaugă evaluare Monte Carlo pe hărți generate procedural cu CI 95% bootstrap (1.000 iterații, seed 1.234). Împreună, aceste fluxuri reduc riscul ca textul lucrării, prezentarea și codul să raporteze rezultate diferite.
+
+**Concluzia 7 — Aplicația web face proiectul demonstrabil și analiza accesibilă.** Backend-ul FastAPI și frontend-ul React/Vite permit rularea experimentelor din browser, vizualizarea traseelor și descărcarea artefactelor. Pagina dedicată `/safe-navigation/monte-carlo` cu șapte tab-uri (distribuții boxplot, CI bars, scatter risc-recompensă, heatmap per hartă, breakdown eșecuri, heatmap de ocupanță, export CSV/PNG) transformă datele statistice brute în analiză vizuală completă. Infrastructura Azure arată că sistemul poate fi publicat ca aplicație cloud, utilă pentru demonstrația în fața coordonatorului sau a comisiei.
 
 
 ### 8.2 Limitări ale Abordării

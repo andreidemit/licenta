@@ -46,6 +46,8 @@ export type SafeNavigationConfig = {
   risk_weight: number;
   max_steps: number;
   training_episodes: number;
+  number_of_maps: number;
+  episodes_per_map: number;
   random_seed: number;
 };
 

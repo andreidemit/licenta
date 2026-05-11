@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Settings2,
   Shuffle,
+  X,
 } from 'lucide-react';
 import { ExperimentDashboard } from './ExperimentDashboard';
 import { GridWorldView } from './GridWorldView';
@@ -293,6 +294,7 @@ function StageNarrativePanel({
           <li>Agenți comparați: <b>Random, Rule-Based, A*, Risk-Aware A*, Tabular Q și Feature-Based Q</b>.</li>
           <li>Hartă: <b>{environment ? `${environment.rows}x${environment.cols}` : 'negenerată'}</b>, scenariu {scenarioLabel(config.scenario)}.</li>
           <li>Profil: <b>{profile.shortLabel}</b> - {profile.protocol}</li>
+          <li>Buget Monte Carlo: <b>{config.number_of_maps}</b> hărți × <b>{config.episodes_per_map}</b> episoade/hartă × <b>{algorithms.length}</b> agenți.</li>
           <li>Agenții Q sunt antrenați {config.training_episodes} episoade înainte de evaluarea Monte Carlo.</li>
         </ul>
       </section>
@@ -462,6 +464,92 @@ function ScenarioStage({
   );
 }
 
+function MonteCarloConfirmDialog({
+  open,
+  config,
+  environment,
+  totalEpisodes,
+  estimatedTrainingEpisodes,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  config: SafeNavigationConfig;
+  environment?: SafeEnvironment;
+  totalEpisodes: number;
+  estimatedTrainingEpisodes: number;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+
+  const profile = getExperimentProfile(config.experiment_profile);
+  const mapSize = environment ? `${environment.rows}×${environment.cols}` : `${config.rows}×${config.cols}`;
+  const rows = [
+    ['Profil', profile.label],
+    ['Scenariu', scenarioLabel(config.scenario)],
+    ['Hartă', `${mapSize}, seed ${config.random_seed}`],
+    ['Pereți / pericole', `${fmtProbability(config.wall_probability)} / ${fmtProbability(config.danger_probability)}`],
+    ['Zgomot mișcare', String(config.movement_noise)],
+    ['Pondere risc', String(config.risk_weight)],
+    ['Algoritmi', `${algorithms.length} strategii: ${algorithms.map(([, label]) => label).join(', ')}`],
+    ['Număr rulări/hărți MC', String(config.number_of_maps)],
+    ['Episoade per hartă', String(config.episodes_per_map)],
+    ['Total episoade evaluate', String(totalEpisodes)],
+    ['Episoade antrenare Q', `${config.training_episodes} per agent/hartă`],
+    ['Antrenare Q estimată', `${estimatedTrainingEpisodes} episoade`],
+    ['Pași maximi / episod', String(config.max_steps)],
+  ];
+
+  return (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="scenario-dialog mc-confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mc-confirm-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="dialog-header">
+          <div>
+            <p className="eyebrow">Confirmare rulare</p>
+            <h2 id="mc-confirm-title"><BarChart3 size={18} /> Rulează Monte Carlo cu acești parametri?</h2>
+          </div>
+          <button type="button" className="icon-button" aria-label="Închide dialogul" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="dialog-section">
+          <h3>Rezumatul experimentului</h3>
+          <p>
+            Vor fi evaluate {totalEpisodes} episoade, iar agenții Q vor fi antrenați înainte de evaluare.
+            Dacă vrei alt buget statistic, modifică numărul de rulări/hărți sau episoadele per hartă înainte de confirmare.
+          </p>
+        </div>
+
+        <div className="mc-confirm-grid">
+          {rows.map(([label, value]) => (
+            <div key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+
+        <footer className="dialog-actions">
+          <button type="button" className="ghost-button" onClick={onClose}>Anulează</button>
+          <button type="button" className="primary-button" disabled={busy} onClick={onConfirm}>
+            <Play size={16} /> Confirmă și rulează
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function RunStage({
   config,
   environment,
@@ -483,8 +571,12 @@ function RunStage({
   onResults: () => void;
   hasResults: boolean;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const patch = (next: Partial<SafeNavigationConfig>) => onChange({ ...config, ...next });
   const canRun = !!environment && !pendingMapConfig && !busy;
+  const totalEpisodes = algorithms.length * config.number_of_maps * config.episodes_per_map;
+  const qTrainingAgents = 2;
+  const estimatedTrainingEpisodes = qTrainingAgents * config.number_of_maps * config.training_episodes;
 
   return (
     <section className="wizard-stage run-stage">
@@ -500,12 +592,36 @@ function RunStage({
         <section className="panel-card run-config-card">
           <h3><BarChart3 size={17} /> Experiment Monte Carlo</h3>
           <div className="run-param-grid">
-            <label>Pași maximi<input type="number" value={config.max_steps} onChange={(event) => patch({ max_steps: Number(event.target.value) })} /></label>
-            <label>Episoade antrenare Q<input type="number" value={config.training_episodes} onChange={(event) => patch({ training_episodes: Number(event.target.value) })} /></label>
+            <label>
+              <TooltipLabel text="Limita maximă de pași pentru fiecare episod evaluat. Dacă agentul nu termină, episodul devine timeout.">
+                Pași maximi / episod
+              </TooltipLabel>
+              <input type="number" min={1} max={5000} value={config.max_steps} onChange={(event) => patch({ max_steps: Number(event.target.value) })} />
+            </label>
+            <label>
+              <TooltipLabel text="Câte hărți generate procedural intră în comparația Monte Carlo.">
+                Număr rulări/hărți MC
+              </TooltipLabel>
+              <input type="number" min={1} max={100} value={config.number_of_maps} onChange={(event) => patch({ number_of_maps: Number(event.target.value) })} />
+            </label>
+            <label>
+              <TooltipLabel text="De câte ori este evaluat fiecare agent pe fiecare hartă.">
+                Episoade per hartă
+              </TooltipLabel>
+              <input type="number" min={1} max={100} value={config.episodes_per_map} onChange={(event) => patch({ episodes_per_map: Number(event.target.value) })} />
+            </label>
+            <label>
+              <TooltipLabel text="Numărul de episoade de antrenare pentru agenții Q-Learning înainte de evaluarea Monte Carlo.">
+                Episoade antrenare Q
+              </TooltipLabel>
+              <input type="number" min={0} max={10000} value={config.training_episodes} onChange={(event) => patch({ training_episodes: Number(event.target.value) })} />
+            </label>
           </div>
           <div className="run-summary-list">
             <span>Algoritmi: <b>{algorithms.length} strategii comparate</b></span>
             <span>Profil: <b>{getExperimentProfile(config.experiment_profile).shortLabel}</b></span>
+            <span>Evaluări totale: <b>{totalEpisodes} episoade</b></span>
+            <span>Antrenare Q estimată: <b>{estimatedTrainingEpisodes} episoade</b></span>
             <span>Seed hartă: <b>{config.random_seed}</b></span>
             <span>Status hartă: <b>{pendingMapConfig ? 'neaplicată' : environment ? 'generată' : 'lipsă'}</b></span>
           </div>
@@ -530,9 +646,23 @@ function RunStage({
 
       <div className="stage-actions">
         <button className="secondary-button" onClick={onBack}><ArrowLeft size={16} /> Înapoi</button>
-        <button className="primary-button" disabled={!canRun} onClick={onMonteCarlo}><Play size={16} /> Rulează Monte Carlo</button>
+        <button className="primary-button" disabled={!canRun} onClick={() => setConfirmOpen(true)}><Play size={16} /> Rulează Monte Carlo</button>
         <button className="secondary-button" disabled={!hasResults} onClick={onResults}>Continuă la rezultate <ArrowRight size={16} /></button>
       </div>
+
+      <MonteCarloConfirmDialog
+        open={confirmOpen}
+        config={config}
+        environment={environment}
+        totalEpisodes={totalEpisodes}
+        estimatedTrainingEpisodes={estimatedTrainingEpisodes}
+        busy={busy}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          onMonteCarlo();
+        }}
+      />
     </section>
   );
 }

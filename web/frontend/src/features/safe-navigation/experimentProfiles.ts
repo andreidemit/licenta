@@ -147,5 +147,7 @@ export function applyExperimentProfile(config: SafeNavigationConfig, id: Experim
     ...config,
     ...profile.recommended,
     experiment_profile: id,
+    number_of_maps: profile.monteCarlo.number_of_maps,
+    episodes_per_map: profile.monteCarlo.episodes_per_map,
   };
 }

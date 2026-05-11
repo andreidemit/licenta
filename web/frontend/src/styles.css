@@ -306,7 +306,8 @@ button { color: inherit; }
 
 .run-stage-grid {
   grid-template-columns: 315px minmax(0, 1fr);
-  flex: 1;
+  flex: 1 1 0;
+  overflow: hidden;
 }
 
 .results-stage-grid {
@@ -378,11 +379,19 @@ button { color: inherit; }
   gap: 8px;
 }
 
+.run-map-preview {
+  overflow: hidden;
+}
+
 .scenario-preview-stack .visualization,
 .run-map-preview .visualization,
 .results-main .visualization {
   min-height: 0;
   flex: 1 1 auto;
+}
+
+.run-map-preview .visualization {
+  overflow: hidden;
 }
 
 .scenario-context-card {
@@ -965,6 +974,11 @@ button:disabled {
 .scenario-stage .grid-world,
 .run-stage .grid-world {
   width: min(100%, 540px, calc(100vh - 235px));
+}
+
+.run-stage .grid-world {
+  width: min(100%, clamp(240px, calc(100vh - 390px), 500px));
+  min-width: 0;
 }
 
 .results-stage .grid-world {
@@ -1616,6 +1630,40 @@ button:disabled {
 .ghost-button:hover {
   background: #f1f5f9;
   color: var(--ink);
+}
+
+.mc-confirm-dialog {
+  width: min(100%, 720px);
+}
+
+.mc-confirm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mc-confirm-grid div {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.mc-confirm-grid span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mc-confirm-grid strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 @keyframes spin {
