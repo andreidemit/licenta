@@ -71,6 +71,14 @@ class JobSummary(BaseModel):
 
 class SafeNavigationRequest(BaseModel):
     algorithm: str = "astar"
+    experiment_profile: Literal[
+        "known_static",
+        "high_risk",
+        "stochastic_execution",
+        "same_map_learning",
+        "transfer_learning",
+        "training_cost",
+    ] = "known_static"
     scenario: Literal["easy", "medium", "hard", "custom"] = "medium"
     rows: int = Field(default=15, ge=5, le=50)
     cols: int = Field(default=15, ge=5, le=50)
@@ -85,6 +93,14 @@ class SafeNavigationRequest(BaseModel):
 
 class MonteCarloRequest(BaseModel):
     algorithms: list[str] = Field(default_factory=lambda: ["astar", "risk_aware_astar"])
+    experiment_profile: Literal[
+        "known_static",
+        "high_risk",
+        "stochastic_execution",
+        "same_map_learning",
+        "transfer_learning",
+        "training_cost",
+    ] = "known_static"
     scenario: Literal["easy", "medium", "hard", "custom"] = "medium"
     number_of_maps: int = Field(default=5, ge=1, le=100)
     episodes_per_map: int = Field(default=2, ge=1, le=100)

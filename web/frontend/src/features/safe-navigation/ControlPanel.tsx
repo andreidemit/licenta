@@ -19,6 +19,7 @@ import { ExplanationPanel } from './ExplanationPanel';
 import { GridWorldView } from './GridWorldView';
 import { MetricsPanel } from './MetricsPanel';
 import { ScenarioConfigDialog } from './ScenarioConfigDialog';
+import { getExperimentProfile } from './experimentProfiles';
 import type {
   MonteCarloResult,
   SafeEnvironment,
@@ -192,6 +193,7 @@ function StageNarrativePanel({
   monteCarlo?: MonteCarloResult;
 }) {
   const algorithm = algorithmLabel(config.algorithm);
+  const profile = getExperimentProfile(config.experiment_profile);
   const hasComparison = !!monteCarlo?.summary.agents.length;
   const bestComparison = hasComparison
     ? [...monteCarlo.summary.agents].sort((a, b) => {
@@ -204,11 +206,11 @@ function StageNarrativePanel({
     return (
       <section className="panel-card stage-narrative-card">
         <h3><Lightbulb size={16} /> Povestea experimentului</h3>
-        <p>Stabilim mediul necunoscut și dificultatea: grilă, obstacole, pericole și seed reproductibil.</p>
+        <p>Stabilim mediul și ipoteza testată: <b>{profile.label}</b>. {profile.assumption}</p>
         <div className="narrative-pills">
+          <span>{profile.shortLabel}</span>
           <span>Alegem mediul</span>
-          <span>Rulăm strategia</span>
-          <span>Comparăm robustețea</span>
+          <span>Comparăm ipoteze</span>
         </div>
       </section>
     );
@@ -218,10 +220,11 @@ function StageNarrativePanel({
     return (
       <section className="panel-card stage-narrative-card">
         <h3><GraduationCap size={16} /> Ipoteza de rulare</h3>
-        <p>{algorithmNarrative(config.algorithm)}</p>
+        <p>{algorithmNarrative(config.algorithm)} Profilul Monte Carlo urmărește: {profile.expectedTakeaway}</p>
         <ul>
           <li>Agent curent: <b>{algorithm}</b>.</li>
           <li>Hartă: <b>{environment ? `${environment.rows}x${environment.cols}` : 'negenerată'}</b>, scenariu {scenarioLabel(config.scenario)}.</li>
+          <li>Profil: <b>{profile.shortLabel}</b> - {profile.protocol}</li>
           <li>{learningAlgorithms.has(config.algorithm) ? `Se antrenează ${config.training_episodes} episoade înainte de test.` : 'Se rulează direct, fără fază de antrenare.'}</li>
         </ul>
       </section>
@@ -337,6 +340,10 @@ function ScenarioStage({
                 <span>Pereți {fmtProbability(activeScenario.wall_probability)}</span>
                 <span>Pericole {fmtProbability(activeScenario.danger_probability)}</span>
                 <span>Seed {config.random_seed}</span>
+              </div>
+              <div className="active-profile-note">
+                <b>{getExperimentProfile(config.experiment_profile).label}</b>
+                <span>{getExperimentProfile(config.experiment_profile).expectedTakeaway}</span>
               </div>
               {pendingMapConfig ? (
                 <p className="pending-note">Configurația s-a schimbat. Generează harta pentru a aplica noile setări.</p>

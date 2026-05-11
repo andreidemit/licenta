@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Settings2, X } from 'lucide-react';
 import type { SafeNavigationConfig, SafeScenarioPreset } from './types';
+import { applyExperimentProfile, experimentProfiles, getExperimentProfile } from './experimentProfiles';
 
 const scenarioLabels: Record<string, string> = {
   easy: 'Ușor',
@@ -39,6 +40,7 @@ export function ScenarioConfigDialog({
   const [draft, setDraft] = useState(config);
   const activePreset = presetFor(draft, scenarioPresets);
   const isCustom = draft.scenario === 'custom';
+  const activeProfile = getExperimentProfile(draft.experiment_profile);
 
   useEffect(() => {
     if (open) setDraft(config);
@@ -47,6 +49,9 @@ export function ScenarioConfigDialog({
   if (!open) return null;
 
   const patch = (next: Partial<SafeNavigationConfig>) => setDraft((current) => ({ ...current, ...next }));
+  const changeProfile = (profileId: SafeNavigationConfig['experiment_profile']) => {
+    setDraft((current) => applyExperimentProfile(current, profileId));
+  };
   const apply = () => {
     onApply(draft);
     onClose();
@@ -103,6 +108,23 @@ export function ScenarioConfigDialog({
             <p>Dimensiunea și densitățile sunt controlate de presetul selectat. Alege Personalizat pentru a modifica structura hărții.</p>
           </div>
         )}
+
+        <div className="dialog-section">
+          <h3>Ce vrem să demonstrăm?</h3>
+          <label>
+            Profil experimental
+            <select value={draft.experiment_profile} onChange={(event) => changeProfile(event.target.value as SafeNavigationConfig['experiment_profile'])}>
+              {experimentProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>{profile.label}</option>
+              ))}
+            </select>
+          </label>
+          <div className="profile-explanation-card">
+            <strong>{activeProfile.shortLabel}</strong>
+            <p>{activeProfile.description}</p>
+            <small>{activeProfile.expectedTakeaway}</small>
+          </div>
+        </div>
 
         <div className="dialog-section">
           <h3>Setări experimentale</h3>

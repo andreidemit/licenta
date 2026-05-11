@@ -1,5 +1,6 @@
 import { BarChart3 } from 'lucide-react';
 import type { MonteCarloResult, MonteCarloSummaryRow } from './types';
+import { algorithmUseCases, getExperimentProfile } from './experimentProfiles';
 
 function pct(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -37,6 +38,14 @@ function algorithmKey(value: string) {
   return keys[value] ?? value;
 }
 
+function useCaseFor(value: string) {
+  return algorithmUseCases[algorithmKey(value)] ?? 'Folosit ca reper în comparația cu celelalte strategii.';
+}
+
+function profileTakeaway(profile: NonNullable<MonteCarloResult['profile']> | ReturnType<typeof getExperimentProfile>) {
+  return 'expected_takeaway' in profile ? profile.expected_takeaway : profile.expectedTakeaway;
+}
+
 function buildOverallComment(rows: MonteCarloSummaryRow[]) {
   if (!rows.length) return 'Nu există încă suficiente rezultate pentru interpretare.';
   const bestBySuccess = rows[0];
@@ -53,6 +62,23 @@ function buildOverallComment(rows: MonteCarloSummaryRow[]) {
     return `${bestLabel} ajunge cel mai des la obiectiv și are traseele cele mai scurte, dar ${safestLabel} este mai prudent din perspectiva riscului.`;
   }
   return `${bestLabel} conduce la rata de succes, ${safestLabel} minimizează riscul, iar ${fastestLabel} produce cele mai scurte trasee.`;
+}
+
+function buildProfileConclusion(result: MonteCarloResult, rows: MonteCarloSummaryRow[]) {
+  const profile = result.profile ?? getExperimentProfile(String(result.config.experiment_profile));
+  const bestBySuccess = rows[0];
+  const safest = [...rows].sort((a, b) => a.average_risk_exposure - b.average_risk_exposure)[0];
+  const fastest = [...rows].sort((a, b) => a.average_steps - b.average_steps)[0];
+  const robust = [...rows].sort((a, b) => {
+    const unsafeA = a.collision_rate + a.danger_entry_rate + a.timeout_rate;
+    const unsafeB = b.collision_rate + b.danger_entry_rate + b.timeout_rate;
+    if (unsafeA !== unsafeB) return unsafeA - unsafeB;
+    return b.success_rate - a.success_rate;
+  })[0];
+  return {
+    profile,
+    text: `${profileTakeaway(profile)} În această rulare: ${algorithmLabel(bestBySuccess.algorithm)} conduce la succes, ${algorithmLabel(safest.algorithm)} minimizează riscul, ${algorithmLabel(fastest.algorithm)} are cele mai scurte trasee, iar ${algorithmLabel(robust.algorithm)} are cel mai stabil profil operațional.`,
+  };
 }
 
 function buildRowComment(row: MonteCarloSummaryRow, rows: MonteCarloSummaryRow[]) {
@@ -124,6 +150,7 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
     return a.average_risk_exposure - b.average_risk_exposure;
   });
   const overallComment = buildOverallComment(sortedRows);
+  const profileConclusion = buildProfileConclusion(result, sortedRows);
   const maxRisk = Math.max(1, ...sortedRows.map((row) => row.average_risk_exposure));
   const bestSuccess = Math.max(...sortedRows.map((row) => row.success_rate));
   const bestRisk = Math.min(...sortedRows.map((row) => row.average_risk_exposure));
@@ -135,7 +162,11 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
         Monte Carlo compară fiecare agent pe hărți generate și rezumă succesul, eficiența traseului și expunerea la risc.
       </p>
       <div className="comparison-insight">
-        <strong>Comentariu</strong>
+        <strong>Concluzie experimentală: {profileConclusion.profile.label}</strong>
+        <span>{profileConclusion.text}</span>
+      </div>
+      <div className="comparison-insight secondary-insight">
+        <strong>Comentariu numeric</strong>
         <span>{overallComment}</span>
       </div>
       <div className="comparison-table">
@@ -147,6 +178,7 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
             <div className="algorithm-cell">
               <strong>{algorithmLabel(row.algorithm)}</strong>
               <small>{buildRowComment(row, sortedRows)}</small>
+              <em>{useCaseFor(row.algorithm)}</em>
             </div>
             <span className={row.success_rate === bestSuccess ? 'winner-cell' : ''}>{pct(row.success_rate)}</span>
             <span className={row.average_steps === bestSteps ? 'winner-cell' : ''}>{num(row.average_steps)}</span>

@@ -35,6 +35,7 @@ export type SafeEpisodeResult = {
 
 export type SafeNavigationConfig = {
   algorithm: string;
+  experiment_profile: ExperimentProfileId;
   scenario: string;
   rows: number;
   cols: number;
@@ -46,6 +47,14 @@ export type SafeNavigationConfig = {
   training_episodes: number;
   random_seed: number;
 };
+
+export type ExperimentProfileId =
+  | 'known_static'
+  | 'high_risk'
+  | 'stochastic_execution'
+  | 'same_map_learning'
+  | 'transfer_learning'
+  | 'training_cost';
 
 export type SafeScenarioPreset = {
   id: string;
@@ -73,6 +82,15 @@ export type MonteCarloSummaryRow = {
 
 export type MonteCarloResult = {
   config: Record<string, unknown>;
+  profile?: {
+    id: ExperimentProfileId;
+    label: string;
+    description: string;
+    assumption: string;
+    expected_takeaway: string;
+    favored_algorithms: string[];
+    protocol: string;
+  };
   summary: {
     episode_count: number;
     agents: MonteCarloSummaryRow[];

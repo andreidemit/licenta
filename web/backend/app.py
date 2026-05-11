@@ -252,6 +252,7 @@ def safe_navigation_monte_carlo(request: MonteCarloRequest):
     try:
         result = run_monte_carlo_experiment(
             agents=request.algorithms,
+            experiment_profile=request.experiment_profile,
             scenario=request.scenario,
             number_of_maps=request.number_of_maps,
             episodes_per_map=request.episodes_per_map,

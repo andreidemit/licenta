@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BookOpen, Brain, ChevronDown, ChevronUp, MapPinned, Route, ShieldAlert } from 'lucide-react';
 import type { MonteCarloResult, SafeEnvironment, SafeEpisodeResult, SafeNavigationConfig } from './types';
+import { algorithmUseCases, getExperimentProfile } from './experimentProfiles';
 
 const algorithmNotes: Record<string, string> = {
   random: 'Alege uniform dintre acțiuni. Este util ca baseline, deoarece orice strategie structurată ar trebui să îl depășească.',
@@ -97,7 +98,19 @@ function detailedComparisonExplanation(monteCarlo?: MonteCarloResult) {
   if (!monteCarlo?.summary.agents.length) {
     return 'Comparația Monte Carlo rulează mai mulți agenți pe mai multe hărți generate. Scopul este să nu judecăm un algoritm după un singur episod norocos sau ghinionist, ci după performanța medie.';
   }
-  return `${monteCarloContext(monteCarlo)} Citește tabelul comparativ astfel: succesul arată robustețea, pașii arată eficiența, iar riscul arată cât de sigur este traseul. Un algoritm poate fi mai lent, dar mai potrivit pentru navigare sigură dacă reduce expunerea la pericol.`;
+  const profile = monteCarlo.profile ?? getExperimentProfile(String(monteCarlo.config.experiment_profile));
+  return `${monteCarloContext(monteCarlo)} Profilul testat este „${profile.label}”: ${profile.assumption ?? profile.description} Citește tabelul comparativ astfel: succesul arată robustețea, pașii arată eficiența, iar riscul arată cât de sigur este traseul. Un algoritm poate fi mai lent, dar mai potrivit pentru navigare sigură dacă reduce expunerea la pericol.`;
+}
+
+function decisionMatrix() {
+  return Object.entries({
+    astar: 'A*: hartă cunoscută, mediu static, costuri clare.',
+    risk_aware_astar: 'A* risc: hartă cunoscută, dar siguranța contează explicit.',
+    tabular_q: 'Q tabular: aceeași hartă se repetă și agentul poate învăța coordonate.',
+    feature_q: 'Q pe trăsături: vrem transfer de tipare locale pe hărți noi.',
+    rule_based: 'Reguli: baseline explicabil pentru euristici simple.',
+    random: 'Aleator: baseline minim pentru dificultatea mediului.',
+  });
 }
 
 export function ExplanationPanel({
@@ -124,6 +137,7 @@ export function ExplanationPanel({
     ? `${label} ${result.success ? 'a ajuns la obiectiv' : result.timeout ? 'a depășit limita de pași' : 'a eșuat'} în ${result.steps} pași, recompensă ${fmt(result.total_reward)}, risc ${fmt(result.total_risk_exposure)}.`
     : 'Nu a fost rulat încă niciun episod pentru harta curentă.';
   const comparison = monteCarloContext(monteCarlo);
+  const profile = getExperimentProfile(config.experiment_profile);
 
   if (compact) {
     const compactContext = config.algorithm === 'tabular_q' || config.algorithm === 'feature_q'
@@ -135,7 +149,7 @@ export function ExplanationPanel({
         <div className="explanation-block">
           <strong><Brain size={15} /> {label}</strong>
           <p>{text || algorithmNotes[config.algorithm] || 'Strategia selectată este evaluată pe aceeași hartă și aceleași metrici.'}</p>
-          <p>{comparison || compactContext}</p>
+          <p>{comparison || `${compactContext} Profil: ${profile.label}.`}</p>
         </div>
         {expanded ? (
           <div className="expanded-explanation">
@@ -154,6 +168,12 @@ export function ExplanationPanel({
             <div>
               <strong>4. Cum citim comparația?</strong>
               <p>{detailedComparisonExplanation(monteCarlo)}</p>
+            </div>
+            <div>
+              <strong>5. Când folosim fiecare algoritm?</strong>
+              {decisionMatrix().map(([key, value]) => (
+                <p key={key}>{value}</p>
+              ))}
             </div>
           </div>
         ) : null}
@@ -176,6 +196,7 @@ export function ExplanationPanel({
       <div className="explanation-block">
         <strong><Brain size={15} /> {label}</strong>
         <p>{text || algorithmNotes[config.algorithm] || 'Alege un algoritm pentru a vedea cum se comportă strategia în simulator.'}</p>
+        <p><b>Când îl folosim?</b> {algorithmUseCases[config.algorithm]}</p>
         <p>{selectedAlgorithmContext(config)}</p>
       </div>
       <div className="explanation-block">

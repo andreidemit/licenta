@@ -1271,6 +1271,51 @@ button:disabled {
   -webkit-line-clamp: 2;
 }
 
+.algorithm-cell em {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #0f766e;
+  font-size: 0.64rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.18;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.active-profile-note,
+.profile-explanation-card {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #ccfbf1;
+  border-radius: 7px;
+  padding: 7px 8px;
+  margin-top: 8px;
+  background: #f0fdfa;
+  color: var(--primary-dark);
+}
+
+.active-profile-note b,
+.profile-explanation-card strong {
+  color: var(--primary-dark);
+  font-size: 0.76rem;
+}
+
+.active-profile-note span,
+.profile-explanation-card p,
+.profile-explanation-card small {
+  margin: 0;
+  color: #115e59;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.secondary-insight {
+  border-color: #dbe4ef;
+  background: #f8fafc;
+  color: #334155;
+}
+
 .winner-cell {
   display: inline-flex;
   width: fit-content;

@@ -13,6 +13,7 @@ import type {
 
 const initialConfig: SafeNavigationConfig = {
   algorithm: 'risk_aware_astar',
+  experiment_profile: 'known_static',
   scenario: 'medium',
   rows: 15,
   cols: 15,
@@ -103,6 +104,7 @@ export function App() {
       'danger_probability',
       'movement_noise',
       'risk_weight',
+      'experiment_profile',
       'random_seed',
     ];
     const mapChanged = mapFields.some((key) => nextConfig[key] !== config[key]);
