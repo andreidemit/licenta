@@ -129,7 +129,8 @@ environment/
   GridWorld, MapGenerator, RiskModel
 
 agents/
-  Random, Rule-Based, A*, Risk-Aware A*, Q-Learning
+  Random, Rule-Based, A*, Risk-Aware A*,
+  Tabular Q-Learning, Feature-Based Q-Learning
 
 simulation/
   Simulator, EpisodeResult, Metrics
@@ -261,7 +262,8 @@ Aplicația web oferă:
 - vizualizarea traseului;
 - hartă de risc;
 - metrici pe episod;
-- comparație Monte Carlo;
+- comparație Monte Carlo cu statistici extinse;
+- pagina de analiză Monte Carlo: distribuții, intervale de încredere 95%, heatmap per hartă, scatter risc-recompensă, heatmap de ocupanță, export CSV/PNG;
 - laborator separat pentru Q-Learning energetic.
 
 ---
