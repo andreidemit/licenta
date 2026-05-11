@@ -11,6 +11,10 @@ on:
       - .dockerignore
       - requirements.txt
       - src/**
+      - agents/**
+      - environment/**
+      - experiments/**
+      - simulation/**
       - web/backend/**
       - .github/workflows/azure-backend.yml
 

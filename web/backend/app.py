@@ -25,6 +25,7 @@ from agents import (
     RandomAgent,
     RiskAwareAStarAgent,
     RuleBasedAgent,
+    SarsaAgent,
     TabularQLearningAgent,
 )
 from environment.grid_world import RewardConfig
@@ -146,6 +147,7 @@ ALGORITHM_LABELS = {
     "risk_aware_astar": "A* conștient de risc",
     "tabular_q": "Q-Learning tabular",
     "feature_q": "Q-Learning pe trăsături",
+    "sarsa": "SARSA tabular",
 }
 
 
@@ -156,6 +158,7 @@ ALGORITHM_EXPLANATIONS = {
     "risk_aware_astar": RiskAwareAStarAgent().explain(),
     "tabular_q": TabularQLearningAgent(rows=5, cols=5).explain(),
     "feature_q": FeatureBasedQLearningAgent().explain(),
+    "sarsa": SarsaAgent(rows=5, cols=5).explain(),
 }
 
 

@@ -16,6 +16,10 @@ COPY web/backend/requirements.txt ./web-backend-requirements.txt
 RUN python -m pip install --no-cache-dir -r requirements.txt -r web-backend-requirements.txt
 
 COPY src ./src
+COPY agents ./agents
+COPY environment ./environment
+COPY experiments ./experiments
+COPY simulation ./simulation
 COPY web/__init__.py ./web/__init__.py
 COPY web/backend ./web/backend
 
