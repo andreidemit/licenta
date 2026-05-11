@@ -56,13 +56,18 @@ export function GridWorldView({
             const isPath = showPath && pathSet.has(key);
             const isAgent = finalPosition?.[0] === rowIndex && finalPosition?.[1] === colIndex;
             const risk = environment.risk_map?.[rowIndex]?.[colIndex] ?? 0;
-            const riskAlpha = showRisk ? Math.min(0.36, risk / maxRisk * 0.42) : 0;
+            const riskRatio = maxRisk > 0 ? Math.min(1, risk / maxRisk) : 0;
+            const riskAlpha = showRisk ? Math.sqrt(riskRatio) * 0.85 : 0;
+            const riskBoxShadow = showRisk && riskRatio > 0.6
+              ? `inset 0 0 0 2px rgba(127, 29, 29, ${0.45 + riskRatio * 0.4})`
+              : undefined;
             return (
               <div
                 key={key}
                 className={`grid-cell ${isPath ? 'path-cell' : ''} ${isAgent ? 'agent-cell' : ''}`}
                 style={{
-                  background: `linear-gradient(rgba(248,113,113,${riskAlpha}), rgba(248,113,113,${riskAlpha})), ${colors[cell] ?? '#f8fafc'}`,
+                  background: `linear-gradient(rgba(220,38,38,${riskAlpha}), rgba(153,27,27,${riskAlpha})), ${colors[cell] ?? '#f8fafc'}`,
+                  boxShadow: riskBoxShadow,
                 }}
                 title={`rând ${rowIndex}, coloană ${colIndex}, risc ${risk.toFixed(1)}`}
               >
