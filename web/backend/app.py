@@ -31,7 +31,7 @@ from environment.grid_world import RewardConfig
 from environment.map_generator import MapGenerator, SCENARIOS
 from experiments.compare_agents import create_agent, run_monte_carlo_experiment, run_training
 from simulation.simulator import Simulator
-from web.backend.job_store import JobStore, stream_job
+from web.backend.job_store import JobStore, MonteCarloJobStore, stream_job, stream_monte_carlo_job
 from web.backend.logging_config import configure_logging, log_event
 from web.backend.models import (
     EnvironmentPayload,
@@ -56,6 +56,7 @@ app.add_middleware(
 RUNS_ROOT = settings.runs_root
 ENVIRONMENTS_ROOT = settings.environments_root
 jobs = JobStore(index_path=RUNS_ROOT / "index.json")
+monte_carlo_jobs = MonteCarloJobStore()
 
 
 @app.on_event("startup")
@@ -250,24 +251,66 @@ def safe_navigation_episode(request: SafeNavigationRequest):
 @app.post("/api/safe-navigation/monte-carlo")
 def safe_navigation_monte_carlo(request: MonteCarloRequest):
     try:
-        result = run_monte_carlo_experiment(
-            agents=request.algorithms,
-            scenario=request.scenario,
-            number_of_maps=request.number_of_maps,
-            episodes_per_map=request.episodes_per_map,
-            training_episodes=request.training_episodes,
-            rows=request.rows if request.scenario == "custom" else None,
-            cols=request.cols if request.scenario == "custom" else None,
-            wall_probability=request.wall_probability if request.scenario == "custom" else None,
-            danger_probability=request.danger_probability if request.scenario == "custom" else None,
-            movement_noise=request.movement_noise,
-            risk_weight=request.risk_weight,
-            max_steps=request.max_steps,
-            random_seed=request.random_seed,
-        )
+        result = run_monte_carlo_request(request)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result
+
+
+def run_monte_carlo_request(request: MonteCarloRequest, progress_callback=None):
+    return run_monte_carlo_experiment(
+        agents=request.algorithms,
+        scenario=request.scenario,
+        experiment_profile=request.experiment_profile,
+        number_of_maps=request.number_of_maps,
+        episodes_per_map=request.episodes_per_map,
+        training_episodes=request.training_episodes,
+        rows=request.rows if request.scenario == "custom" else None,
+        cols=request.cols if request.scenario == "custom" else None,
+        wall_probability=request.wall_probability if request.scenario == "custom" else None,
+        danger_probability=request.danger_probability if request.scenario == "custom" else None,
+        movement_noise=request.movement_noise,
+        risk_weight=request.risk_weight,
+        max_steps=request.max_steps,
+        random_seed=request.random_seed,
+        progress_callback=progress_callback,
+    )
+
+
+@app.post("/api/safe-navigation/monte-carlo/jobs")
+def start_safe_navigation_monte_carlo_job(request: MonteCarloRequest):
+    config = request.model_dump()
+    job = monte_carlo_jobs.create(
+        config,
+        lambda progress_callback: run_monte_carlo_request(request, progress_callback=progress_callback),
+    )
+    log_event(
+        logger,
+        "monte_carlo_job_created",
+        run_id=job.id,
+        scenario=request.scenario,
+        profile=request.experiment_profile,
+        maps=request.number_of_maps,
+        episodes_per_map=request.episodes_per_map,
+        algorithms=request.algorithms,
+    )
+    return job.snapshot()
+
+
+@app.get("/api/safe-navigation/monte-carlo/jobs/{job_id}")
+def get_safe_navigation_monte_carlo_job(job_id: str):
+    job = monte_carlo_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Rularea Monte Carlo nu a fost găsită")
+    return job.snapshot()
+
+
+@app.get("/api/safe-navigation/monte-carlo/jobs/{job_id}/stream")
+def stream_safe_navigation_monte_carlo_job(job_id: str):
+    job = monte_carlo_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Rularea Monte Carlo nu a fost găsită")
+    return StreamingResponse(stream_monte_carlo_job(job), media_type="text/event-stream")
 
 
 @app.get("/api/scenarios")

@@ -30,6 +30,8 @@ import { RiskRewardScatter } from './analysis/RiskRewardScatter';
 import { getExperimentProfile } from './experimentProfiles';
 import type {
   MonteCarloResult,
+  MonteCarloLiveEvent,
+  MonteCarloLiveState,
   SafeEnvironment,
   SafeEpisodeResult,
   SafeNavigationConfig,
@@ -71,6 +73,7 @@ type Props = {
   environment?: SafeEnvironment;
   result?: SafeEpisodeResult;
   monteCarlo?: MonteCarloResult;
+  liveMonteCarlo?: MonteCarloLiveState;
   busy: boolean;
   busyAction?: 'map' | 'episode' | 'monte-carlo';
   pendingMapConfig: boolean;
@@ -194,6 +197,134 @@ function buildDynamicInterpretation(monteCarlo?: MonteCarloResult) {
       `Profil operațional stabil: ${algorithmLabel(robust.algorithm)} (${pct(unsafeRate(robust))} rată combinată de coliziuni/pericol/timeout).`,
     ],
   };
+}
+
+function liveEventLabel(event: MonteCarloLiveEvent) {
+  if (event.type === 'map_started') {
+    return `Hartă ${(event.map_index ?? 0) + 1}/${event.map_count ?? '?'} · seed ${event.map_seed ?? '-'}`;
+  }
+  if (event.type === 'agent_started') {
+    return `Agent ${algorithmLabel(event.agent ?? '-')}`;
+  }
+  if (event.type === 'training_progress') {
+    return `Training ${algorithmLabel(event.agent ?? 'Q')} · ${typeof event.episode === 'number' ? event.episode : '?'}/${event.total_episodes ?? '?'} ep.`;
+  }
+  if (event.type === 'episode_finished') {
+    const episode = typeof event.episode === 'object' ? event.episode : undefined;
+    return `${algorithmLabel(episode?.algorithm ?? event.agent ?? '-')} · ${episode?.success ? 'succes' : 'fără succes'} · ${episode?.steps ?? '-'} pași`;
+  }
+  if (event.type === 'partial_summary') return 'Dashboard live actualizat';
+  if (event.type === 'job_finished') return 'Rulare finalizată';
+  if (event.type === 'job_failed') return event.message ?? 'Rulare eșuată';
+  return event.message ?? event.type;
+}
+
+function liveMetricRows(live: MonteCarloLiveState) {
+  return [...(live.summary?.agents ?? [])].sort((a, b) => {
+    if (b.success_rate !== a.success_rate) return b.success_rate - a.success_rate;
+    return a.average_risk_exposure - b.average_risk_exposure;
+  });
+}
+
+function MonteCarloLiveRun({
+  live,
+  fallbackEnvironment,
+  showPath,
+  showRisk,
+  showCoordinates,
+  onTogglePath,
+  onToggleRisk,
+  onToggleCoordinates,
+}: {
+  live: MonteCarloLiveState;
+  fallbackEnvironment?: SafeEnvironment;
+  showPath: boolean;
+  showRisk: boolean;
+  showCoordinates: boolean;
+  onTogglePath: () => void;
+  onToggleRisk: () => void;
+  onToggleCoordinates: () => void;
+}) {
+  const rows = liveMetricRows(live);
+  const progressPercent = Math.round(Math.min(1, Math.max(0, live.progress)) * 100);
+  const currentMap = typeof live.currentMapIndex === 'number' ? live.currentMapIndex + 1 : '-';
+  const currentAgent = live.currentAgent ? algorithmLabel(live.currentAgent) : '-';
+  const latestEpisode = live.latestEpisode;
+
+  return (
+    <div className="mc-live-layout">
+      <section className="panel-card mc-live-status">
+        <div className="mc-live-status__heading">
+          <div>
+            <p className="eyebrow">Rulare live</p>
+            <h3>Monte Carlo în desfășurare</h3>
+          </div>
+          <strong>{progressPercent}%</strong>
+        </div>
+        <div className="mc-live-progress">
+          <i style={{ width: `${progressPercent}%` }} />
+        </div>
+        <div className="mc-live-kpis">
+          <span><b>{live.completedEpisodes}</b><small>episoade terminate</small></span>
+          <span><b>{live.totalEpisodes || '-'}</b><small>episoade totale</small></span>
+          <span><b>{currentMap}/{live.mapCount ?? '-'}</b><small>hartă curentă</small></span>
+          <span><b>{currentAgent}</b><small>agent curent</small></span>
+        </div>
+        <p>{live.message}</p>
+      </section>
+
+      <section className="mc-live-map">
+        <GridWorldView
+          environment={live.environment ?? fallbackEnvironment}
+          result={latestEpisode}
+          showPath={showPath}
+          showRisk={showRisk}
+          showCoordinates={showCoordinates}
+          onTogglePath={onTogglePath}
+          onToggleRisk={onToggleRisk}
+          onToggleCoordinates={onToggleCoordinates}
+        />
+      </section>
+
+      <section className="panel-card mc-live-table">
+        <h3><Activity size={17} /> Dashboard live provizoriu</h3>
+        {rows.length ? (
+          <div className="comparison-table live-comparison-table">
+            <div className="table-head">
+              <span>Agent</span>
+              <span>Ep.</span>
+              <span>Succes</span>
+              <span>Risc</span>
+              <span>Pași</span>
+            </div>
+            {rows.map((row) => (
+              <div className="table-row" key={row.algorithm}>
+                <div className="algorithm-cell">
+                  <strong>{algorithmLabel(row.algorithm)}</strong>
+                  <small>{row.episodes} episoade agregate până acum</small>
+                </div>
+                <span>{row.episodes}</span>
+                <span>{pct(row.success_rate)}</span>
+                <span>{fixed(row.average_risk_exposure)}</span>
+                <span>{fixed(row.average_steps)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Dashboard-ul se populează după primele episoade finalizate.</p>
+        )}
+      </section>
+
+      <section className="panel-card mc-live-events">
+        <h3><CheckCircle2 size={17} /> Evenimente recente</h3>
+        <div>
+          {[...live.events].reverse().slice(0, 8).map((event, index) => (
+            <span key={`${event.type}-${index}`}>{liveEventLabel(event)}</span>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function stageState(stage: WizardStage, activeStage: WizardStage, scenarioReady: boolean, hasResults: boolean) {
@@ -553,6 +684,7 @@ function MonteCarloConfirmDialog({
 function RunStage({
   config,
   environment,
+  liveMonteCarlo,
   busy,
   pendingMapConfig,
   showPath,
@@ -566,7 +698,7 @@ function RunStage({
   onToggleRisk,
   onToggleCoordinates,
   hasResults,
-}: Pick<Props, 'config' | 'environment' | 'busy' | 'pendingMapConfig' | 'showPath' | 'showRisk' | 'showCoordinates' | 'onChange' | 'onMonteCarlo' | 'onTogglePath' | 'onToggleRisk' | 'onToggleCoordinates'> & {
+}: Pick<Props, 'config' | 'environment' | 'liveMonteCarlo' | 'busy' | 'pendingMapConfig' | 'showPath' | 'showRisk' | 'showCoordinates' | 'onChange' | 'onMonteCarlo' | 'onTogglePath' | 'onToggleRisk' | 'onToggleCoordinates'> & {
   onBack: () => void;
   onResults: () => void;
   hasResults: boolean;
@@ -577,6 +709,34 @@ function RunStage({
   const totalEpisodes = algorithms.length * config.number_of_maps * config.episodes_per_map;
   const qTrainingAgents = 2;
   const estimatedTrainingEpisodes = qTrainingAgents * config.number_of_maps * config.training_episodes;
+
+  if (liveMonteCarlo && busy) {
+    return (
+      <section className="wizard-stage run-stage">
+        <div className="stage-heading">
+          <div>
+            <p className="eyebrow">2. Rulare experiment</p>
+            <h2>Urmărește rularea Monte Carlo live</h2>
+            <p>Dashboard-ul provizoriu se actualizează pe măsură ce se termină episoadele; rezultatul final apare automat la sfârșit.</p>
+          </div>
+        </div>
+        <MonteCarloLiveRun
+          live={liveMonteCarlo}
+          fallbackEnvironment={environment}
+          showPath={showPath}
+          showRisk={showRisk}
+          showCoordinates={showCoordinates}
+          onTogglePath={onTogglePath}
+          onToggleRisk={onToggleRisk}
+          onToggleCoordinates={onToggleCoordinates}
+        />
+        <div className="stage-actions">
+          <button className="secondary-button" disabled><ArrowLeft size={16} /> Rularea este activă</button>
+          <button className="primary-button" disabled><RefreshCw size={16} /> Se actualizează live...</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="wizard-stage run-stage">
@@ -769,6 +929,7 @@ export function ControlPanel({
   environment,
   result,
   monteCarlo,
+  liveMonteCarlo,
   busy,
   busyAction,
   pendingMapConfig,
@@ -817,6 +978,7 @@ export function ControlPanel({
           <RunStage
             config={config}
             environment={environment}
+            liveMonteCarlo={liveMonteCarlo}
             busy={busy}
             pendingMapConfig={pendingMapConfig}
             showPath={showPath}

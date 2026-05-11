@@ -1,5 +1,4 @@
-import { BarChart3, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { BarChart3 } from 'lucide-react';
 import { TooltipLabel } from './TooltipLabel';
 import type { MonteCarloResult, MonteCarloSummaryRow } from './types';
 import { algorithmUseCases, getExperimentProfile } from './experimentProfiles';
@@ -179,9 +178,6 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
         <strong>Comentariu numeric</strong>
         <span>{overallComment}</span>
       </div>
-      <Link to="/safe-navigation/monte-carlo" className="comparison-dashboard__entry">
-        <ExternalLink size={14} /> Deschide laboratorul Monte Carlo
-      </Link>
       <div className="comparison-table">
         <div className="table-head">
           <span><TooltipLabel text={columnTooltips.algorithm}>Algoritm</TooltipLabel></span>

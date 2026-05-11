@@ -139,3 +139,84 @@ export type MonteCarloResult = {
   };
   episodes: SafeEpisodeResult[];
 };
+
+export type MonteCarloJobProgress = {
+  completed: number;
+  total: number;
+  map_index?: number;
+  map_count?: number;
+  agent?: string;
+  map_seed?: number;
+};
+
+export type MonteCarloLiveSummary = MonteCarloResult['summary'];
+
+export type MonteCarloLiveEvent = {
+  type:
+    | 'job_started'
+    | 'map_started'
+    | 'agent_started'
+    | 'training_started'
+    | 'training_progress'
+    | 'episode_started'
+    | 'episode_finished'
+    | 'partial_summary'
+    | 'job_finished'
+    | 'job_failed'
+    | 'job_status';
+  progress?: MonteCarloJobProgress | number;
+  config?: Record<string, unknown>;
+  profile?: MonteCarloResult['profile'];
+  totals?: {
+    agents: number;
+    maps: number;
+    episodes_per_map: number;
+    evaluation_episodes: number;
+    training_episodes_per_q_agent: number;
+  };
+  map_index?: number;
+  map_count?: number;
+  map_seed?: number;
+  agent?: string;
+  phase?: string;
+  episode?: SafeEpisodeResult | number;
+  total_episodes?: number;
+  environment?: SafeEnvironment;
+  summary?: MonteCarloLiveSummary;
+  result?: MonteCarloResult;
+  id?: string;
+  status?: string;
+  message?: string;
+  error?: string | null;
+  latest_event?: MonteCarloLiveEvent | null;
+};
+
+export type MonteCarloJobSnapshot = {
+  id: string;
+  status: string;
+  progress: number;
+  message: string;
+  error?: string | null;
+  latest_event?: MonteCarloLiveEvent | null;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  result?: MonteCarloResult;
+};
+
+export type MonteCarloLiveState = {
+  jobId: string;
+  status: string;
+  message: string;
+  progress: number;
+  totalEpisodes: number;
+  completedEpisodes: number;
+  currentAgent?: string;
+  currentMapIndex?: number;
+  mapCount?: number;
+  mapSeed?: number;
+  environment?: SafeEnvironment;
+  latestEpisode?: SafeEpisodeResult;
+  summary?: MonteCarloLiveSummary;
+  events: MonteCarloLiveEvent[];
+};

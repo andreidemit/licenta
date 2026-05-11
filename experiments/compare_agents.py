@@ -118,11 +118,48 @@ def _scenario_values(scenario: str, rows: int | None, cols: int | None,
     }
 
 
-def run_training(agent, env, max_steps: int, episodes: int):
+def _emit(progress_callback, event_type: str, **payload) -> None:
+    if progress_callback is not None:
+        progress_callback({"type": event_type, **payload})
+
+
+def _progress_payload(completed: int, total: int, **extra) -> dict:
+    return {
+        "completed": completed,
+        "total": total,
+        **extra,
+    }
+
+
+def _result_config(profile, scenario, number_of_maps, episodes_per_map, training_episodes,
+                   movement_noise, risk_weight, values):
+    return {
+        "scenario": scenario,
+        "experiment_profile": profile["id"],
+        "number_of_maps": number_of_maps,
+        "episodes_per_map": episodes_per_map,
+        "training_episodes": training_episodes,
+        "movement_noise": movement_noise,
+        "risk_weight": risk_weight,
+        **values,
+    }
+
+
+def run_training(agent, env, max_steps: int, episodes: int, progress_callback=None, context: dict | None = None):
     simulator = Simulator(env, agent, max_steps=max_steps)
     history = []
-    for _ in range(episodes):
+    checkpoint = max(1, episodes // 10) if episodes else 1
+    for episode_index in range(episodes):
         history.append(simulator.run_episode(training=True))
+        if (episode_index + 1 == episodes) or ((episode_index + 1) % checkpoint == 0):
+            _emit(
+                progress_callback,
+                "training_progress",
+                agent=agent.name,
+                episode=episode_index + 1,
+                total_episodes=episodes,
+                **(context or {}),
+            )
     return history
 
 
@@ -154,10 +191,15 @@ def _run_transfer_experiment(
     risk_weight: float,
     max_steps: int,
     random_seed: int,
+    progress_callback=None,
+    total_evaluation_episodes: int | None = None,
+    partial_summary_every: int = 1,
 ):
     results = []
     training_maps = max(1, min(number_of_maps, 4))
     episodes_per_training_map = max(1, training_episodes // training_maps) if training_episodes > 0 else 0
+    completed_evaluations = 0
+    total_evaluations = total_evaluation_episodes or (len(agents) * number_of_maps * episodes_per_map)
 
     for agent_index, agent_spec in enumerate(agents):
         train_seed = random_seed + 50_000
@@ -169,6 +211,16 @@ def _run_transfer_experiment(
         else:
             agent = agent_spec
 
+        _emit(
+            progress_callback,
+            "agent_started",
+            agent=agent.name,
+            agent_index=agent_index,
+            agent_count=len(agents),
+            phase="training" if getattr(agent, "requires_training", False) else "evaluation",
+            progress=_progress_payload(completed_evaluations, total_evaluations),
+        )
+
         if getattr(agent, "requires_training", False) and episodes_per_training_map > 0:
             for train_index in range(training_maps):
                 train_env = _generate_env(
@@ -178,16 +230,81 @@ def _run_transfer_experiment(
                     movement_noise,
                     risk_weight,
                 )
-                run_training(agent, train_env, max_steps=max_steps, episodes=episodes_per_training_map)
+                _emit(
+                    progress_callback,
+                    "training_started",
+                    agent=agent.name,
+                    training_map_index=train_index,
+                    training_map_count=training_maps,
+                    map_seed=train_seed + train_index * 997,
+                    total_episodes=episodes_per_training_map,
+                    progress=_progress_payload(completed_evaluations, total_evaluations),
+                )
+                run_training(
+                    agent,
+                    train_env,
+                    max_steps=max_steps,
+                    episodes=episodes_per_training_map,
+                    progress_callback=progress_callback,
+                    context={
+                        "training_map_index": train_index,
+                        "training_map_count": training_maps,
+                        "map_seed": train_seed + train_index * 997,
+                        "progress": _progress_payload(completed_evaluations, total_evaluations),
+                    },
+                )
             _set_greedy_policy(agent)
 
         for map_index in range(number_of_maps):
             seed = random_seed + map_index * 997
+            eval_env_preview = _generate_env(generator, values, seed, movement_noise, risk_weight)
+            _emit(
+                progress_callback,
+                "map_started",
+                map_index=map_index,
+                map_count=number_of_maps,
+                map_seed=seed,
+                agent=agent.name,
+                environment=eval_env_preview.to_payload(include_risk=True),
+                progress=_progress_payload(completed_evaluations, total_evaluations),
+            )
             for _ in range(episodes_per_map):
                 eval_env = _generate_env(generator, values, seed, movement_noise, risk_weight)
+                _emit(
+                    progress_callback,
+                    "episode_started",
+                    agent=agent.name,
+                    map_index=map_index,
+                    map_count=number_of_maps,
+                    map_seed=seed,
+                    episode_index=completed_evaluations,
+                    progress=_progress_payload(completed_evaluations, total_evaluations),
+                )
                 episode = Simulator(eval_env, agent, max_steps=max_steps).run_episode(training=False)
                 episode.map_seed = seed
                 results.append(episode)
+                completed_evaluations += 1
+                progress = _progress_payload(
+                    completed_evaluations,
+                    total_evaluations,
+                    map_index=map_index,
+                    map_count=number_of_maps,
+                    agent=agent.name,
+                    map_seed=seed,
+                )
+                _emit(
+                    progress_callback,
+                    "episode_finished",
+                    progress=progress,
+                    episode=episode.to_dict(),
+                )
+                if completed_evaluations % partial_summary_every == 0 or completed_evaluations == total_evaluations:
+                    _emit(
+                        progress_callback,
+                        "partial_summary",
+                        progress=progress,
+                        summary=aggregate_results(results),
+                    )
 
     return results
 
@@ -207,12 +324,40 @@ def run_monte_carlo_experiment(
     risk_weight: float = 1.0,
     max_steps: int = 300,
     random_seed: int = 42,
+    progress_callback=None,
 ):
     """Rulează agenți pe hărți generate aleator și returnează metrici agregate."""
     generator = MapGenerator()
     values = _scenario_values(scenario, rows, cols, wall_probability, danger_probability)
     profile = EXPERIMENT_PROFILES.get(experiment_profile, EXPERIMENT_PROFILES["known_static"])
     results = []
+    total_evaluation_episodes = len(agents) * number_of_maps * episodes_per_map
+    partial_summary_every = max(1, total_evaluation_episodes // 10)
+    config_payload = _result_config(
+        profile,
+        scenario,
+        number_of_maps,
+        episodes_per_map,
+        training_episodes,
+        movement_noise,
+        risk_weight,
+        values,
+    )
+
+    _emit(
+        progress_callback,
+        "job_started",
+        config=config_payload,
+        profile=profile,
+        totals={
+            "agents": len(agents),
+            "maps": number_of_maps,
+            "episodes_per_map": episodes_per_map,
+            "evaluation_episodes": total_evaluation_episodes,
+            "training_episodes_per_q_agent": training_episodes,
+        },
+        progress=_progress_payload(0, total_evaluation_episodes),
+    )
 
     if profile["id"] == "transfer_learning":
         results = _run_transfer_experiment(
@@ -226,23 +371,18 @@ def run_monte_carlo_experiment(
             risk_weight=risk_weight,
             max_steps=max_steps,
             random_seed=random_seed,
+            progress_callback=progress_callback,
+            total_evaluation_episodes=total_evaluation_episodes,
+            partial_summary_every=partial_summary_every,
         )
         return {
-            "config": {
-                "scenario": scenario,
-                "experiment_profile": profile["id"],
-                "number_of_maps": number_of_maps,
-                "episodes_per_map": episodes_per_map,
-                "training_episodes": training_episodes,
-                "movement_noise": movement_noise,
-                "risk_weight": risk_weight,
-                **values,
-            },
+            "config": config_payload,
             "profile": profile,
             "summary": aggregate_results(results),
             "episodes": [result.to_dict() for result in results],
         }
 
+    completed_evaluations = 0
     for map_index in range(number_of_maps):
         seed = random_seed + map_index * 997
         base_env = generator.generate(
@@ -254,6 +394,15 @@ def run_monte_carlo_experiment(
             movement_noise=movement_noise,
             reward_config=RewardConfig(risk_weight=risk_weight),
         )
+        _emit(
+            progress_callback,
+            "map_started",
+            map_index=map_index,
+            map_count=number_of_maps,
+            map_seed=seed,
+            environment=base_env.to_payload(include_risk=True),
+            progress=_progress_payload(completed_evaluations, total_evaluation_episodes),
+        )
         for agent_spec in agents:
             if isinstance(agent_spec, str):
                 agent = create_agent(agent_spec, base_env.rows, base_env.cols, risk_weight, seed)
@@ -262,6 +411,16 @@ def run_monte_carlo_experiment(
             else:
                 agent = agent_spec
 
+            _emit(
+                progress_callback,
+                "agent_started",
+                agent=agent.name,
+                map_index=map_index,
+                map_count=number_of_maps,
+                map_seed=seed,
+                phase="training" if getattr(agent, "requires_training", False) and training_episodes > 0 else "evaluation",
+                progress=_progress_payload(completed_evaluations, total_evaluation_episodes),
+            )
             if getattr(agent, "requires_training", False) and training_episodes > 0:
                 train_env = generator.generate(
                     rows=values["rows"],
@@ -272,10 +431,32 @@ def run_monte_carlo_experiment(
                     movement_noise=movement_noise,
                     reward_config=RewardConfig(risk_weight=risk_weight),
                 )
-                run_training(agent, train_env, max_steps=max_steps, episodes=training_episodes)
+                _emit(
+                    progress_callback,
+                    "training_started",
+                    agent=agent.name,
+                    map_index=map_index,
+                    map_count=number_of_maps,
+                    map_seed=seed,
+                    total_episodes=training_episodes,
+                    progress=_progress_payload(completed_evaluations, total_evaluation_episodes),
+                )
+                run_training(
+                    agent,
+                    train_env,
+                    max_steps=max_steps,
+                    episodes=training_episodes,
+                    progress_callback=progress_callback,
+                    context={
+                        "map_index": map_index,
+                        "map_count": number_of_maps,
+                        "map_seed": seed,
+                        "progress": _progress_payload(completed_evaluations, total_evaluation_episodes),
+                    },
+                )
                 _set_greedy_policy(agent)
 
-            for _ in range(episodes_per_map):
+            for episode_on_map in range(episodes_per_map):
                 eval_env = generator.generate(
                     rows=values["rows"],
                     cols=values["cols"],
@@ -285,21 +466,44 @@ def run_monte_carlo_experiment(
                     movement_noise=movement_noise,
                     reward_config=RewardConfig(risk_weight=risk_weight),
                 )
+                _emit(
+                    progress_callback,
+                    "episode_started",
+                    agent=agent.name,
+                    map_index=map_index,
+                    map_count=number_of_maps,
+                    map_seed=seed,
+                    episode_on_map=episode_on_map,
+                    progress=_progress_payload(completed_evaluations, total_evaluation_episodes),
+                )
                 episode = Simulator(eval_env, agent, max_steps=max_steps).run_episode(training=False)
                 episode.map_seed = seed
                 results.append(episode)
+                completed_evaluations += 1
+                progress = _progress_payload(
+                    completed_evaluations,
+                    total_evaluation_episodes,
+                    map_index=map_index,
+                    map_count=number_of_maps,
+                    agent=agent.name,
+                    map_seed=seed,
+                )
+                _emit(
+                    progress_callback,
+                    "episode_finished",
+                    progress=progress,
+                    episode=episode.to_dict(),
+                )
+                if completed_evaluations % partial_summary_every == 0 or completed_evaluations == total_evaluation_episodes:
+                    _emit(
+                        progress_callback,
+                        "partial_summary",
+                        progress=progress,
+                        summary=aggregate_results(results),
+                    )
 
     return {
-        "config": {
-            "scenario": scenario,
-            "experiment_profile": profile["id"],
-            "number_of_maps": number_of_maps,
-            "episodes_per_map": episodes_per_map,
-            "training_episodes": training_episodes,
-            "movement_noise": movement_noise,
-            "risk_weight": risk_weight,
-            **values,
-        },
+        "config": config_payload,
         "profile": profile,
         "summary": aggregate_results(results),
         "episodes": [result.to_dict() for result in results],

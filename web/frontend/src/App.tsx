@@ -6,6 +6,9 @@ import { ControlPanel, type WizardStage } from './features/safe-navigation/Contr
 import { setLatestMonteCarlo } from './features/safe-navigation/monteCarloStore';
 import type {
   MonteCarloResult,
+  MonteCarloJobSnapshot,
+  MonteCarloLiveEvent,
+  MonteCarloLiveState,
   SafeEnvironment,
   SafeEpisodeResult,
   SafeNavigationConfig,
@@ -31,11 +34,67 @@ const initialConfig: SafeNavigationConfig = {
 
 type BusyAction = 'map' | 'episode' | 'monte-carlo';
 
+const monteCarloAlgorithms = [
+  'random',
+  'rule_based',
+  'astar',
+  'risk_aware_astar',
+  'tabular_q',
+  'feature_q',
+];
+
+function liveStateFromJob(job: MonteCarloJobSnapshot): MonteCarloLiveState {
+  return {
+    jobId: job.id,
+    status: job.status,
+    message: job.message,
+    progress: job.progress,
+    totalEpisodes: 0,
+    completedEpisodes: 0,
+    summary: job.result?.summary,
+    events: job.latest_event ? [job.latest_event] : [],
+  };
+}
+
+function updateLiveState(
+  current: MonteCarloLiveState | undefined,
+  event: MonteCarloLiveEvent,
+): MonteCarloLiveState | undefined {
+  if (!current) return current;
+  const progressPayload = typeof event.progress === 'object' ? event.progress : undefined;
+  const snapshotProgress = typeof event.progress === 'number' ? event.progress : undefined;
+  const episode = typeof event.episode === 'object' ? event.episode : undefined;
+  const nextEvents = event.type === 'job_status'
+    ? current.events
+    : [...current.events, event].slice(-40);
+  return {
+    ...current,
+    status: event.status ?? current.status,
+    message: event.message ?? current.message,
+    progress: event.type === 'job_finished'
+      ? 1
+      : typeof progressPayload?.total === 'number' && progressPayload.total > 0
+        ? progressPayload.completed / progressPayload.total
+        : snapshotProgress ?? current.progress,
+    totalEpisodes: event.totals?.evaluation_episodes ?? progressPayload?.total ?? current.totalEpisodes,
+    completedEpisodes: progressPayload?.completed ?? current.completedEpisodes,
+    currentAgent: event.agent ?? progressPayload?.agent ?? current.currentAgent,
+    currentMapIndex: event.map_index ?? progressPayload?.map_index ?? current.currentMapIndex,
+    mapCount: event.map_count ?? progressPayload?.map_count ?? current.mapCount,
+    mapSeed: event.map_seed ?? progressPayload?.map_seed ?? current.mapSeed,
+    environment: event.environment ?? current.environment,
+    latestEpisode: episode ?? current.latestEpisode,
+    summary: event.summary ?? event.result?.summary ?? current.summary,
+    events: nextEvents,
+  };
+}
+
 export function App() {
   const [config, setConfig] = useState(initialConfig);
   const [environment, setEnvironment] = useState<SafeEnvironment>();
   const [episodeResult, setEpisodeResult] = useState<SafeEpisodeResult>();
   const [monteCarlo, setMonteCarlo] = useState<MonteCarloResult>();
+  const [liveMonteCarlo, setLiveMonteCarlo] = useState<MonteCarloLiveState>();
   const [scenarioPresets, setScenarioPresets] = useState<SafeScenarioPreset[]>([]);
   const [explanation, setExplanation] = useState('');
   const [busy, setBusy] = useState(false);
@@ -49,6 +108,7 @@ export function App() {
   const [showRisk, setShowRisk] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
   const requestId = useRef(0);
+  const monteCarloStreamCleanup = useRef<(() => void) | undefined>(undefined);
 
   const runRequest = useCallback(async <T,>(
     action: BusyAction,
@@ -146,25 +206,69 @@ export function App() {
   }, [config, runRequest]);
 
   const runMonteCarlo = useCallback(async () => {
-    await runRequest(
-      'monte-carlo',
-      'Se rulează comparația Monte Carlo...',
-      () => safeNavigationApi.monteCarlo(config, [
-        'random',
-        'rule_based',
-        'astar',
-        'risk_aware_astar',
-        'tabular_q',
-        'feature_q',
-      ]),
-      (response) => {
-        setMonteCarlo(response);
-        setLatestMonteCarlo(response);
-        setActiveStage('results');
-        setMessage(`Au fost comparate ${response.summary.episode_count} episoade`);
-      },
-    );
-  }, [config, runRequest]);
+    const id = ++requestId.current;
+    monteCarloStreamCleanup.current?.();
+    setBusy(true);
+    setBusyAction('monte-carlo');
+    setMessage('Se pornește rularea Monte Carlo live...');
+    setErrorMessage('');
+    setMonteCarlo(undefined);
+    setLiveMonteCarlo(undefined);
+    setActiveStage('run');
+    try {
+      const job = await safeNavigationApi.startMonteCarloJob(config, monteCarloAlgorithms);
+      if (id !== requestId.current) return;
+      setBackendStatus('online');
+      setLiveMonteCarlo(liveStateFromJob(job));
+      setMessage('Monte Carlo rulează live');
+      let streamClosed = false;
+      const closeStream = safeNavigationApi.streamMonteCarloJob(
+        job.id,
+        (event) => {
+          if (id !== requestId.current) return;
+          setLiveMonteCarlo((current) => updateLiveState(current, event));
+          if (event.type === 'job_finished' && event.result) {
+            streamClosed = true;
+            setMonteCarlo(event.result);
+            setLatestMonteCarlo(event.result);
+            setActiveStage('results');
+            setBusy(false);
+            setBusyAction(undefined);
+            setMessage(`Au fost comparate ${event.result.summary.episode_count} episoade`);
+            closeStream();
+          } else if (event.type === 'job_failed') {
+            streamClosed = true;
+            const detail = event.message ?? event.error ?? 'Comparația Monte Carlo a eșuat.';
+            setErrorMessage(detail);
+            setMessage('Monte Carlo a eșuat');
+            setBusy(false);
+            setBusyAction(undefined);
+            closeStream();
+          }
+        },
+        () => {
+          if (streamClosed || id !== requestId.current) return;
+          setErrorMessage('Conexiunea live cu rularea Monte Carlo s-a întrerupt.');
+          setMessage('Stream Monte Carlo întrerupt');
+          setBusy(false);
+          setBusyAction(undefined);
+        },
+      );
+      monteCarloStreamCleanup.current = closeStream;
+    } catch (error) {
+      if (id !== requestId.current) return;
+      const detail = error instanceof Error ? error.message : 'Eroare neașteptată la pornirea Monte Carlo';
+      setBackendStatus('offline');
+      setErrorMessage(detail);
+      setMessage('Problemă de conectare la backend');
+      setBusy(false);
+      setBusyAction(undefined);
+    }
+  }, [config]);
+
+  useEffect(() => () => {
+    monteCarloStreamCleanup.current?.();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +327,7 @@ export function App() {
         environment={environment}
         result={episodeResult}
         monteCarlo={monteCarlo}
+        liveMonteCarlo={liveMonteCarlo}
         busy={busy}
         busyAction={busyAction}
         pendingMapConfig={pendingMapConfig}
