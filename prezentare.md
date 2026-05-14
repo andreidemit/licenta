@@ -21,159 +21,125 @@ style: |
     background: #f0fdfa;
     padding: 8px 16px;
   }
-  table { width: 100%; font-size: 24px; }
+  table { width: 100%; font-size: 23px; }
   th { background: #0369a1; color: white; }
   td { background: #ffffff; color: #111827; border-color: #cbd5e1; }
 ---
 
-# Cum alegi strategia de navigare potrivită pentru un robot autonom?
+# Cum alegi strategia de navigare potrivită într-un mediu necunoscut?
 
-## Simulator pentru evaluarea comparativă a strategiilor de navigare sigură
-
----
+## Simulator interactiv pentru evaluare și recomandare în navigare sigură
 
 **Autor:** Andrei Demit  
 **Coordonator științific:** Lect. univ. dr. Florentina Suter  
-**Universitatea:** Universitatea din București  
-**Facultatea:** Facultatea de Matematică și Informatică  
-**Sesiunea:** 2026
+**Universitatea din București, FMI — 2026**
 
 ---
 
-# De ce contează navigarea sigură?
+# Context și idee centrală
 
-Sistemele autonome operează astăzi în medii unde un traseu greșit are consecințe reale:
+Sistemele autonome nu sunt evaluate doar după faptul că ajung la destinație, ci și după modul în care ajung acolo.
 
-- 🏭 **roboți de depozit** (Amazon, DHL) — coliziunile opresc linii întregi de producție;
-- 🚁 **drone de livrare** — zonele interzise înseamnă accidente sau pierderea echipamentului;
-- 🏥 **roboți medicali** — un obstacol nedetectat poate pune pacienți în pericol;
-- 🚗 **vehicule autonome** — traseul scurt nu este întotdeauna cel mai sigur.
+În logistică, medicină sau aplicații autonome contează:
 
-> **Întrebarea relevantă nu este „agentul a ajuns?", ci „cum a ajuns?"**
+- riscul acumulat pe traseu;
+- coliziunile și intrările în zone periculoase;
+- costul traseului și timpul de decizie;
+- robustețea pe hărți necunoscute.
 
----
-
-# Ideea centrală
-
-GPS-ul clasic îți dă **drumul cel mai scurt**. Dar în logistică, medicină sau apărare, contează și:
-
-- câte zone periculoase a traversat traseul?
-- câte coliziuni s-au produs?
-- care este costul operațional total?
-
-Lucrarea construiește un **cadru de evaluare comparativă** care răspunde la:
-
-> **Care strategie navighează mai sigur, mai eficient și mai robust în medii necunoscute?**
+> **Întrebarea lucrării:** pentru un anumit tip de mediu și un anumit criteriu de siguranță, care strategie este cea mai potrivită?
 
 ---
 
 # Scopul lucrării
 
-Un **simulator** care permite:
+Lucrarea construiește un **simulator grid-based utilizabil în timp real** pentru evaluarea strategiilor de navigare sigură.
 
-1. generarea de medii realiste cu obstacole, zone periculoase și incertitudine;
-2. rularea și compararea mai multor strategii de navigare în aceleași condiții;
-3. măsurarea nu doar a succesului, ci a **profilului complet de risc și cost**;
-4. reproducerea experimentelor și exportul rezultatelor pentru analiză.
+Simulatorul permite:
+
+1. generarea de hărți cu obstacole, zone periculoase și incertitudine;
+2. rularea mai multor strategii în aceleași condiții;
+3. evaluarea prin succes, risc, coliziuni, cost și timeout;
+4. recomandarea strategiei potrivite pentru criteriile selectate;
+5. reproducerea experimentelor prin seed-uri și Monte Carlo;
+6. accesarea sistemului prin UI web, API și deployment cloud.
 
 ---
 
-# De ce nu este suficient succesul?
+# Dimensiunea experimentală
 
-Două strategii pot ajunge la destinație, dar cu profiluri de risc complet diferite:
+Accentul nu cade pe implementarea izolată a unui algoritm, ci pe metodologia de evaluare.
 
-| Strategie | Ajunge la țintă | Risc acumulat | Cost | Adecvat pentru |
-|---|---:|---:|---:|---|
-| Drum scurt (A*) | Da | Mare | Mediu | livrare rapidă, mediu controlat |
-| Drum sigur (Risk-Aware A*) | Da | Mic | Mic | operațiuni critice, medii cu persoane |
-
-**Concluzie:** alegerea strategiei corecte depinde de contextul operațional, nu doar de destinație.
-
-Un depozit automatizat și un robot medical au același tip de problemă, dar criterii de siguranță diferite.
+| Dimensiune | Variantă simplă | În această lucrare |
+|---|---|---|
+| Mediu | hartă fixă | hărți generate procedural |
+| Algoritmi | un singur agent | 6 strategii comparate |
+| Evaluare | succes / eșec | risc, cost, coliziuni, timeout |
+| Reproducere | rulare manuală | seed-uri, Monte Carlo, export |
+| Utilizare | script local | produs web interactiv + API + Azure |
+| Decizie | interpretare manuală | recomandare pe baza metricilor |
 
 ---
 
 # Modelul de mediu
 
-Mediul este un **GridWorld generat procedural** — o abstractizare a planurilor de etaj, depozite sau hărți de navigare.
+Mediul este un **GridWorld generat procedural**, validat prin BFS.
 
 | Celulă | Rol | Analog real |
 |---|---|---|
 | Empty | spațiu liber | coridor, alee |
-| Wall | obstacol, coliziune | perete, raft, mașinărie |
-| Danger | zonă periculoasă, terminală | zonă cu persoane, suprafață periculoasă |
-| Start | poziția inițială | punct de plecare robot |
-| Goal | destinația | zona de livrare, stație de andocare |
+| Wall | obstacol | perete, raft, mașinărie |
+| Danger | zonă periculoasă | zonă interzisă, persoane, risc operațional |
+| Start | poziție inițială | punct de plecare |
+| Goal | destinație | zonă de livrare / stație |
 
-Hărțile sunt validate prin BFS — garantând că există întotdeauna un drum posibil.
-
-Parametrul `movement_noise` simulează incertitudinea din execuție (roți patinate, drift de senzor).
+Parametrul `movement_noise` modelează incertitudinea execuției.
 
 ---
 
-# Structura recompenselor
+# Risc și recompense
 
-Recompensele reflectă trade-off-urile din lumea reală: **rapiditate vs. siguranță**.
+Recompensele și riscul modelează trade-off-ul dintre rapiditate și siguranță.
 
-| Eveniment | Valoare | Justificare operațională |
-|---|---:|---|
-| goal | +100 | misiunea a fost îndeplinită |
-| danger (terminal) | −100 | incident critic, cost maxim |
-| wall (coliziune) | −10 | avarie echipament |
-| pas normal | −1 | cost energetic / timp |
-| mai aproape de goal | +2 | progres spre destinație |
-| mai departe de goal | −2 | detour ineficient |
+| Element | Semnificație |
+|---|---|
+| `goal = +100` | misiunea este finalizată |
+| `danger = -100` | incident critic |
+| `wall = -10` | coliziune |
+| `step = -1` | cost de timp / energie |
+| `risk_weight` | penalizare proporțională cu apropierea de pericol |
 
-Recompensele de formare (`closer`/`farther`) accelerează învățarea fără a schimba politica optimă.
-
----
-
-# Componenta de risc
-
-Simulatorul nu marchează doar celulele periculoase — calculează o **zonă de influență** a riscului:
-
-| Distanță Manhattan față de DANGER | Cost de risc |
-|---:|---:|
-| 0 (celulă DANGER) | 100.0 |
-| 1 | 10.0 |
-| 2 | 5.0 |
-| 3 | 2.0 |
-
-Aceasta modelează realitatea: **apropierea de o zonă periculoasă are cost chiar fără intrare directă** (zona de siguranță din jurul echipamentelor industriale, distanța față de persoane).
-
-`RiskAwareAStarAgent` include acest cost în planificare. Riscul acumulat este urmărit independent de recompensă.
+Riscul nu apare doar în celula periculoasă: celulele apropiate de `DANGER` primesc cost suplimentar.
 
 ---
 
 # Strategii comparate
 
-Fiecare strategie modelează o paradigmă diferită de luare a deciziei:
-
-| Strategie | Paradigmă | Când este potrivită |
+| Algoritm | Rol | Când este potrivit |
 |---|---|---|
-| Random | baseline | referință statistică |
-| Rule-Based | euristică locală | resurse limitate, reacție rapidă |
-| A* | planificare globală | hartă complet cunoscut, viteză prioritară |
-| Risk-Aware A* | planificare sigură | operațiuni critice, prezența persoanelor |
-| Tabular Q-Learning | RL pe coordonate | mediu fix, repetitiv (ex. acelaşi depozit) |
-| Feature-Based Q-Learning | RL transferabil | medii variate, generalizare necesară |
+| Random | baseline statistic | verifică dificultatea mediului |
+| Rule-Based | baseline euristic | soluție simplă, explicabilă |
+| A* | planificare globală | hartă cunoscută, drum scurt |
+| Risk-Aware A* | planificare sigură | zone periculoase, persoane, cost mare al incidentelor |
+| Tabular Q-Learning | RL pe coordonate | același mediu repetat |
+| Feature-Based Q-Learning | RL pe features locale | medii variate, transfer de tipare |
+
+Strategiile pot fi analizate individual sau ca parte a unui flux hibrid: învățarea ajustează costurile locale, iar planificarea caută ruta pe harta actualizată.
 
 ---
 
-# Profiluri experimentale — scenarii de deployment
+# Rolul algoritmilor
 
-Fiecare profil reproduce un context operațional real:
-
-| Profil | Context real | Strategie avantajată |
+| Algoritm | Idee principală | Limitare |
 |---|---|---|
-| `known_static` | depozit cu plan fix, harta cunoscută | A*, Risk-Aware A* |
-| `high_risk` | teren cu zone interzise, siguranță prioritară | Risk-Aware A* |
-| `stochastic_execution` | roboți cu imprecizie mecanică, drift | robustețe > precizie |
-| `same_map_learning` | robot care operează repetat în același spațiu | Tabular Q-Learning |
-| `transfer_learning` | flotă de roboți pe locații diferite | Feature-Based Q-Learning |
-| `training_cost` | cost de antrenare vs. decizie rapidă | A* fără training vs. RL cu training |
+| Random | alege aleator | nu folosește informații despre mediu |
+| Rule-Based | evită riscul local și merge spre goal | se poate bloca fără planificare globală |
+| A* | caută cel mai scurt drum | nu optimizează explicit riscul |
+| Risk-Aware A* | include costul de risc în planificare | depinde de hartă și modelul de risc |
+| Tabular Q | învață valori Q pe poziții absolute | generalizează slab pe hărți noi |
+| Feature-Based Q | învață din pereți, pericole și direcția goal-ului | poate confunda contexte locale similare |
 
-> **Nu există o strategie universal optimă** — contextul operațional determină alegerea.
+În produsul final, acești algoritmi nu sunt doar demonstrați separat, ci evaluați pentru a susține o alegere: rapiditate, siguranță, robustețe sau echilibru între criterii.
 
 ---
 
@@ -182,7 +148,6 @@ Fiecare profil reproduce un context operațional real:
 ```text
 environment/
   GridWorld, MapGenerator, RiskModel, RewardConfig
-  scenarii: easy (10×10), medium (15×15), hard (20×20)
 
 agents/
   Random, Rule-Based, A*, Risk-Aware A*,
@@ -190,50 +155,22 @@ agents/
 
 simulation/
   Simulator, EpisodeResult, Metrics
-  (metrici cu CI95% bootstrap, percentile, per-map)
 
 experiments/
-  6 profiluri Monte Carlo, comparație agenți
+  profiluri Monte Carlo, comparație agenți
 
 web/
   FastAPI backend + React frontend
+
+recommendation/
+  ranking pe metrici, explicație, strategie recomandată
 ```
 
 ---
 
-# Fluxul unui episod
+# Metodologie experimentală
 
-1. Se generează sau se încarcă o hartă.
-2. Agentul primește observația curentă.
-3. Agentul alege acțiunea.
-4. Mediul aplică tranziția.
-5. Se actualizează recompensa, riscul și metricile.
-6. Episodul continuă până la goal, pericol sau timeout.
-
----
-
-# Metrici urmărite
-
-Metricile reflectă **standardele de evaluare din siguranța sistemelor autonome**:
-
-| Metrică | Ce măsoară | Relevanță operațională |
-|---|---|---|
-| `success_rate` | episoade reușite | KPI principal de misiune |
-| `average_steps` | lungimea traseului | eficiența energetică / timp |
-| `average_collisions` | impacturi cu obstacole | avarii de echipament |
-| `average_danger_entries` | intrări în zone periculoase | incidente de siguranță |
-| `average_risk_exposure` | risc acumulat pe traseu | cost de siguranță total |
-| `average_total_cost` | `−reward + risk` | cost operațional compozit |
-| `timeout_rate` | misiuni neterminate | disponibilitate sistem |
-| `average_computation_time_ms` | timp de decizie | fezabilitate real-time |
-
-Toate metricile includ CI95% bootstrap și defalcare per hartă.
-
----
-
-# Experiment Monte Carlo
-
-Configurație folosită pentru documentație:
+Experimentul Monte Carlo rulează agenții pe mai multe hărți generate procedural.
 
 ```bash
 PYTHONPATH=. .venv/bin/python -m experiments.run_experiment \
@@ -247,26 +184,27 @@ PYTHONPATH=. .venv/bin/python -m experiments.run_experiment \
 
 Rezultat: **60 episoade** agregate.
 
-Profilul `known_static` evaluează toți agenții cu hartă complet cunoscută, condiții deterministe.
+Metrici: succes, reward, pași, coliziuni, intrări în pericol, risc acumulat, cost total, timeout.
 
 ---
 
-# Rezultate: algoritmi de planificare
+# Rezultate: A* vs Risk-Aware A*
 
-Aceeași rată de succes, profil de risc diferit — **tocmai de aceea succesul singur nu ajunge**:
+În profilul `known_static`, ambele strategii ajung la țintă, dar cu profil diferit de risc și cost.
 
 | Algoritm | Success | Pași | Risc acumulat | Cost total |
 |---|---:|---:|---:|---:|
 | A* | 100% | 28.4 | 161.0 | 195.4 |
 | Risk-Aware A* | 100% | 29.6 | 125.0 | 124.6 |
 
-**Risk-Aware A*** acceptă un traseu cu 4% mai lung, dar reduce riscul cu **22%** și costul total cu **36%**.
+Risk-Aware A* alege un traseu cu 4% mai lung, dar obține:
 
-> Într-un context operațional cu persoane prezente sau echipamente sensibile, această diferență poate fi decisivă.
+- risc cu **22%** mai mic;
+- cost total cu **36%** mai mic.
 
 ---
 
-# Rezultate: baseline și RL pe hărți noi
+# Rezultate: baseline și RL
 
 | Algoritm | Success | Coliziuni | Pericole | Timeout |
 |---|---:|---:|---:|---:|
@@ -275,138 +213,65 @@ Aceeași rată de succes, profil de risc diferit — **tocmai de aceea succesul 
 | Tabular Q | 0% | 23.8 | 1.0 | 0% |
 | Feature-Based Q | 0% | 31.4 | 0.8 | 20% |
 
-**Interpretare:** agenții RL au nevoie de mai mult training sau de hărți familiare pentru a performa — confirmat de profilul `same_map_learning` unde Tabular Q-Learning devine relevant.
+Interpretare:
 
-**Rule-Based** evită coliziunile complet, dar se blochează în 50% din cazuri — compromis tipic pentru euristici reactive.
-
----
-
-# Concluzia experimentală principală
-
-**Nu există o strategie universală** — alegerea depinde de contextul operațional:
-
-| Context | Strategie recomandată | Motivul |
-|---|---|---|
-| Hartă complet cunoscută, viteză importantă | A* | cel mai scurt drum |
-| Prezența persoanelor / zone critice | Risk-Aware A* | risc cu 22% mai mic |
-| Același spațiu repetat (depozit fix) | Tabular Q-Learning | se specializează pe locație |
-| Locații variate, hartă necunoscută | Feature-Based Q-Learning | transferă tipare locale |
-| Resurse de calcul minime | Rule-Based | euristic, fără planificare |
-
-Simulatorul permite **cuantificarea acestor diferențe înainte de deployment**, nu după.
+- Rule-Based evită coliziunile, dar se blochează des.
+- Agenții RL sunt dezavantajați de training scurt și hărți noi.
+- Tabular Q devine relevant în profilul `same_map_learning`.
 
 ---
 
-# Componenta Q-Learning energetică — AI interpretabil
+# Componenta Q-Learning energetică
 
-Un studiu de caz pentru **reinforcement learning interpretabil și auditabil**:
+Pe lângă simulatorul safe-navigation, proiectul include un studiu de caz RL interpretabil:
 
-- stare: `(rând, coloană, nivel_energie)` — direct inspecționabil;
-- energie discretizată în 4 buckets — același loc, 4 politici diferite în funcție de resurse;
-- Q-table de `20 × 20 × 4 × 5 = 8.000` intrări — compactă, explicabilă;
-- scenarii A (energie infinită), B (energie limitată), C (obstacole dinamice), WAREHOUSE.
+- stare: `(rând, coloană, nivel_energie)`;
+- energie discretizată în 4 buckets;
+- Q-table de `20 × 20 × 4 × 5 = 8.000` intrări;
+- scenarii A, B, C și WAREHOUSE.
 
-**Relevanță reală:** sistemele critice au nevoie de AI care poate fi auditat — nu o rețea neuronală cu milioane de parametri, ci o politică care poate fi citită și verificată.
-
----
-
-# Rezultate Q-Learning energetic
-
-| Scenariu | Success last 100 | Greedy pași | Energie finală | Ce demonstrează |
-|---|---:|---:|---:|---|
-| A (energie infinită) | 100% | 34 | 88 | convergență de bază |
-| B (energie limitată) | 96% | 38 | 84 | navigare conștientă de resurse |
-| C (obstacole dinamice) | 100% | 12 | 88 | adaptare la schimbări de mediu |
-| WAREHOUSE (20×20 fix) | 100% | 77 | 67 | specializare pe hartă reală |
-
-Q-Learning tabular demonstrează că **un agent simplu și interpretabil poate rezolva navigare cu constrângeri de resurse** — relevant pentru sisteme embedded cu putere computațională limitată.
+| Scenariu | Success last 100 | Greedy pași | Observație |
+|---|---:|---:|---|
+| A | 100% | 34 | convergență de bază |
+| B | 96% | 38 | constrângere energetică |
+| C | 100% | 12 | mediu modificat |
+| WAREHOUSE | 100% | 77 | hartă fixă industrială |
 
 ---
 
-# Interfața web — simulator accesibil
+# Interfață web și deployment
 
-Aplicația web transformă simulatorul dintr-un script de cercetare într-un instrument utilizabil:
+Aplicația web transformă simulatorul într-un instrument utilizabil:
 
-- **configurare vizuală** a scenariului, profilului și algoritmilor;
-- **generare și vizualizare** hartă cu heatmap de risc suprapus;
-- **comparație Monte Carlo** cu statistici extinse per algoritm;
-- **analiză avansată:** distribuții (reward, steps, risk), CI95%, heatmap per hartă, scatter risc-recompensă, heatmap de ocupanță, breakdown eșecuri;
-- **export CSV/PNG** pentru raportare și prezentări;
-- **laborator Q-Learning energetic** pentru studiul interpretabilității.
+- configurare vizuală a scenariului și algoritmilor;
+- vizualizare hartă + heatmap de risc;
+- rulare Monte Carlo și analiză metrici;
+- recomandare de strategie în funcție de obiectiv;
+- export CSV/PNG/JSON;
+- laborator separat pentru Q-Learning energetic.
 
-> Un cercetător sau inginer poate rula comparații fără a scrie cod.
-
----
-
-# Deployment
-
-Arhitectura cloud:
+Deployment:
 
 ```text
-Azure Static Web Apps
-  React/Vite frontend
-
-Azure Container Apps
-  FastAPI backend + simulator Python
-
-Azure Files
-  rulări, artefacte, Q-table-uri
-
-Application Insights
-  loguri și observabilitate
+Azure Static Web Apps  -> React/Vite frontend
+Azure Container Apps   -> FastAPI backend + simulator Python
+Azure Files            -> rulări, artefacte, Q-table-uri
 ```
-
----
-
-# Aplicabilitate și extensibilitate
-
-Simulatorul este proiectat să fie adaptat la domenii specifice:
-
-| Domeniu | Adaptare necesară | Ce rămâne neschimbat |
-|---|---|---|
-| Depozite automatizate | hartă reală din blueprint | toți agenții, metricile |
-| Drone de livrare | zone interzise ca DANGER | Risk-Aware A*, metrici risc |
-| Roboți medicali | cost coliziune mai mare | RewardConfig, framework |
-| Vehicule autonome | `movement_noise` mai mare | profilul `stochastic_execution` |
-
-Arhitectura modulară (environment / agents / simulation / experiments) permite înlocuirea oricărui component fără a reface întregul sistem.
-
----
-
-# Limitări și direcții de extindere
-
-**Limitările actuale** sunt deliberate pentru o teză de licență:
-
-- GridWorld este discret — nu înlocuiește simulatoare fizice (ROS, Gazebo), ci le **precedă** pentru selecția strategiei;
-- agenți single-agent — multi-agent este extensia naturală pentru flote de roboți;
-- RL tabular generalizează limitat — DQN sau PPO sunt pași următori pentru grile mari.
-
-**Direcții concrete de extindere:**
-
-- import de hărți reale (YAML, imagine bitmap) în locul generării procedurale;
-- agenți multi-agent cu negociere de trasee;
-- variante DQN/PPO pentru spații de stare continue;
-- medii parțial observabile (senzori cu rază limitată);
-- obstacole dinamice (persoane, alte vehicule).
 
 ---
 
 # Concluzie
 
-Lucrarea construiește un **cadru de evaluare comparativă** pentru strategii de navigare sigură.
+Lucrarea propune un **simulator operațional** pentru evaluarea și alegerea strategiilor de navigare sigură.
 
-Valoarea principală: permite să răspunzi la întrebarea practică înainte de deployment —
+Rezultatele arată că aceeași rată de succes poate ascunde diferențe importante de risc și cost.
 
-> **„Dată fiind misiunea și constrângerile mele de siguranță, care strategie merită implementată?"**
+În funcție de context:
 
-Răspunsul nu este universal: depinde de cât de critice sunt zonele periculoase, dacă harta este cunoscută sau nu, dacă robotul operează în locații repetate sau variate.
+- A* este potrivit pentru hartă cunoscută și traseu scurt;
+- Risk-Aware A* este potrivit când siguranța contează mai mult;
+- Tabular Q-Learning este potrivit pentru medii repetate;
+- Feature-Based Q-Learning urmărește transferul pe hărți variate;
+- Rule-Based rămâne un reper simplu și explicabil.
 
-Simulatorul face aceste diferențe **măsurabile, reproductibile și comunicabile**.
-
----
-
-# Mulțumesc!
-
-**Teză de licență:** Simulator Grid-Based pentru Evaluarea Strategiilor de Navigare Sigură în Medii Generate Procedural
-
-*Cod sursă, experimente și rezultate disponibile în repository.*
+Astfel, aplicația nu răspunde doar dacă un agent ajunge la țintă, ci ce strategie merită folosită pentru situația configurată.

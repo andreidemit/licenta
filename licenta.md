@@ -777,7 +777,34 @@ Fiecare strategie modelează o paradigmă diferită de luare a deciziei. Interfa
 | `TabularQLearningAgent` | RL pe coordonate absolute | Da | Nu (model-free) |
 | `FeatureBasedQLearningAgent` | RL pe vector de features locale | Da | Nu (model-free) |
 
-#### 4.9.3 Vectorul de features al `FeatureBasedQLearningAgent`
+#### 4.9.3 Analiza algoritmilor comparați
+
+Pentru ca evaluarea să fie relevantă, fiecare algoritm nu este tratat doar ca o implementare tehnică, ci ca o strategie cu un rol experimental clar. Întrebările urmărite sunt: ce rol are în simulator, când este mai potrivit, în ce scenarii poate deveni cea mai bună alegere și dacă există analogii reale în produse, framework-uri sau sisteme folosite în industrie.
+
+**RandomAgent — baseline statistic.** Rolul său este să stabilească nivelul minim de performanță. Dacă un algoritm sofisticat nu depășește consistent agentul aleator, înseamnă că există o problemă de modelare, recompensă, training sau evaluare. RandomAgent nu are strategie, nu memorează, nu planifică și nu învață; el eșantionează uniform din spațiul de acțiuni. Este util în teste de regresie, validarea metricilor și verificarea dificultății scenariului. Poate fi „cel mai bun” doar în cazuri artificiale: hartă trivială, acțiuni aproape echivalente sau lipsa totală a timpului de calcul pentru altă strategie. În lumea reală, nu este folosit ca algoritm operațional de navigare sigură; analogia de piață este rolul de baseline în simulatoare, testare stochastică și faze de explorare din reinforcement learning.
+
+**RuleBasedAgent — euristică reactivă locală.** Rolul său este să reprezinte o strategie simplă, explicabilă și foarte ieftină computațional. Agentul verifică vecinii imediați, elimină pereții și pericolele directe, apoi alege acțiunea care reduce distanța Manhattan față de obiectiv. Este mai bun decât RandomAgent când mediul are coridoare simple și nu cere detururi complexe. Devine atractiv când resursele de calcul sunt mici, când este nevoie de comportament determinist și când siguranța locală este mai importantă decât optimalitatea globală. Poate fi cel mai bun în scenarii mici, cu obstacole rare, fără capcane topologice și fără necesitatea unei hărți globale. În sisteme reale, reguli reactive similare apar frecvent ca straturi de siguranță: evitarea obstacolelor apropiate, oprire de urgență, păstrarea distanței minime sau filtre de tip „nu intra în zonă interzisă”. De obicei, ele nu sunt singurul planner, ci completează planificatoare mai avansate.
+
+**AStarAgent — planificare globală pentru drum scurt.** Rolul său este să ofere un reper puternic pentru scenariile în care harta este cunoscută. A* combină costul parcurs $g(n)$ cu o estimare euristică $h(n)$ a distanței până la obiectiv; în proiect se folosește distanța Manhattan. Este mai bun când mediul este static, complet observabil, iar criteriul principal este eficiența traseului. Poate fi cea mai bună alegere în profilul `known_static`, în depozite cu hartă fixă, în jocuri sau în sisteme unde se cere un drum rapid fără fază de training. În lumea reală, familia A* este folosită în framework-uri de robotică și pathfinding: ROS 2 Navigation2 include Smac Planner, care implementează algoritmi A*-based, inclusiv un planner 2D cost-aware, Hybrid-A* și State Lattice [36]. Motoarele de joc folosesc sisteme de navigație și pathfinding pe reprezentări precum navmesh-uri; Unity documentează explicit folosirea navigation meshes pentru deplasarea inteligentă a personajelor [39].
+
+**RiskAwareAStarAgent — planificare globală cu siguranță explicită.** Rolul său este să testeze ipoteza centrală a lucrării: drumul cel mai scurt nu este întotdeauna drumul cel mai potrivit. Agentul modifică funcția de cost astfel încât apropierea de zone periculoase să fie penalizată: $f(n) = g(n) + h(n) + w \cdot r(n)$. Este mai bun când pericolele au zonă de influență, când există persoane, echipamente fragile, zone interzise sau cost mare al incidentelor. Poate fi cel mai bun în profilul `high_risk` și în situații în care A* și Risk-Aware A* au aceeași rată de succes, dar diferă prin risc și cost. În experimentul `medium`, acesta este exact cazul: ambele ajung la 100% succes, însă Risk-Aware A* reduce expunerea la risc și costul total. În lumea reală, ideea este apropiată de planificarea pe costmaps: Nav2 folosește costmaps pentru zone cu cost mare, iar Inflation Layer adaugă costuri cu decădere exponențială în jurul obstacolelor pentru a evita trecerea prea aproape de coliziuni [37]. Smac Planner 2D este descris de Nav2 ca planner A* cost-aware [36].
+
+**TabularQLearningAgent — învățare specializată pe coordonate absolute.** Rolul său este să reprezinte varianta cea mai interpretabilă de reinforcement learning. Agentul nu primește un model al mediului, ci învață din tranziții și recompense. Starea este poziția absolută $(rând, coloană)$, iar Q-table-ul conține valoarea fiecărei acțiuni în fiecare celulă. Este mai bun când aceeași hartă este folosită repetat, când mediul este mic și finit, iar training-ul offline este acceptabil. Poate fi cel mai bun în profilul `same_map_learning`, de exemplu pentru un robot care lucrează zilnic în același layout și poate acumula experiență specifică acelui spațiu. Limitarea majoră este generalizarea: dacă se schimbă harta, coordonatele învățate nu mai au aceeași semnificație. În piață, Q-Learning tabular pur este rar folosit direct în produse moderne deoarece nu scalează bine, dar principiul RL este folosit în simulatoare comerciale și educaționale. AWS DeepRacer, de exemplu, folosește reinforcement learning într-un simulator 3D și permite exportul modelului antrenat pentru un vehicul fizic autonom la scară mică [38].
+
+**FeatureBasedQLearningAgent — învățare pe reguli locale generalizabile.** Rolul său este să reducă dependența de coordonate absolute. În loc să învețe „în celula (7, 4) merg dreapta”, agentul învață pe baza contextului local: există perete sus/jos/stânga/dreapta, există pericol în vecinătate, în ce direcție este obiectivul și cât de departe este acesta. Este mai bun când hărțile diferă, dar păstrează tipare locale asemănătoare: coridoare, obstacole, zone de risc și obiective. Poate deveni cel mai bun în profilul `transfer_learning`, cu suficient training pe hărți diverse, deoarece același vector de features poate apărea în medii diferite. Limitarea este aliasing-ul: două poziții pot avea același context local, dar pot necesita decizii diferite din cauza structurii globale a hărții. În lumea reală, sistemele comerciale de RL folosesc rareori exact această variantă simplă, dar folosesc aceeași idee generală: învățarea unei politici pe reprezentări care abstractizează observațiile brute. DeepRacer folosește observații din senzori și o funcție de recompensă pentru a învăța comportamente de conducere în simulare, ceea ce reprezintă o versiune mult mai avansată a aceleiași familii de abordări [38].
+
+Tabelul următor sintetizează alegerea practică:
+
+| Algoritm | Rol în lucrare | Când este mai bun | Scenariu în care poate fi cel mai bun | Analog real / piață |
+|----------|----------------|-------------------|--------------------------------------|---------------------|
+| Random | Baseline minim | Testare, control statistic | Hărți triviale sau acțiuni echivalente | Baseline în simulatoare și RL |
+| Rule-Based | Euristică locală explicabilă | Medii simple, calcul minim | Obstacole rare, reacție rapidă | Straturi reactive de siguranță |
+| A* | Planner global pentru drum scurt | Hartă cunoscută, mediu static | `known_static`, cost de training zero | ROS/Nav2 Smac Planner, game pathfinding |
+| Risk-Aware A* | Planner global orientat spre siguranță | Zone periculoase, cost mare al incidentelor | `high_risk`, medii cu persoane | Costmaps, inflation layers, cost-aware planners |
+| Tabular Q-Learning | RL interpretabil pe coordonate | Aceeași hartă repetată | `same_map_learning` | RL tabular educațional/prototipuri |
+| Feature-Based Q-Learning | RL cu transfer local | Hărți variate cu tipare comune | `transfer_learning` cu training suficient | RL pe reprezentări/features, simulatoare autonome |
+
+#### 4.9.4 Vectorul de features al `FeatureBasedQLearningAgent`
 
 `FeatureBasedQLearningAgent` reprezintă starea ca un tuple de 11 componente, extras prin metoda `state_key(observation)`:
 
@@ -800,7 +827,7 @@ distance_bucket
 
 Vectorul complet este `tuple(walls + dangers + [goal_vertical, goal_horizontal, distance_bucket])`. Reprezentarea este **independentă de coordonatele absolute** — același tuple poate apărea în colțul stâng-sus sau în centrul hărții, ceea ce permite agentului să transfere politica pe hărți nevăzute. Totuși, granularitatea limitată (bucket-uri de distanță, nu distanța exactă) introduce aliasing în stări cu configurații locale identice, dar contexte globale diferite.
 
-#### 4.9.4 Profiluri experimentale și ciclul de viață al agentului
+#### 4.9.5 Profiluri experimentale și ciclul de viață al agentului
 
 Modulul `experiments/compare_agents.py` definește șase **profiluri experimentale** în dicționarul `EXPERIMENT_PROFILES`. Fiecare profil include parametrul `agent_lifecycle` care controlează cum sunt create și reutilizate instanțele de agent:
 
@@ -817,7 +844,7 @@ Modulul `experiments/compare_agents.py` definește șase **profiluri experimenta
 
 **Ciclul de viață `shared_across_maps`** (exclusiv `transfer_learning`): un singur agent este antrenat pe hărți cu seed-uri `base_seed + 50_000 + i` (offset de 50.000), apoi evaluat pe hărțile standard cu seed-urile `base_seed + i`. Separarea seed-urilor garantează că hărțile de training și evaluare sunt structural distincte, permițând măsurarea transferului de politici.
 
-#### 4.9.5 Agregare statistică Monte Carlo și intervale de încredere
+#### 4.9.6 Agregare statistică Monte Carlo și intervale de încredere
 
 Modulul `simulation/metrics.py` implementează funcția `aggregate_results(results)` care primește lista de `EpisodeResult` și returnează statistici agregate per agent și per hartă.
 
@@ -1374,6 +1401,14 @@ Lucrarea de față a demonstrat că un simulator grid-based poate fi folosit pen
 34. **Zipline International.** (2023). *Autonomous Drone Delivery Systems*. Retrieved from https://flyzipline.com
 
 35. **Starship Technologies.** (2024). *Autonomous Delivery Robots — Fleet Operations Report*. Retrieved from https://www.starship.xyz
+
+36. **Open Navigation LLC.** (2026). *Nav2 Smac Planner Documentation*. Retrieved from https://docs.nav2.org/configuration/packages/configuring-smac-planner.html
+
+37. **Open Navigation LLC.** (2026). *Nav2 Inflation Layer Parameters*. Retrieved from https://docs.nav2.org/configuration/packages/costmap-plugins/inflation.html
+
+38. **Amazon Web Services.** (2026). *DeepRacer on AWS — Solution Overview*. Retrieved from https://docs.aws.amazon.com/solutions/latest/deepracer-on-aws/solution-overview.html
+
+39. **Unity Technologies.** (2023). *Unity Manual: Navigation and Pathfinding*. Retrieved from https://docs.unity.cn/520/Documentation/Manual/Navigation.html
 
 ---
 
