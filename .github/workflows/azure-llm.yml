@@ -1,4 +1,4 @@
-name: Deploy backend to Azure Container Apps
+name: Deploy Ollama/Gemma analyst to Azure Container Apps
 
 on:
   workflow_dispatch:
@@ -7,36 +7,25 @@ on:
       - main
       - master
     paths:
-      - Dockerfile
-      - .dockerignore
-      - requirements.txt
-      - src/**
-      - agents/**
-      - environment/**
-      - experiments/**
-      - simulation/**
-      - web/backend/**
-      - .github/workflows/azure-backend.yml
+      - Dockerfile.ollama
+      - scripts/ollama-entrypoint.sh
+      - .github/workflows/azure-llm.yml
 
 permissions:
   contents: read
   id-token: write
 
 env:
-  IMAGE_NAME: q-learning-backend
+  IMAGE_NAME: q-learning-llm
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID || vars.AZURE_SUBSCRIPTION_ID }}
-  LLM_ENABLED: ${{ vars.LLM_ENABLED || 'false' }}
-  LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'http://127.0.0.1:11434/v1' }}
   LLM_MODEL: ${{ vars.LLM_MODEL || 'gemma4:26b' }}
-  LLM_TIMEOUT_SECONDS: ${{ vars.LLM_TIMEOUT_SECONDS || '120' }}
-  LLM_MAX_OUTPUT_TOKENS: ${{ vars.LLM_MAX_OUTPUT_TOKENS || '700' }}
 
 jobs:
   deploy:
-    name: Build and deploy backend
+    name: Build and deploy Ollama analyst
     runs-on: ubuntu-latest
 
     steps:
@@ -62,11 +51,10 @@ jobs:
             echo "::error::Missing repository variable AZURE_RESOURCE_GROUP."
             missing=1
           fi
-          if [[ -z "${{ vars.AZURE_CONTAINER_APP_NAME }}" ]]; then
-            echo "::error::Missing repository variable AZURE_CONTAINER_APP_NAME."
+          if [[ -z "${{ vars.AZURE_LLM_CONTAINER_APP_NAME }}" ]]; then
+            echo "::error::Missing repository variable AZURE_LLM_CONTAINER_APP_NAME. Provision infra with enable_llm=true first."
             missing=1
           fi
-          echo "Expected Azure federated credential subject: repo:${GITHUB_REPOSITORY}:ref:${GITHUB_REF}"
           exit "$missing"
 
       - name: Azure login
@@ -84,13 +72,13 @@ jobs:
       - name: Login to Azure Container Registry
         run: az acr login --name "${{ vars.AZURE_CONTAINER_REGISTRY }}"
 
-      - name: Build and push backend image
+      - name: Build and push Ollama image
         id: image
         shell: bash
         run: |
           set -euo pipefail
           IMAGE="${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${IMAGE_NAME}:${GITHUB_SHA}"
-          docker build -t "$IMAGE" .
+          docker build -f Dockerfile.ollama -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
@@ -98,42 +86,28 @@ jobs:
         run: |
           az containerapp registry set \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+            --name "${{ vars.AZURE_LLM_CONTAINER_APP_NAME }}" \
             --server "${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io" \
             --identity system
 
-      - name: Update Container App image
+      - name: Update LLM Container App image
         run: |
-          az containerapp ingress update \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
-            --target-port 8000
-
           az containerapp update \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+            --name "${{ vars.AZURE_LLM_CONTAINER_APP_NAME }}" \
             --image "${{ steps.image.outputs.image }}" \
-            --min-replicas 1 \
+            --min-replicas 0 \
             --max-replicas 1 \
             --set-env-vars \
-              APP_ENV=production \
-              HOST=0.0.0.0 \
-              PORT=8000 \
-              DATA_ROOT=/app/data \
-              LLM_ENABLED="${LLM_ENABLED}" \
-              LLM_PROVIDER=ollama \
-              LLM_BASE_URL="${LLM_BASE_URL}" \
               LLM_MODEL="${LLM_MODEL}" \
-              LLM_TIMEOUT_SECONDS="${LLM_TIMEOUT_SECONDS}" \
-              LLM_MAX_OUTPUT_TOKENS="${LLM_MAX_OUTPUT_TOKENS}"
+              OLLAMA_HOST=0.0.0.0:11434 \
+              OLLAMA_MODELS=/root/.ollama
 
-      - name: Smoke test backend health
+      - name: Show LLM app status
         shell: bash
         run: |
-          set -euo pipefail
-          FQDN="$(az containerapp show \
+          az containerapp show \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
-            --query properties.configuration.ingress.fqdn \
-            --output tsv)"
-          curl --fail --retry 12 --retry-delay 5 "https://${FQDN}/api/health"
+            --name "${{ vars.AZURE_LLM_CONTAINER_APP_NAME }}" \
+            --query "{name:name, provisioningState:properties.provisioningState, latestRevision:properties.latestRevisionName}" \
+            --output table

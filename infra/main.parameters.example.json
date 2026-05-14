@@ -10,6 +10,18 @@
     },
     "fileShareQuota": {
       "value": 20
+    },
+    "enableLlm": {
+      "value": false
+    },
+    "llmImage": {
+      "value": "ollama/ollama:latest"
+    },
+    "llmModel": {
+      "value": "gemma4:26b"
+    },
+    "llmWorkloadProfileName": {
+      "value": "Consumption-GPU-NC24-A100"
     }
   }
 }

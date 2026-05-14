@@ -4,7 +4,9 @@ import { Link } from 'react-router-dom';
 import * as Tabs from '@radix-ui/react-tabs';
 import '../../../styles.css';
 import { safeNavigationApi, type MonteCarloRawRequest } from '../api';
+import { AiAnalystPanel } from '../AiAnalystPanel';
 import { setLatestMonteCarlo, useLatestMonteCarlo } from '../monteCarloStore';
+import { RecommendationPanel } from '../RecommendationPanel';
 import { algorithmLabel } from './analysisHelpers';
 import { ExportPanel } from './ExportPanel';
 import { FailureBreakdown } from './FailureBreakdown';
@@ -101,6 +103,14 @@ export function MonteCarloAnalysisPage() {
               </div>
             </div>
           </section>
+
+          <RecommendationPanel
+            result={result}
+            selectedObjective={payload.optimization_objective}
+            onObjectiveChange={(objective) => setPayload((current) => ({ ...current, optimization_objective: objective }))}
+          />
+
+          <AiAnalystPanel result={result} />
 
           <Tabs.Root value={tab} onValueChange={setTab}>
             <Tabs.List className="mc-page__tabs">

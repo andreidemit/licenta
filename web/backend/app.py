@@ -22,6 +22,7 @@ from src.warehouse_scenario import WarehouseEnvironment
 from agents import (
     AStarAgent,
     FeatureBasedQLearningAgent,
+    FeatureRiskAwareAStarAgent,
     RandomAgent,
     RiskAwareAStarAgent,
     RuleBasedAgent,
@@ -31,11 +32,15 @@ from environment.grid_world import RewardConfig
 from environment.map_generator import MapGenerator, SCENARIOS
 from experiments.compare_agents import create_agent, run_monte_carlo_experiment, run_training
 from simulation.simulator import Simulator
+from web.backend.llm_analysis import disabled_response, explain_with_llm
+from web.backend.llm_client import LlmClient, LlmClientError
 from web.backend.job_store import JobStore, MonteCarloJobStore, stream_job, stream_monte_carlo_job
 from web.backend.logging_config import configure_logging, log_event
 from web.backend.models import (
     EnvironmentPayload,
     EvaluateRequest,
+    LlmAnalysisRequest,
+    LlmAnalysisResponse,
     MonteCarloRequest,
     SafeNavigationRequest,
     TrainRequest,
@@ -59,6 +64,16 @@ jobs = JobStore(index_path=RUNS_ROOT / "index.json")
 monte_carlo_jobs = MonteCarloJobStore()
 
 
+def llm_client() -> LlmClient:
+    return LlmClient(
+        base_url=settings.llm_base_url,
+        model=settings.llm_model,
+        provider=settings.llm_provider,
+        timeout_seconds=settings.llm_timeout_seconds,
+        max_output_tokens=settings.llm_max_output_tokens,
+    )
+
+
 @app.on_event("startup")
 def log_startup():
     log_event(
@@ -70,6 +85,9 @@ def log_startup():
         environments_root=str(ENVIRONMENTS_ROOT),
         cors_origins=settings.cors_origins,
         application_insights_enabled=bool(settings.applicationinsights_connection_string),
+        llm_enabled=settings.llm_enabled,
+        llm_provider=settings.llm_provider,
+        llm_model=settings.llm_model,
     )
 
 
@@ -147,6 +165,7 @@ ALGORITHM_LABELS = {
     "risk_aware_astar": "A* conștient de risc",
     "tabular_q": "Q-Learning tabular",
     "feature_q": "Q-Learning pe trăsături",
+    "feature_risk_astar": "Feature-Risk A* experimental",
 }
 
 
@@ -157,6 +176,7 @@ ALGORITHM_EXPLANATIONS = {
     "risk_aware_astar": RiskAwareAStarAgent().explain(),
     "tabular_q": TabularQLearningAgent(rows=5, cols=5).explain(),
     "feature_q": FeatureBasedQLearningAgent().explain(),
+    "feature_risk_astar": FeatureRiskAwareAStarAgent().explain(),
 }
 
 
@@ -273,6 +293,7 @@ def run_monte_carlo_request(request: MonteCarloRequest, progress_callback=None):
         risk_weight=request.risk_weight,
         max_steps=request.max_steps,
         random_seed=request.random_seed,
+        optimization_objective=request.optimization_objective,
         progress_callback=progress_callback,
     )
 
@@ -311,6 +332,53 @@ def stream_safe_navigation_monte_carlo_job(job_id: str):
     if job is None:
         raise HTTPException(status_code=404, detail="Rularea Monte Carlo nu a fost găsită")
     return StreamingResponse(stream_monte_carlo_job(job), media_type="text/event-stream")
+
+
+@app.get("/api/safe-navigation/analysis/status")
+def safe_navigation_analysis_status():
+    if not settings.llm_enabled:
+        return {
+            "enabled": False,
+            "available": False,
+            "provider": settings.llm_provider,
+            "model": settings.llm_model,
+            "base_url": settings.llm_base_url,
+            "message": "Analistul AI este dezactivat. Setează LLM_ENABLED=true pentru activare.",
+        }
+    try:
+        health = llm_client().health()
+    except LlmClientError as exc:
+        return {
+            "enabled": True,
+            "available": False,
+            "provider": settings.llm_provider,
+            "model": settings.llm_model,
+            "base_url": settings.llm_base_url,
+            "message": f"LLM indisponibil: {exc}",
+        }
+    return {
+        "enabled": True,
+        "available": health["available"],
+        "provider": health["provider"],
+        "model": health["model"],
+        "base_url": health["base_url"],
+        "models": health["models"],
+        "message": health["message"],
+    }
+
+
+@app.post("/api/safe-navigation/analysis/explain", response_model=LlmAnalysisResponse)
+def safe_navigation_analysis_explain(request: LlmAnalysisRequest):
+    if not settings.llm_enabled:
+        return disabled_response(model=settings.llm_model, provider=settings.llm_provider)
+    try:
+        return explain_with_llm(
+            request,
+            client=llm_client(),
+            max_input_chars=settings.llm_max_input_chars,
+        )
+    except LlmClientError as exc:
+        raise HTTPException(status_code=503, detail=f"Analistul AI nu este disponibil: {exc}") from exc
 
 
 @app.get("/api/scenarios")

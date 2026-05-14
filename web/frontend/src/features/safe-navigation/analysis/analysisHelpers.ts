@@ -13,6 +13,8 @@ const AGENT_COLORS: Record<string, string> = {
   'Tabular Q-Learning': '#dc2626',
   feature_q: '#0f766e',
   'Feature-Based Q-Learning': '#0f766e',
+  feature_risk_astar: '#2563eb',
+  'Feature-Risk A*': '#2563eb',
 };
 
 export const CHART_THEME = {
@@ -49,6 +51,8 @@ const ALGORITHM_LABELS: Record<string, string> = {
   'Tabular Q-Learning': 'Q-Learning tabular',
   feature_q: 'Q-Learning pe trăsături',
   'Feature-Based Q-Learning': 'Q-Learning pe trăsături',
+  feature_risk_astar: 'Feature-Risk A* experimental',
+  'Feature-Risk A*': 'Feature-Risk A* experimental',
 };
 
 export function algorithmLabel(value: string): string {

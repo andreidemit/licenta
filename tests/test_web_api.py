@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import tempfile
+from dataclasses import replace
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -137,6 +138,47 @@ def test_job_store_loads_persisted_completed_runs():
         assert snapshot["artifacts"]["qtable_path"].endswith("qtable.npy")
 
 
+def test_safe_navigation_llm_status_and_disabled_fallback():
+    original_settings = app_module.settings
+    app_module.settings = replace(original_settings, llm_enabled=False)
+    client = TestClient(app_module.app)
+
+    try:
+        status = client.get("/api/safe-navigation/analysis/status")
+        assert status.status_code == 200, status.text
+        assert status.json()["enabled"] is False
+        assert status.json()["available"] is False
+
+        response = client.post(
+            "/api/safe-navigation/analysis/explain",
+            json={
+                "config": {"scenario": "medium"},
+                "summary": {
+                    "agents": [
+                        {
+                            "algorithm": "Risk-Aware A*",
+                            "success_rate": 1.0,
+                            "average_risk_exposure": 4.0,
+                        }
+                    ]
+                },
+                "recommendation": {
+                    "objective": "safety_first",
+                    "recommended_algorithm": "Risk-Aware A*",
+                    "ranking": [{"algorithm": "Risk-Aware A*", "score": 0.9}],
+                    "tradeoffs": [],
+                },
+                "question": "Explică recomandarea.",
+            },
+        )
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["fallback"] is True
+        assert "dezactivat" in payload["answer"].lower()
+    finally:
+        app_module.settings = original_settings
+
+
 if __name__ == "__main__":
     print("=== Teste Web API ===\n")
     test_environment_validate_save_and_list()
@@ -144,4 +186,5 @@ if __name__ == "__main__":
     test_too_small_procedural_grid_is_rejected()
     test_evaluation_scenarios_are_available_and_valid()
     test_job_store_loads_persisted_completed_runs()
+    test_safe_navigation_llm_status_and_disabled_fallback()
     print("\n✅ Toate testele Web API au trecut!")

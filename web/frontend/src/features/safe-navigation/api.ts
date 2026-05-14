@@ -1,5 +1,8 @@
 import type {
   ExperimentProfileId,
+  LlmAnalysisRequest,
+  LlmAnalysisResponse,
+  LlmAnalysisStatus,
   MonteCarloJobSnapshot,
   MonteCarloLiveEvent,
   MonteCarloResult,
@@ -75,6 +78,7 @@ export const safeNavigationApi = {
       const profile = getExperimentProfile(config.experiment_profile);
       return post<MonteCarloResult>('/api/safe-navigation/monte-carlo', {
         algorithms,
+        optimization_objective: config.optimization_objective,
         experiment_profile: profile.id satisfies ExperimentProfileId,
         scenario: config.scenario,
         number_of_maps: config.number_of_maps,
@@ -96,6 +100,7 @@ export const safeNavigationApi = {
     const profile = getExperimentProfile(config.experiment_profile);
     return post<MonteCarloJobSnapshot>('/api/safe-navigation/monte-carlo/jobs', {
       algorithms,
+      optimization_objective: config.optimization_objective,
       experiment_profile: profile.id satisfies ExperimentProfileId,
       scenario: config.scenario,
       number_of_maps: config.number_of_maps,
@@ -113,6 +118,10 @@ export const safeNavigationApi = {
   },
   getMonteCarloJob: (jobId: string) =>
     get<MonteCarloJobSnapshot>(`/api/safe-navigation/monte-carlo/jobs/${jobId}`),
+  analysisStatus: () =>
+    get<LlmAnalysisStatus>('/api/safe-navigation/analysis/status'),
+  explainAnalysis: (payload: LlmAnalysisRequest) =>
+    post<LlmAnalysisResponse>('/api/safe-navigation/analysis/explain', payload),
   streamMonteCarloJob: (
     jobId: string,
     onEvent: (event: MonteCarloLiveEvent) => void,
@@ -133,6 +142,7 @@ export const safeNavigationApi = {
 
 export type MonteCarloRawRequest = {
   algorithms: string[];
+  optimization_objective: SafeNavigationConfig['optimization_objective'];
   experiment_profile: ExperimentProfileId;
   scenario: string;
   rows: number;

@@ -1,6 +1,8 @@
 import { BarChart3 } from 'lucide-react';
+import { AiAnalystPanel } from './AiAnalystPanel';
+import { RecommendationPanel } from './RecommendationPanel';
 import { TooltipLabel } from './TooltipLabel';
-import type { MonteCarloResult, MonteCarloSummaryRow } from './types';
+import type { MonteCarloResult, MonteCarloSummaryRow, OptimizationObjective } from './types';
 import { algorithmUseCases, getExperimentProfile } from './experimentProfiles';
 
 function pct(value: number) {
@@ -24,6 +26,8 @@ function algorithmLabel(value: string) {
     'Tabular Q-Learning': 'Q-Learning tabular',
     feature_q: 'Q-Learning pe trăsături',
     'Feature-Based Q-Learning': 'Q-Learning pe trăsături',
+    feature_risk_astar: 'Feature-Risk A* experimental',
+    'Feature-Risk A*': 'Feature-Risk A* experimental',
   };
   return labels[value] ?? value;
 }
@@ -35,6 +39,7 @@ function algorithmKey(value: string) {
     'Risk-Aware A*': 'risk_aware_astar',
     'Tabular Q-Learning': 'tabular_q',
     'Feature-Based Q-Learning': 'feature_q',
+    'Feature-Risk A*': 'feature_risk_astar',
   };
   return keys[value] ?? value;
 }
@@ -120,6 +125,9 @@ function buildRowComment(row: MonteCarloSummaryRow, rows: MonteCarloSummaryRow[]
   if (key === 'feature_q') {
     return 'Folosește tipare locale; rezultatul indică cât de bine se transferă aceste trăsături.';
   }
+  if (key === 'feature_risk_astar') {
+    return 'Hibrid experimental: verifică dacă penalizările locale învățate ajută planificarea risk-aware.';
+  }
   if (key === 'astar' && highRisk) {
     return 'Planifică eficient, dar riscul nu este obiectivul principal al rutei.';
   }
@@ -132,7 +140,17 @@ function buildRowComment(row: MonteCarloSummaryRow, rows: MonteCarloSummaryRow[]
   return 'Performanță intermediară; util ca reper în comparația cu strategiile de top.';
 }
 
-export function ExperimentDashboard({ result, busy = false }: { result?: MonteCarloResult; busy?: boolean }) {
+export function ExperimentDashboard({
+  result,
+  busy = false,
+  selectedObjective,
+  onObjectiveChange,
+}: {
+  result?: MonteCarloResult;
+  busy?: boolean;
+  selectedObjective?: OptimizationObjective;
+  onObjectiveChange?: (objective: OptimizationObjective) => void;
+}) {
   if (busy) {
     return (
       <section className="panel-card comparison-dashboard dashboard-loading">
@@ -170,6 +188,12 @@ export function ExperimentDashboard({ result, busy = false }: { result?: MonteCa
       <p className="dashboard-caption">
         Monte Carlo compară fiecare agent pe hărți generate și rezumă succesul, eficiența traseului și expunerea la risc.
       </p>
+      <RecommendationPanel
+        result={result}
+        selectedObjective={selectedObjective}
+        onObjectiveChange={onObjectiveChange}
+      />
+      <AiAnalystPanel result={result} />
       <div className="comparison-insight">
         <strong>Concluzie experimentală: {profileConclusion.profile.label}</strong>
         <span>{profileConclusion.text}</span>

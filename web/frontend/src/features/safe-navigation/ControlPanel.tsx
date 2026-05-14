@@ -45,7 +45,24 @@ const algorithms = [
   ['risk_aware_astar', 'A* conștient de risc'],
   ['tabular_q', 'Q-Learning tabular'],
   ['feature_q', 'Q-Learning pe trăsături'],
+  ['feature_risk_astar', 'Feature-Risk A* experimental'],
 ];
+
+const learningAlgorithms = new Set(['tabular_q', 'feature_q', 'feature_risk_astar']);
+
+const objectiveLabels: Record<SafeNavigationConfig['optimization_objective'], string> = {
+  balanced: 'Echilibrat',
+  safety_first: 'Siguranță',
+  efficiency_first: 'Eficiență',
+  robustness_first: 'Robustețe',
+};
+
+const objectiveDescriptions: Record<SafeNavigationConfig['optimization_objective'], string> = {
+  balanced: 'Combină succes, risc, cost, pași și erori operaționale.',
+  safety_first: 'Prioritizează risc mic, coliziuni puține și evitarea pericolului.',
+  efficiency_first: 'Prioritizează trasee scurte și cost total mic, fără a ignora succesul.',
+  robustness_first: 'Prioritizează succes stabil, timeout mic și comportament consistent.',
+};
 
 const scenarios = [
   ['easy', 'Ușor', 'Hartă mică, puține obstacole și risc redus.'],
@@ -113,8 +130,13 @@ function algorithmLabel(value: string) {
     'Risk-Aware A*': 'A* conștient de risc',
     'Tabular Q-Learning': 'Q-Learning tabular',
     'Feature-Based Q-Learning': 'Q-Learning pe trăsături',
+    'Feature-Risk A*': 'Feature-Risk A* experimental',
   };
   return algorithms.find(([id]) => id === value)?.[1] ?? backendLabels[value] ?? value;
+}
+
+function objectiveLabel(value: SafeNavigationConfig['optimization_objective']) {
+  return objectiveLabels[value] ?? value;
 }
 
 function scenarioLabel(value: string) {
@@ -422,8 +444,9 @@ function StageNarrativePanel({
         <h3><BarChart3 size={16} /> Ipoteza de rulare</h3>
         <p>Experimentul compară strategiile pe același set de hărți generate. Profilul Monte Carlo urmărește: {profile.expectedTakeaway}</p>
         <ul>
-          <li>Agenți comparați: <b>Random, Rule-Based, A*, Risk-Aware A*, Tabular Q și Feature-Based Q</b>.</li>
+          <li>Agenți comparați: <b>{algorithms.map(([, label]) => label).join(', ')}</b>.</li>
           <li>Hartă: <b>{environment ? `${environment.rows}x${environment.cols}` : 'negenerată'}</b>, scenariu {scenarioLabel(config.scenario)}.</li>
+          <li>Obiectiv recomandare: <b>{objectiveLabel(config.optimization_objective)}</b> - {objectiveDescriptions[config.optimization_objective]}</li>
           <li>Profil: <b>{profile.shortLabel}</b> - {profile.protocol}</li>
           <li>Buget Monte Carlo: <b>{config.number_of_maps}</b> hărți × <b>{config.episodes_per_map}</b> episoade/hartă × <b>{algorithms.length}</b> agenți.</li>
           <li>Agenții Q sunt antrenați {config.training_episodes} episoade înainte de evaluarea Monte Carlo.</li>
@@ -626,6 +649,7 @@ function MonteCarloConfirmDialog({
     ['Zgomot mișcare', String(config.movement_noise)],
     ['Pondere risc', String(config.risk_weight)],
     ['Algoritmi', `${algorithms.length} strategii: ${algorithms.map(([, label]) => label).join(', ')}`],
+    ['Obiectiv recomandare', objectiveLabel(config.optimization_objective)],
     ['Număr rulări/hărți MC', String(config.number_of_maps)],
     ['Episoade per hartă', String(config.episodes_per_map)],
     ['Total episoade evaluate', String(totalEpisodes)],
@@ -707,7 +731,7 @@ function RunStage({
   const patch = (next: Partial<SafeNavigationConfig>) => onChange({ ...config, ...next });
   const canRun = !!environment && !pendingMapConfig && !busy;
   const totalEpisodes = algorithms.length * config.number_of_maps * config.episodes_per_map;
-  const qTrainingAgents = 2;
+  const qTrainingAgents = algorithms.filter(([id]) => learningAlgorithms.has(id)).length;
   const estimatedTrainingEpisodes = qTrainingAgents * config.number_of_maps * config.training_episodes;
 
   if (liveMonteCarlo && busy) {
@@ -771,14 +795,28 @@ function RunStage({
               <input type="number" min={1} max={100} value={config.episodes_per_map} onChange={(event) => patch({ episodes_per_map: Number(event.target.value) })} />
             </label>
             <label>
+              <TooltipLabel text="Criteriul după care motorul de recomandare transformă metricile Monte Carlo într-un scor final.">
+                Obiectiv recomandare
+              </TooltipLabel>
+              <select
+                value={config.optimization_objective}
+                onChange={(event) => patch({ optimization_objective: event.target.value as SafeNavigationConfig['optimization_objective'] })}
+              >
+                {(Object.keys(objectiveLabels) as SafeNavigationConfig['optimization_objective'][]).map((id) => (
+                  <option key={id} value={id}>{objectiveLabels[id]}</option>
+                ))}
+              </select>
+            </label>
+            <label>
               <TooltipLabel text="Numărul de episoade de antrenare pentru agenții Q-Learning înainte de evaluarea Monte Carlo.">
-                Episoade antrenare Q
+                Episoade antrenare agenți learning
               </TooltipLabel>
               <input type="number" min={0} max={10000} value={config.training_episodes} onChange={(event) => patch({ training_episodes: Number(event.target.value) })} />
             </label>
           </div>
           <div className="run-summary-list">
             <span>Algoritmi: <b>{algorithms.length} strategii comparate</b></span>
+            <span>Obiectiv: <b>{objectiveLabel(config.optimization_objective)}</b></span>
             <span>Profil: <b>{getExperimentProfile(config.experiment_profile).shortLabel}</b></span>
             <span>Evaluări totale: <b>{totalEpisodes} episoade</b></span>
             <span>Antrenare Q estimată: <b>{estimatedTrainingEpisodes} episoade</b></span>
@@ -834,10 +872,11 @@ function ResultsStage({
   monteCarlo,
   busy,
   busyAction,
+  onChange,
   onBack,
   onScenario,
   onMonteCarlo,
-}: Pick<Props, 'config' | 'environment' | 'result' | 'monteCarlo' | 'busy' | 'busyAction' | 'onMonteCarlo'> & {
+}: Pick<Props, 'config' | 'environment' | 'result' | 'monteCarlo' | 'busy' | 'busyAction' | 'onChange' | 'onMonteCarlo'> & {
   onBack: () => void;
   onScenario: () => void;
 }) {
@@ -858,7 +897,12 @@ function ResultsStage({
       {monteCarlo || isMonteCarloBusy ? (
         <div className="mc-results-stage">
           <div className="mc-results-stage__overview">
-            <ExperimentDashboard result={monteCarlo} busy={isMonteCarloBusy} />
+            <ExperimentDashboard
+              result={monteCarlo}
+              busy={isMonteCarloBusy}
+              selectedObjective={config.optimization_objective}
+              onObjectiveChange={(objective) => onChange({ ...config, optimization_objective: objective })}
+            />
             <StageNarrativePanel
               stage="results"
               config={config}
@@ -1002,6 +1046,7 @@ export function ControlPanel({
             monteCarlo={monteCarlo}
             busy={busy}
             busyAction={busyAction}
+            onChange={onChange}
             onBack={() => onStageChange('run')}
             onScenario={() => onStageChange('scenario')}
             onMonteCarlo={onMonteCarlo}

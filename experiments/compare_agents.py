@@ -5,6 +5,7 @@ from collections.abc import Callable
 from agents import (
     AStarAgent,
     FeatureBasedQLearningAgent,
+    FeatureRiskAwareAStarAgent,
     RandomAgent,
     RiskAwareAStarAgent,
     RuleBasedAgent,
@@ -12,6 +13,7 @@ from agents import (
 )
 from environment.grid_world import RewardConfig
 from environment.map_generator import MapGenerator, SCENARIOS
+from experiments.recommendation import build_recommendation
 from simulation.metrics import aggregate_results
 from simulation.simulator import Simulator
 
@@ -43,7 +45,7 @@ EXPERIMENT_PROFILES = {
         "description": "Acțiunile pot devia lateral, deci planul optim nu este executat perfect.",
         "assumption": "Agentul trebuie evaluat prin robustețe la zgomot, coliziuni și risc acumulat.",
         "expected_takeaway": "Planificarea rămâne puternică, dar comparația trebuie citită prin robustețe, nu doar pași.",
-        "favored_algorithms": ["risk_aware_astar", "feature_q"],
+        "favored_algorithms": ["risk_aware_astar", "feature_q", "feature_risk_astar"],
         "protocol": "Evaluare Monte Carlo cu tranziții stocastice controlate de movement_noise.",
         "agent_lifecycle": "per_map",
     },
@@ -63,7 +65,7 @@ EXPERIMENT_PROFILES = {
         "description": "Separă seed-urile de training de seed-urile de evaluare.",
         "assumption": "Agentul trebuie să transfere tipare învățate pe hărți nevăzute.",
         "expected_takeaway": "Q-learning pe trăsături este mai potrivit pentru transfer decât Q-learning tabular.",
-        "favored_algorithms": ["feature_q"],
+        "favored_algorithms": ["feature_q", "feature_risk_astar"],
         "protocol": "Training pe hărți dedicate, evaluare pe alte hărți; A* rămâne baseline cu hartă cunoscută.",
         "agent_lifecycle": "shared_across_maps",
     },
@@ -73,7 +75,7 @@ EXPERIMENT_PROFILES = {
         "description": "Distinge costul de antrenare de timpul de decizie într-un episod evaluat.",
         "assumption": "Learning-ul plătește cost înainte de evaluare, planning-ul plătește la fiecare hartă.",
         "expected_takeaway": "A* este foarte puternic fără training; learning-ul merită când politica este reutilizată.",
-        "favored_algorithms": ["astar", "risk_aware_astar", "feature_q"],
+        "favored_algorithms": ["astar", "risk_aware_astar", "feature_q", "feature_risk_astar"],
         "protocol": "Evaluare Monte Carlo standard cu metadate explicite despre episoadele de training.",
         "agent_lifecycle": "per_map",
     },
@@ -104,6 +106,8 @@ def create_agent(algorithm: str, rows: int, cols: int, risk_weight: float = 1.0,
         return TabularQLearningAgent(rows=rows, cols=cols, random_seed=seed)
     if key in ("feature_q", "feature-based-q-learning", "feature q-learning"):
         return FeatureBasedQLearningAgent(random_seed=seed)
+    if key in ("feature_risk_astar", "feature-risk-a*", "feature risk astar", "hybrid"):
+        return FeatureRiskAwareAStarAgent(risk_weight=risk_weight, random_seed=seed)
     raise ValueError(f"Algoritm necunoscut: {algorithm}")
 
 
@@ -132,7 +136,7 @@ def _progress_payload(completed: int, total: int, **extra) -> dict:
 
 
 def _result_config(profile, scenario, number_of_maps, episodes_per_map, training_episodes,
-                   movement_noise, risk_weight, values):
+                   movement_noise, risk_weight, optimization_objective, values):
     return {
         "scenario": scenario,
         "experiment_profile": profile["id"],
@@ -141,6 +145,7 @@ def _result_config(profile, scenario, number_of_maps, episodes_per_map, training
         "training_episodes": training_episodes,
         "movement_noise": movement_noise,
         "risk_weight": risk_weight,
+        "optimization_objective": optimization_objective,
         **values,
     }
 
@@ -324,6 +329,7 @@ def run_monte_carlo_experiment(
     risk_weight: float = 1.0,
     max_steps: int = 300,
     random_seed: int = 42,
+    optimization_objective: str = "balanced",
     progress_callback=None,
 ):
     """Rulează agenți pe hărți generate aleator și returnează metrici agregate."""
@@ -341,6 +347,7 @@ def run_monte_carlo_experiment(
         training_episodes,
         movement_noise,
         risk_weight,
+        optimization_objective,
         values,
     )
 
@@ -375,10 +382,12 @@ def run_monte_carlo_experiment(
             total_evaluation_episodes=total_evaluation_episodes,
             partial_summary_every=partial_summary_every,
         )
+        summary = aggregate_results(results)
         return {
             "config": config_payload,
             "profile": profile,
-            "summary": aggregate_results(results),
+            "summary": summary,
+            "recommendation": build_recommendation(summary, optimization_objective),
             "episodes": [result.to_dict() for result in results],
         }
 
@@ -502,9 +511,11 @@ def run_monte_carlo_experiment(
                         summary=aggregate_results(results),
                     )
 
+    summary = aggregate_results(results)
     return {
         "config": config_payload,
         "profile": profile,
-        "summary": aggregate_results(results),
+        "summary": summary,
+        "recommendation": build_recommendation(summary, optimization_objective),
         "episodes": [result.to_dict() for result in results],
     }

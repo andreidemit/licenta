@@ -19,6 +19,26 @@ on:
         description: Initial backend image. Backend workflow will replace this after ACR push.
         required: true
         default: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
+      enable_llm:
+        description: Provision the optional internal Ollama/Gemma Container App
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      llm_image:
+        description: Initial LLM image. The LLM workflow can replace this after ACR push.
+        required: true
+        default: ollama/ollama:latest
+      llm_model:
+        description: Ollama model tag used by the AI analyst
+        required: true
+        default: gemma4:26b
+      llm_workload_profile_name:
+        description: Container Apps workload profile for the LLM service
+        required: true
+        default: Consumption-GPU-NC24-A100
 
 permissions:
   contents: read
@@ -93,6 +113,10 @@ jobs:
                   location="${{ inputs.location }}" \
                   namePrefix="${{ inputs.name_prefix }}" \
                   containerImage="${{ inputs.container_image }}" \
+                  enableLlm="${{ inputs.enable_llm }}" \
+                  llmImage="${{ inputs.llm_image }}" \
+                  llmModel="${{ inputs.llm_model }}" \
+                  llmWorkloadProfileName="${{ inputs.llm_workload_profile_name }}" \
                 --query properties.outputs \
                 --output json
             )"; then
@@ -110,6 +134,8 @@ jobs:
           echo "acr_login_server=$(jq -r '.acrLoginServer.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
           echo "container_app_name=$(jq -r '.containerAppName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
           echo "frontend_url=$(jq -r '.frontendUrl.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "llm_container_app_name=$(jq -r '.llmContainerAppName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "llm_internal_url=$(jq -r '.llmInternalUrl.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
           echo "static_web_app_name=$(jq -r '.staticWebAppName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
           echo "storage_account_name=$(jq -r '.storageAccountName.value' deployment-outputs.json)" >> "$GITHUB_OUTPUT"
 
@@ -125,6 +151,8 @@ jobs:
             echo "| ACR login server | ${{ steps.deploy.outputs.acr_login_server }} |"
             echo "| Container App | ${{ steps.deploy.outputs.container_app_name }} |"
             echo "| Frontend URL | ${{ steps.deploy.outputs.frontend_url }} |"
+            echo "| LLM Container App | ${{ steps.deploy.outputs.llm_container_app_name }} |"
+            echo "| LLM internal URL | ${{ steps.deploy.outputs.llm_internal_url }} |"
             echo "| Static Web App | ${{ steps.deploy.outputs.static_web_app_name }} |"
             echo "| Storage Account | ${{ steps.deploy.outputs.storage_account_name }} |"
             echo ""
@@ -135,4 +163,12 @@ jobs:
             echo "- \`AZURE_CONTAINER_REGISTRY=${{ steps.deploy.outputs.acr_name }}\`"
             echo "- \`AZURE_STATIC_WEB_APP_NAME=${{ steps.deploy.outputs.static_web_app_name }}\`"
             echo "- \`VITE_API_URL=${{ steps.deploy.outputs.backend_url }}\`"
+            if [[ "${{ inputs.enable_llm }}" == "true" ]]; then
+              echo "- \`AZURE_LLM_CONTAINER_APP_NAME=${{ steps.deploy.outputs.llm_container_app_name }}\`"
+              echo "- \`LLM_ENABLED=true\`"
+              echo "- \`LLM_BASE_URL=${{ steps.deploy.outputs.llm_internal_url }}/v1\`"
+              echo "- \`LLM_MODEL=${{ inputs.llm_model }}\`"
+            else
+              echo "- \`LLM_ENABLED=false\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -11,10 +11,11 @@ Proiectul este un cadru modular de simulare pentru evaluarea strategiilor de nav
 | Strat | Fișiere principale | Rol |
 |---|---|---|
 | Environment | `environment/grid_world.py`, `environment/map_generator.py`, `environment/cell_types.py`, `environment/risk_model.py` | Reprezentarea hărții, reward-ul, riscul și generarea procedurală BFS-validată |
-| Agents | `agents/base_agent.py`, `agents/random_agent.py`, `agents/rule_based_agent.py`, `agents/astar_agent.py`, `agents/q_learning_agent.py`, `agents/feature_q_learning_agent.py` | Strategii interschimbabile rulate de același simulator |
+| Agents | `agents/base_agent.py`, `agents/random_agent.py`, `agents/rule_based_agent.py`, `agents/astar_agent.py`, `agents/q_learning_agent.py`, `agents/feature_q_learning_agent.py`, `agents/hybrid_feature_risk_astar_agent.py` | Strategii interschimbabile rulate de același simulator |
 | Simulation | `simulation/simulator.py`, `simulation/episode_result.py`, `simulation/actions.py`, `simulation/metrics.py` | Motor generic de episod, acțiuni comune, tranziții și metrici |
-| Experiments | `experiments/compare_agents.py`, `experiments/run_experiment.py`, `experiments/configs.py` | Evaluări Monte Carlo și comparații între algoritmi |
+| Experiments | `experiments/compare_agents.py`, `experiments/recommendation.py`, `experiments/run_experiment.py`, `experiments/configs.py` | Evaluări Monte Carlo, ranking și recomandare explicabilă între algoritmi |
 | UI/API | `web/backend/app.py`, `web/frontend/src/features/safe-navigation/*` | Endpoint-uri și interfață React pentru simulatorul experimental |
+| AI Analyst | `web/backend/llm_client.py`, `web/backend/llm_analysis.py`, `web/frontend/src/features/safe-navigation/AiAnalystPanel.tsx` | Strat opțional Gemma/Ollama care explică rezultatele fără să modifice recomandarea deterministă |
 
 Separarea importantă este că reward-ul aparține mediului (`GridWorld.step()`), agenții aleg acțiuni printr-o interfață comună (`BaseAgent`), iar `Simulator` poate rula orice agent fără să știe dacă acesta învață sau planifică.
 
@@ -26,6 +27,7 @@ Separarea importantă este că reward-ul aparține mediului (`GridWorld.step()`)
 - **RiskAwareAStarAgent** — extinde A* cu hartă de risc; preferă trasee mai sigure chiar dacă sunt mai lungi.
 - **TabularQLearningAgent** — Q-table pe coordonate absolute; util pe harta de training, dar generalizează slab la hărți noi.
 - **FeatureBasedQLearningAgent** — Q-learning pe features locale: pereți, pericole, direcția goal-ului și bucket de distanță, pentru transfer mai bun pe hărți necunoscute.
+- **FeatureRiskAwareAStarAgent** — strategie hibridă experimentală: Risk-Aware A* folosește penalizări locale învățate din tranziții reale.
 
 Nu există DQN sau rețele neuronale; scopul este simularea, comparația și evaluarea strategiilor, nu deep learning.
 
@@ -34,6 +36,43 @@ Nu există DQN sau rețele neuronale; scopul este simularea, comparația și eva
 Pentru fiecare episod se colectează: `success`, `total_reward`, `steps`, `collisions`, `danger_entries`, `total_risk_exposure`, `path_length`, `timeout`, `reached_goal`, `computation_time_ms`.
 
 Pentru evaluări agregate se calculează: `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `collision_rate`, `average_danger_entries`, `danger_entry_rate`, `average_risk_exposure`, `average_total_cost`, `timeout_rate`, `average_computation_time_ms`.
+
+### Recomandare explicabilă
+
+Rezultatul Monte Carlo include acum și un obiect `recommendation`. Motorul din `experiments/recommendation.py` normalizează metricile reale ale agenților și calculează un scor pentru fiecare strategie. Obiectivele disponibile sunt:
+
+- `balanced` — echilibru între succes, risc, cost și eficiență;
+- `safety_first` — minimizează riscul, coliziunile și intrările în pericol;
+- `efficiency_first` — prioritizează pași puțini și cost total mic;
+- `robustness_first` — prioritizează rată de succes mare, timeout mic și stabilitate.
+
+Recomandarea nu este hardcodată pe un algoritm anume. Dashboard-ul afișează strategia recomandată, ranking-ul complet, scorurile și compromisurile observate. Întrebarea centrală devine: **„care strategie este mai potrivită pentru această situație și de ce?”**
+
+### Analist AI cu Gemma/Ollama
+
+Aplicația poate include opțional un analist AI local sau cloud. Acest strat nu decide strategia și nu schimbă scorurile; el primește `config`, `summary` și `recommendation` produse de simulator și generează o explicație textuală în română pentru profesor sau utilizator.
+
+Local, backend-ul verifică disponibilitatea prin API-ul OpenAI-compatible expus de Ollama. Pentru generarea explicației, clientul poate reveni automat la endpoint-ul nativ Ollama `/api/chat` cu `think=false`, astfel încât modelele Gemma cu reasoning separat să returneze răspuns final în `content`, nu în câmpul de reasoning.
+
+```bash
+ollama serve
+ollama pull gemma4:26b
+
+LLM_ENABLED=true \
+LLM_PROVIDER=ollama \
+LLM_BASE_URL=http://127.0.0.1:11434/v1 \
+LLM_MODEL=gemma4:26b \
+LLM_TIMEOUT_SECONDS=120 \
+LLM_MAX_OUTPUT_TOKENS=700 \
+python -m web.backend
+```
+
+Endpoint-uri:
+
+- `GET /api/safe-navigation/analysis/status` — verifică dacă analistul AI este activ și disponibil;
+- `POST /api/safe-navigation/analysis/explain` — explică rezultatul Monte Carlo și recomandarea curentă.
+
+Promptul este restrictiv: modelul folosește doar metricile primite, nu inventează rezultate, nu schimbă ranking-ul și semnalează limitările când experimentul are prea puține hărți sau episoade.
 
 ### Rulare simulator web
 
@@ -57,6 +96,16 @@ Pagina principală (`/`) este acum **Safe Navigation Simulator**. Laboratorul ve
 - compara A* cu Risk-Aware A*;
 - rula Tabular Q-Learning pe o hartă fixă și observa limitele pe hărți noi;
 - rula Monte Carlo comparison între agenți și vedea tabel/grafice simple.
+- selecta obiectivul de optimizare și primi o recomandare explicabilă a strategiei potrivite.
+
+### Scenarii demo recomandate
+
+Pentru prezentare live, pagina Monte Carlo include două preseturi rapide:
+
+1. **Demo rapid echilibrat** — `scenario=medium`, `objective=balanced`, `profile=known_static`, 3 hărți × 1 episod, algoritmi `Rule-Based`, `A*`, `Risk-Aware A*`. Este varianta sigură pentru verificarea rapidă a ranking-ului și a panoului „Analist AI”.
+2. **Demo siguranță** — `objective=safety_first`, risc mai mare, algoritmi `A*`, `Risk-Aware A*`, `Feature-Risk A*`. Arată povestea de siguranță: simulatorul compară agenți, recomandarea deterministă rankează strategiile, iar Gemma explică doar compromisurile observate.
+
+Pentru demo-ul cu Gemma, rulează întâi Monte Carlo, verifică panoul „Recomandare strategie”, apoi folosește una dintre întrebările rapide din „Analist AI”. Dacă modelul este dezactivat, UI-ul afișează fallback-ul controlat și recomandarea deterministă rămâne disponibilă.
 
 ### Rulare Monte Carlo din CLI
 
@@ -65,8 +114,11 @@ PYTHONPATH=. python -m experiments.run_experiment \
   --scenario medium \
   --maps 5 \
   --episodes-per-map 2 \
-  --training-episodes 100
+  --training-episodes 100 \
+  --objective safety_first
 ```
+
+Comanda afișează atât `summary`, cât și `recommendation`, astfel încât experimentul poate fi folosit și fără UI pentru a vedea ranking-ul și strategia recomandată.
 
 ### Poveste experimentală susținută
 
@@ -76,6 +128,7 @@ PYTHONPATH=. python -m experiments.run_experiment \
 4. Risk-Aware A* poate alege un traseu mai lung, dar cu expunere mai mică la risc.
 5. Feature-Based Q-Learning învață tipare locale de siguranță care pot fi reutilizate pe hărți nevăzute.
 6. Monte Carlo evaluation permite comparații statistice robuste între algoritmi și dificultăți de mediu.
+7. Motorul de recomandare transformă comparația în decizie: ranking, scor și compromisuri pentru obiectivul selectat.
 
 ### Config exemplu
 
@@ -99,7 +152,7 @@ PYTHONPATH=. python -m experiments.run_experiment \
 
 **Titlu**: Simulator Grid-Based pentru Evaluarea Strategiilor de Navigare Sigură în Medii Generate Procedural.
 
-**Descriere**: Această lucrare își propune dezvoltarea unui simulator software pentru evaluarea strategiilor de navigare sigură în medii GridWorld necunoscute, generate procedural. Proiectul nu analizează doar dacă agentul ajunge la destinație, ci compară strategiile după risc, coliziuni, costul traseului, eficiență și capacitatea de generalizare pe hărți noi. Sistemul include agenți Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning, rulați prin același motor de simulare și evaluați prin experimente Monte Carlo.
+**Descriere**: Această lucrare își propune dezvoltarea unui simulator software pentru evaluarea strategiilor de navigare sigură în medii GridWorld necunoscute, generate procedural. Proiectul nu analizează doar dacă agentul ajunge la destinație, ci compară strategiile după risc, coliziuni, costul traseului, eficiență și capacitatea de generalizare pe hărți noi. Sistemul include agenți Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning, Feature-Based Q-Learning și un hibrid experimental Feature-Risk A*, rulați prin același motor de simulare și evaluați prin experimente Monte Carlo.
 
 Prin acest document detaliez arhitectura simulării, punând un accent major pe modelarea matematică a entităților, dinamica mediului, fluxurile de date și mecanismele de interacțiune.
 
@@ -122,8 +175,9 @@ La final, simulatorul trebuie să permită:
 | Livrabil | Descriere |
 |---|---|
 | **Simulator GridWorld** | Medii generate procedural, validare BFS, model de risc |
-| **Agenți comparabili** | Random, Rule-Based, A*, Risk-Aware A*, Tabular Q, Feature-Based Q |
+| **Agenți comparabili** | Random, Rule-Based, A*, Risk-Aware A*, Tabular Q, Feature-Based Q, Feature-Risk A* experimental |
 | **Evaluare Monte Carlo** | Rulări repetate pe hărți noi, cu seed-uri controlate |
+| **Recomandare strategie** | Ranking, scor multi-criterial, explicație și compromisuri pentru obiectivul ales |
 | **Metrici de siguranță** | Succes, risc, coliziuni, pericole, cost, pași, timeout |
 | **Aplicație web** | Backend FastAPI + frontend React pentru demo și analiză |
 | **Componentă Q-Learning energetică** | Scenarii A/B/C/WAREHOUSE pentru homeostazie și RL tabular |
@@ -196,8 +250,12 @@ Azure Container Apps
   FastAPI backend din web/backend
   SSE live stream + training/evaluare Q-Learning
 
+Azure Container Apps GPU, opțional
+  Ollama/Gemma pentru Analist AI, cu ingress intern
+
 Azure Files
   mount la /app/data pentru runs, qtables, CSV/PNG/JSON, environments
+  mount separat la /root/.ollama pentru cache-ul modelului LLM
 
 Azure Container Registry
   imagine Docker backend
@@ -211,13 +269,15 @@ Azure Monitor + Application Insights + Log Analytics
 | Fișier | Rol |
 |---|---|
 | `Dockerfile` | Construiește backend-ul FastAPI cu `src/` și `web/backend/` în aceeași imagine |
+| `Dockerfile.ollama` | Construiește containerul Ollama pentru analistul AI Gemma |
 | `.dockerignore` | Exclude `data/`, `node_modules`, build outputs și fișiere locale din imagine |
-| `infra/main.bicep` | Definește Static Web App, ACR, Storage Account/File Share, Log Analytics, Application Insights, Container Apps Environment și Container App |
+| `infra/main.bicep` | Definește Static Web App, ACR, Storage/File Shares, Log Analytics, Application Insights, Container Apps Environment, backend Container App și LLM Container App opțional |
 | `infra/main.parameters.example.json` | Exemplu de parametri pentru infrastructură |
 | `web/frontend/public/staticwebapp.config.json` | Fallback pentru React Router și headers pentru Static Web Apps |
 | `web/frontend/.env.example` | Exemplu local pentru `VITE_API_URL` |
 | `.github/workflows/azure-infra.yml` | Provisioning Bicep din GitHub Actions, fără Azure CLI local |
 | `.github/workflows/azure-backend.yml` | Build/push imagine backend în ACR și update Container App |
+| `.github/workflows/azure-llm.yml` | Build/push imagine Ollama și update Container App-ul LLM opțional |
 | `.github/workflows/azure-frontend.yml` | Build React și deploy în Azure Static Web Apps |
 | `scripts/validate_azure_local.sh` | Rulează testele locale, build frontend și smoke Docker când există Docker |
 | `scripts/azure_smoke_test.sh` | Verifică health, CORS și rutele frontend după deployment |
@@ -232,6 +292,13 @@ Azure Monitor + Application Insights + Log Analytics
 | `DATA_ROOT` | `data` | `/app/data` |
 | `CORS_ORIGINS` | `*` | URL-ul Azure Static Web Apps |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | absent | din Application Insights |
+| `LLM_ENABLED` | `false` | `true` când există Container App LLM |
+| `LLM_PROVIDER` | `ollama` | `ollama` |
+| `LLM_BASE_URL` | `http://127.0.0.1:11434/v1` | output-ul `llmInternalUrl` + `/v1` |
+| `LLM_MODEL` | `gemma4:26b` | tag-ul Ollama publicat în container |
+| `LLM_TIMEOUT_SECONDS` | `120` | crește pentru modele mari sau hardware mai lent |
+| `LLM_MAX_INPUT_CHARS` | `24000` | limită defensivă pentru payload-ul trimis la LLM |
+| `LLM_MAX_OUTPUT_TOKENS` | `700` | limitează explicația ca demo-ul să nu blocheze prea mult |
 
 ### Comenzi locale Docker
 
@@ -265,6 +332,7 @@ Pași:
    - `AZURE_CONTAINER_REGISTRY`
    - `AZURE_STATIC_WEB_APP_NAME`
    - `VITE_API_URL`
+   - dacă activezi LLM-ul: `AZURE_LLM_CONTAINER_APP_NAME`, `LLM_ENABLED`, `LLM_BASE_URL`, `LLM_MODEL`
 
 Notă: identitatea Azure folosită de GitHub Actions trebuie să poată crea resource group-ul sau să aibă acces Contributor pe resource group-ul existent.
 
@@ -324,16 +392,33 @@ După provisioning, actualizează:
 1. GitHub variable `VITE_API_URL` cu output-ul `backendUrl`.
 2. GitHub variables: `AZURE_RESOURCE_GROUP`, `AZURE_CONTAINER_APP_NAME`, `AZURE_CONTAINER_REGISTRY`, `AZURE_STATIC_WEB_APP_NAME`.
 3. GitHub secrets pentru Azure OIDC: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
+4. Opțional, pentru Analist AI: `AZURE_LLM_CONTAINER_APP_NAME`, `LLM_ENABLED=true`, `LLM_BASE_URL=<llmInternalUrl>/v1`, `LLM_MODEL=gemma4:26b`.
 
 Nu mai trebuie să creezi manual Azure Static Web Apps și nu mai trebuie să copiezi `AZURE_STATIC_WEB_APPS_API_TOKEN`: frontend workflow-ul citește tokenul din Azure cu OIDC.
+
+### Deployment Azure pentru Analist AI
+
+Pentru Gemma/Ollama în cloud, rulează provisioning-ul cu `enable_llm=true`. Bicep creează un al doilea Container App cu ingress intern, un file share separat pentru cache-ul Ollama și variabilele necesare în backend.
+
+Flux recomandat:
+
+1. Rulează `.github/workflows/azure-infra.yml` cu `enable_llm=true`.
+2. Copiază output-urile `AZURE_LLM_CONTAINER_APP_NAME`, `LLM_BASE_URL` și `LLM_MODEL` în GitHub variables.
+3. Rulează `.github/workflows/azure-llm.yml` pentru imaginea Ollama custom.
+4. Rulează `.github/workflows/azure-backend.yml`, ca backend-ul să primească variabilele `LLM_*`.
+5. Verifică `https://<backend>/api/safe-navigation/analysis/status`.
+
+Primul start poate dura mai mult deoarece containerul descarcă modelul în `/root/.ollama`. Cache-ul este montat în Azure Files, deci modelul nu trebuie descărcat la fiecare restart. Pentru modele 26B, profilul recomandat este GPU A100; un profil T4 este potrivit doar pentru modele mai mici sau cuantizate.
 
 ### Constrângeri operaționale
 
 - Container App este creat inițial cu `minReplicas=0` și `maxReplicas=1`, ca provisioning-ul infrastructurii să nu depindă de o revizie placeholder pornită cu succes.
 - Workflow-ul de backend schimbă aplicația la `minReplicas=1` și `maxReplicas=1` când publică imaginea FastAPI reală.
+- Container App-ul LLM opțional rămâne cu `minReplicas=0` și `maxReplicas=1`; modelul poate avea cold start mare, mai ales la prima descărcare.
 - Limitarea la o singură replică pentru backend-ul real este intenționată: joburile de training și SSE sunt ținute în memorie, iar `index.json` este scris în Azure Files.
 - Pentru scalare reală la mai multe replici, mută starea joburilor într-un serviciu extern (de exemplu Redis/Cosmos/Table Storage) și artefactele în Blob Storage.
 - Infrastructura definește Container App-ul cu imagine placeholder pe portul 80, dar fără replica pornită. Workflow-ul de backend schimbă ingress-ul la portul 8000 când publică imaginea FastAPI reală.
+- Analistul AI trebuie folosit ca strat de explicație. Recomandarea oficială rămâne cea deterministă din `experiments/recommendation.py`, calculată din metricile Monte Carlo.
 
 ### Smoke test Azure
 
@@ -354,12 +439,14 @@ Checklist manual:
 5. Confirmă că Q-table-ul și artefactele apar în `data/runs` prin Azure Files.
 6. Descarcă un artefact din UI.
 7. Repornește Container App și confirmă că rulările finalizate se reîncarcă din `index.json`.
+8. Dacă LLM-ul este activ, verifică `/api/safe-navigation/analysis/status`, rulează Monte Carlo și cere o explicație în panoul „Analist AI”.
 
 ### Cost control
 
 - Creează un buget în Azure Cost Management sub limita abonamentului lunar.
 - Păstrează Log Analytics retention redus (ex. 30 zile) pentru demo.
 - Menține `maxReplicas=1` cât timp backend-ul păstrează job state in-memory.
+- Activează Container App-ul GPU pentru LLM doar când ai nevoie de demonstrație; modelele 26B pot produce costuri semnificative.
 - Monitorizează Container Apps, Storage și Log Analytics; acestea sunt principalele surse de cost pentru acest proiect.
 
 ---

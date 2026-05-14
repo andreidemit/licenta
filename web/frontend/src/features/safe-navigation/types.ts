@@ -36,6 +36,7 @@ export type SafeEpisodeResult = {
 
 export type SafeNavigationConfig = {
   algorithm: string;
+  optimization_objective: OptimizationObjective;
   experiment_profile: ExperimentProfileId;
   scenario: string;
   rows: number;
@@ -50,6 +51,12 @@ export type SafeNavigationConfig = {
   episodes_per_map: number;
   random_seed: number;
 };
+
+export type OptimizationObjective =
+  | 'balanced'
+  | 'safety_first'
+  | 'efficiency_first'
+  | 'robustness_first';
 
 export type ExperimentProfileId =
   | 'known_static'
@@ -137,7 +144,62 @@ export type MonteCarloResult = {
     agents: MonteCarloSummaryRow[];
     per_map?: MonteCarloPerMapRow[];
   };
+  recommendation?: StrategyRecommendation;
   episodes: SafeEpisodeResult[];
+};
+
+export type StrategyRecommendationRankingItem = {
+  rank: number;
+  algorithm: string;
+  score: number;
+  metrics: {
+    success_rate: number;
+    average_risk_exposure: number;
+    average_total_cost: number;
+    average_steps: number;
+    collision_rate: number;
+    danger_entry_rate: number;
+    timeout_rate: number;
+    average_computation_time_ms: number;
+  };
+  component_scores: Record<string, number>;
+};
+
+export type StrategyRecommendation = {
+  objective: OptimizationObjective;
+  objective_label: string;
+  recommended_algorithm: string | null;
+  ranking: StrategyRecommendationRankingItem[];
+  explanation: string;
+  tradeoffs: string[];
+};
+
+export type LlmAnalysisStatus = {
+  enabled: boolean;
+  available: boolean;
+  provider: string;
+  model: string;
+  base_url?: string;
+  message: string;
+  models?: string[];
+};
+
+export type LlmAnalysisRequest = {
+  config: Record<string, unknown>;
+  summary: MonteCarloResult['summary'];
+  recommendation: StrategyRecommendation;
+  question?: string;
+  language?: 'ro' | 'en';
+};
+
+export type LlmAnalysisResponse = {
+  answer: string;
+  key_points: string[];
+  limitations: string[];
+  used_metrics: string[];
+  model?: string | null;
+  provider?: string | null;
+  fallback: boolean;
 };
 
 export type MonteCarloJobProgress = {

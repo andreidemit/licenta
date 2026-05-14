@@ -62,7 +62,8 @@ Simulatorul permite:
 3. evaluarea prin succes, risc, coliziuni, cost și timeout;
 4. recomandarea strategiei potrivite pentru criteriile selectate;
 5. reproducerea experimentelor prin seed-uri și Monte Carlo;
-6. accesarea sistemului prin UI web, API și deployment cloud.
+6. explicarea rezultatelor printr-un analist AI opțional, fără a schimba scorurile;
+7. accesarea sistemului prin UI web, API și deployment cloud.
 
 ---
 
@@ -73,11 +74,11 @@ Accentul nu cade pe implementarea izolată a unui algoritm, ci pe metodologia de
 | Dimensiune | Variantă simplă | În această lucrare |
 |---|---|---|
 | Mediu | hartă fixă | hărți generate procedural |
-| Algoritmi | un singur agent | 6 strategii comparate |
+| Algoritmi | un singur agent | 6 strategii + hibrid experimental |
 | Evaluare | succes / eșec | risc, cost, coliziuni, timeout |
 | Reproducere | rulare manuală | seed-uri, Monte Carlo, export |
 | Utilizare | script local | produs web interactiv + API + Azure |
-| Decizie | interpretare manuală | recomandare pe baza metricilor |
+| Decizie | interpretare manuală | recomandare pe baza metricilor + explicație AI opțională |
 
 ---
 
@@ -123,6 +124,7 @@ Riscul nu apare doar în celula periculoasă: celulele apropiate de `DANGER` pri
 | Risk-Aware A* | planificare sigură | zone periculoase, persoane, cost mare al incidentelor |
 | Tabular Q-Learning | RL pe coordonate | același mediu repetat |
 | Feature-Based Q-Learning | RL pe features locale | medii variate, transfer de tipare |
+| Feature-Risk A* | hibrid experimental | costuri locale învățate + planificare sigură |
 
 Strategiile pot fi analizate individual sau ca parte a unui flux hibrid: învățarea ajustează costurile locale, iar planificarea caută ruta pe harta actualizată.
 
@@ -151,19 +153,22 @@ environment/
 
 agents/
   Random, Rule-Based, A*, Risk-Aware A*,
-  Tabular Q-Learning, Feature-Based Q-Learning
+  Tabular Q-Learning, Feature-Based Q-Learning,
+  Feature-Risk A* experimental
 
 simulation/
   Simulator, EpisodeResult, Metrics
 
 experiments/
-  profiluri Monte Carlo, comparație agenți
+  profiluri Monte Carlo, comparație agenți,
+  ranking pe metrici, explicație, strategie recomandată
+
+web/backend/llm_*.py
+  Analist AI Gemma/Ollama pentru interpretarea rezultatelor,
+  fără recalcularea recomandării
 
 web/
   FastAPI backend + React frontend
-
-recommendation/
-  ranking pe metrici, explicație, strategie recomandată
 ```
 
 ---
@@ -247,6 +252,7 @@ Aplicația web transformă simulatorul într-un instrument utilizabil:
 - vizualizare hartă + heatmap de risc;
 - rulare Monte Carlo și analiză metrici;
 - recomandare de strategie în funcție de obiectiv;
+- panou Analist AI pentru explicarea recomandării și a compromisurilor;
 - export CSV/PNG/JSON;
 - laborator separat pentru Q-Learning energetic.
 
@@ -255,6 +261,7 @@ Deployment:
 ```text
 Azure Static Web Apps  -> React/Vite frontend
 Azure Container Apps   -> FastAPI backend + simulator Python
+Azure Container Apps   -> Ollama/Gemma intern, opțional, pe profil GPU
 Azure Files            -> rulări, artefacte, Q-table-uri
 ```
 
@@ -272,6 +279,7 @@ Rezultatele arată că aceeași rată de succes poate ascunde diferențe importa
 - Risk-Aware A* este potrivit când siguranța contează mai mult;
 - Tabular Q-Learning este potrivit pentru medii repetate;
 - Feature-Based Q-Learning urmărește transferul pe hărți variate;
+- Feature-Risk A* este o extensie experimentală pentru conectarea învățării locale cu planificarea;
 - Rule-Based rămâne un reper simplu și explicabil.
 
 Astfel, aplicația nu răspunde doar dacă un agent ajunge la țintă, ci ce strategie merită folosită pentru situația configurată.

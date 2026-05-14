@@ -17,6 +17,7 @@ import type {
 
 const initialConfig: SafeNavigationConfig = {
   algorithm: 'risk_aware_astar',
+  optimization_objective: 'balanced',
   experiment_profile: 'known_static',
   scenario: 'medium',
   rows: 15,
@@ -41,6 +42,7 @@ const monteCarloAlgorithms = [
   'risk_aware_astar',
   'tabular_q',
   'feature_q',
+  'feature_risk_astar',
 ];
 
 function liveStateFromJob(job: MonteCarloJobSnapshot): MonteCarloLiveState {
@@ -175,7 +177,8 @@ export function App() {
       || nextConfig.max_steps !== config.max_steps
       || nextConfig.training_episodes !== config.training_episodes
       || nextConfig.number_of_maps !== config.number_of_maps
-      || nextConfig.episodes_per_map !== config.episodes_per_map;
+      || nextConfig.episodes_per_map !== config.episodes_per_map
+      || nextConfig.optimization_objective !== config.optimization_objective;
     setConfig(nextConfig);
     if (mapChanged) {
       setPendingMapConfig(true);

@@ -19,9 +19,12 @@ def test_known_static_returns_complete_summary():
         training_episodes=0,
         max_steps=80,
         random_seed=11,
+        optimization_objective="balanced",
     )
 
     assert result["summary"]["episode_count"] == 12
+    assert result["recommendation"]["objective"] == "balanced"
+    assert result["recommendation"]["recommended_algorithm"] in {"Random", "A*"}
     algorithms = {row["algorithm"] for row in result["summary"]["agents"]}
     assert algorithms == {"Random", "A*"}
 
@@ -100,6 +103,7 @@ def test_monte_carlo_endpoint_returns_extended_summary():
             "training_episodes": 0,
             "max_steps": 60,
             "random_seed": 5,
+            "optimization_objective": "safety_first",
         },
     )
     assert response.status_code == 200, response.text
@@ -110,6 +114,9 @@ def test_monte_carlo_endpoint_returns_extended_summary():
     assert "reward_distribution" in sample
     assert "success_rate_ci95_low" in sample
     assert payload["episodes"][0]["map_seed"] is not None
+    assert payload["recommendation"]["objective"] == "safety_first"
+    assert payload["recommendation"]["recommended_algorithm"]
+    assert payload["recommendation"]["ranking"]
 
 
 if __name__ == "__main__":

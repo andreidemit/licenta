@@ -13,6 +13,14 @@ const ALL_ALGORITHMS: { id: string; description: string }[] = [
   { id: 'risk_aware_astar', description: 'A* cu penalizare explicită de risc.' },
   { id: 'tabular_q', description: 'Q-Learning pe coordonate absolute (necesită antrenare).' },
   { id: 'feature_q', description: 'Q-Learning pe trăsături locale (necesită antrenare).' },
+  { id: 'feature_risk_astar', description: 'Hibrid experimental: costuri locale învățate + A* cu risc.' },
+];
+
+const OBJECTIVES: { id: MonteCarloRawRequest['optimization_objective']; label: string; description: string }[] = [
+  { id: 'balanced', label: 'Echilibrat', description: 'Succes, risc și cost în aceeași decizie.' },
+  { id: 'safety_first', label: 'Siguranță', description: 'Risc, coliziuni și pericol au prioritate.' },
+  { id: 'efficiency_first', label: 'Eficiență', description: 'Pași și cost total cât mai mici.' },
+  { id: 'robustness_first', label: 'Robustețe', description: 'Succes stabil și timeout redus.' },
 ];
 
 const SCENARIOS: { id: string; label: string }[] = [
@@ -22,8 +30,49 @@ const SCENARIOS: { id: string; label: string }[] = [
   { id: 'custom', label: 'Personalizat' },
 ];
 
+const DEMO_PRESETS: { id: string; label: string; description: string; payload: Partial<MonteCarloRawRequest> }[] = [
+  {
+    id: 'balanced_local',
+    label: 'Demo rapid echilibrat',
+    description: 'Mediu medium, buget mic, comparație rapidă între reguli și planificare.',
+    payload: {
+      algorithms: ['rule_based', 'astar', 'risk_aware_astar'],
+      optimization_objective: 'balanced',
+      experiment_profile: 'known_static',
+      scenario: 'medium',
+      movement_noise: 0,
+      risk_weight: 1,
+      max_steps: 260,
+      training_episodes: 60,
+      number_of_maps: 3,
+      episodes_per_map: 1,
+      random_seed: 42,
+    },
+  },
+  {
+    id: 'safety_story',
+    label: 'Demo siguranță',
+    description: 'Compară A*, Risk-Aware A* și hibridul Feature-Risk pentru povestea safety-first.',
+    payload: {
+      algorithms: ['astar', 'risk_aware_astar', 'feature_risk_astar'],
+      optimization_objective: 'safety_first',
+      experiment_profile: 'high_risk',
+      scenario: 'medium',
+      danger_probability: 0.16,
+      movement_noise: 0,
+      risk_weight: 3,
+      max_steps: 320,
+      training_episodes: 80,
+      number_of_maps: 3,
+      episodes_per_map: 1,
+      random_seed: 42,
+    },
+  },
+];
+
 export const DEFAULT_MC_PAYLOAD: MonteCarloRawRequest = {
   algorithms: ALL_ALGORITHMS.map((a) => a.id),
+  optimization_objective: 'balanced',
   experiment_profile: 'known_static',
   scenario: 'medium',
   rows: 15,
@@ -90,9 +139,9 @@ export function MonteCarloConfigurator({ payload, onChange, onRun, busy, error, 
   const [profileApplied, setProfileApplied] = useState<ExperimentProfileId | undefined>(payload.experiment_profile);
 
   const totalEpisodes = payload.algorithms.length * payload.number_of_maps * payload.episodes_per_map;
-  const heavyTraining = payload.algorithms.some((id) => id === 'tabular_q' || id === 'feature_q');
+  const heavyTraining = payload.algorithms.some((id) => id === 'tabular_q' || id === 'feature_q' || id === 'feature_risk_astar');
   const expectedTraining = heavyTraining
-    ? payload.algorithms.filter((id) => id === 'tabular_q' || id === 'feature_q').length *
+    ? payload.algorithms.filter((id) => id === 'tabular_q' || id === 'feature_q' || id === 'feature_risk_astar').length *
       payload.number_of_maps *
       payload.training_episodes
     : 0;
@@ -122,6 +171,11 @@ export function MonteCarloConfigurator({ payload, onChange, onRun, busy, error, 
       episodes_per_map: profile.monteCarlo.episodes_per_map,
     });
     setProfileApplied(id);
+  }
+
+  function applyDemoPreset(preset: (typeof DEMO_PRESETS)[number]) {
+    patch(preset.payload);
+    setProfileApplied(preset.payload.experiment_profile as ExperimentProfileId | undefined);
   }
 
   function resetDefaults() {
@@ -177,6 +231,26 @@ export function MonteCarloConfigurator({ payload, onChange, onRun, busy, error, 
             {getExperimentProfile(payload.experiment_profile).description}
           </p>
         )}
+      </div>
+
+      <div className="mc-config__demo-presets">
+        <strong>Preseturi demo</strong>
+        {DEMO_PRESETS.map((preset) => (
+          <button
+            type="button"
+            key={preset.id}
+            className="secondary-button"
+            onClick={() => applyDemoPreset(preset)}
+            disabled={busy}
+            title={preset.description}
+          >
+            {preset.label}
+          </button>
+        ))}
+        <small>
+          Folosește-le pentru prezentare: rulează Monte Carlo, verifică recomandarea deterministă,
+          apoi cere Gemma să explice compromisurile.
+        </small>
       </div>
 
       <fieldset className="mc-config__fieldset">
@@ -243,6 +317,24 @@ export function MonteCarloConfigurator({ payload, onChange, onRun, busy, error, 
       <fieldset className="mc-config__fieldset">
         <legend>Recompensă și agenți</legend>
         <div className="mc-config__grid">
+          <label className="mc-config__field">
+            <span>
+              <TooltipLabel text="Criteriul după care se calculează recomandarea finală din metricile reale Monte Carlo.">
+                Obiectiv recomandare
+              </TooltipLabel>
+            </span>
+            <select
+              className="mc-select"
+              value={payload.optimization_objective}
+              onChange={(event) => patch({ optimization_objective: event.target.value as MonteCarloRawRequest['optimization_objective'] })}
+              disabled={busy}
+            >
+              {OBJECTIVES.map((objective) => (
+                <option key={objective.id} value={objective.id}>{objective.label}</option>
+              ))}
+            </select>
+            <small>{OBJECTIVES.find((objective) => objective.id === payload.optimization_objective)?.description}</small>
+          </label>
           <NumberField label="Pondere risc" tooltip="Cât de mult contează riscul în costul/recompensa episodului." value={payload.risk_weight} min={0} max={10} step={0.1}
             onChange={(value) => patch({ risk_weight: value })}
             hint="Multiplicator al penalizării de risc în recompensă." />

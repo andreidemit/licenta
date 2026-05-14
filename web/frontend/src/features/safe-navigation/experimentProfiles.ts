@@ -61,7 +61,7 @@ export const experimentProfiles: ExperimentProfile[] = [
     description: 'Adaugă zgomot de mișcare pentru a testa ce se întâmplă când acțiunea cerută nu este mereu cea executată.',
     assumption: 'Planul poate fi corect, dar actuatorul sau mediul pot devia execuția.',
     expectedTakeaway: 'Robustețea se citește din coliziuni, timeout și risc acumulat, nu doar din lungimea planului.',
-    favoredAlgorithms: ['risk_aware_astar', 'feature_q'],
+    favoredAlgorithms: ['risk_aware_astar', 'feature_q', 'feature_risk_astar'],
     protocol: 'Evaluare Monte Carlo cu tranziții stocastice; agentul observă rezultatul fiecărui pas, dar nu controlează perfect execuția.',
     recommended: {
       scenario: 'medium',
@@ -97,7 +97,7 @@ export const experimentProfiles: ExperimentProfile[] = [
     description: 'Separă hărțile de antrenare de hărțile de evaluare pentru a evidenția generalizarea.',
     assumption: 'Agentul învață tipare într-un set de medii, apoi este testat pe seed-uri nevăzute.',
     expectedTakeaway: 'Q-learning pe trăsături transferă mai natural decât Q-learning tabular, care memorează coordonate absolute.',
-    favoredAlgorithms: ['feature_q'],
+    favoredAlgorithms: ['feature_q', 'feature_risk_astar'],
     protocol: 'Agenții learning se antrenează pe seed-uri dedicate și sunt evaluați pe alte seed-uri; A* rămâne baseline cu hartă cunoscută.',
     recommended: {
       scenario: 'medium',
@@ -115,7 +115,7 @@ export const experimentProfiles: ExperimentProfile[] = [
     description: 'Pune accent pe faptul că planning-ul plătește cost la fiecare hartă, iar learning-ul plătește cost înainte de evaluare.',
     assumption: 'Comparația trebuie să distingă timpul de antrenare de timpul de decizie în episod.',
     expectedTakeaway: 'A* este puternic fără training, iar learning-ul devine interesant când politica este reutilizată.',
-    favoredAlgorithms: ['astar', 'risk_aware_astar', 'feature_q'],
+    favoredAlgorithms: ['astar', 'risk_aware_astar', 'feature_q', 'feature_risk_astar'],
     protocol: 'Evaluare Monte Carlo standard, dar dashboard-ul explică separat costul de training și timpul de execuție raportat.',
     recommended: {
       scenario: 'medium',
@@ -135,6 +135,7 @@ export const algorithmUseCases: Record<string, string> = {
   risk_aware_astar: 'Potrivit când harta este cunoscută, dar siguranța și expunerea la risc sunt obiective explicite.',
   tabular_q: 'Potrivit când agentul repetă aceeași hartă și poate învăța coordonate utile prin multe episoade.',
   feature_q: 'Potrivit când vrem transfer de tipare locale pe hărți noi sau condiții ușor variabile.',
+  feature_risk_astar: 'Experimental: combină planificarea sigură cu penalizări locale învățate din experiență.',
 };
 
 export function getExperimentProfile(id: string | undefined) {

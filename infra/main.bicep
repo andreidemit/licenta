@@ -19,6 +19,27 @@ param containerCpu string = '1.0'
 @description('Memory assigned to the backend container.')
 param containerMemory string = '2.0Gi'
 
+@description('Enable the optional internal Ollama/Gemma Container App used by the AI analyst.')
+param enableLlm bool = false
+
+@description('Container image for the optional Ollama/Gemma service. CI/CD can replace this with an ACR image.')
+param llmImage string = 'ollama/ollama:latest'
+
+@description('Ollama model tag used by the AI analyst.')
+param llmModel string = 'gemma4:26b'
+
+@description('CPU assigned to the optional LLM container.')
+param llmCpu string = '8.0'
+
+@description('Memory assigned to the optional LLM container.')
+param llmMemory string = '56.0Gi'
+
+@description('Workload profile used by the optional LLM container. Use a GPU profile for 26B-class models.')
+param llmWorkloadProfileName string = 'Consumption-GPU-NC24-A100'
+
+@description('Azure Files share quota in GiB for the Ollama model cache.')
+param llmFileShareQuota int = 100
+
 @description('Azure Files share quota in GiB.')
 param fileShareQuota int = 20
 
@@ -43,12 +64,39 @@ var logAnalyticsName = '${namePrefix}-${uniqueSuffix}-logs'
 var appInsightsName = '${namePrefix}-${uniqueSuffix}-appi'
 var containerEnvName = '${namePrefix}-${uniqueSuffix}-cae'
 var containerAppName = '${namePrefix}-${uniqueSuffix}-api'
+var llmContainerAppName = '${namePrefix}-${uniqueSuffix}-llm'
 var staticWebAppName = '${namePrefix}-${uniqueSuffix}-web'
 var fileShareName = 'qlearning-data'
+var llmFileShareName = 'ollama-models'
 var envStorageName = 'qlearningdata'
+var llmEnvStorageName = 'ollamamodels'
 var dataVolumeName = 'data'
+var llmVolumeName = 'ollama-models'
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var frontendOrigin = 'https://${staticWebApp.properties.defaultHostname}'
+var containerEnvProperties = union({
+  appLogsConfiguration: {
+    destination: 'log-analytics'
+    logAnalyticsConfiguration: {
+      customerId: logAnalytics.properties.customerId
+      sharedKey: logAnalytics.listKeys().primarySharedKey
+    }
+  }
+}, enableLlm ? {
+  workloadProfiles: [
+    {
+      name: 'Consumption'
+      workloadProfileType: 'Consumption'
+    }
+    {
+      name: llmWorkloadProfileName
+      workloadProfileType: llmWorkloadProfileName
+      minimumCount: 0
+      maximumCount: 1
+    }
+  ]
+} : {})
+var llmBaseUrl = enableLlm ? 'https://${llmContainerApp!.properties.configuration.ingress.fqdn}/v1' : 'http://127.0.0.1:11434/v1'
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
@@ -90,6 +138,14 @@ resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-0
   }
 }
 
+resource llmFileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-01-01' = if (enableLlm) {
+  parent: fileService
+  name: llmFileShareName
+  properties: {
+    shareQuota: llmFileShareQuota
+  }
+}
+
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: logAnalyticsName
   location: location
@@ -127,19 +183,11 @@ resource staticWebApp 'Microsoft.Web/staticSites@2022-09-01' = {
   }
 }
 
-resource containerEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+resource containerEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: containerEnvName
   location: location
   tags: tags
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalytics.properties.customerId
-        sharedKey: logAnalytics.listKeys().primarySharedKey
-      }
-    }
-  }
+  properties: containerEnvProperties
 }
 
 resource envStorage 'Microsoft.App/managedEnvironments/storages@2023-05-01' = {
@@ -150,6 +198,19 @@ resource envStorage 'Microsoft.App/managedEnvironments/storages@2023-05-01' = {
       accountName: storage.name
       accountKey: storage.listKeys().keys[0].value
       shareName: fileShare.name
+      accessMode: 'ReadWrite'
+    }
+  }
+}
+
+resource llmEnvStorage 'Microsoft.App/managedEnvironments/storages@2023-05-01' = if (enableLlm) {
+  parent: containerEnv
+  name: llmEnvStorageName
+  properties: {
+    azureFile: {
+      accountName: storage.name
+      accountKey: storage.listKeys().keys[0].value
+      shareName: llmFileShare.name
       accessMode: 'ReadWrite'
     }
   }
@@ -211,6 +272,30 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
               value: appInsights.properties.ConnectionString
             }
+            {
+              name: 'LLM_ENABLED'
+              value: enableLlm ? 'true' : 'false'
+            }
+            {
+              name: 'LLM_PROVIDER'
+              value: 'ollama'
+            }
+            {
+              name: 'LLM_BASE_URL'
+              value: llmBaseUrl
+            }
+            {
+              name: 'LLM_MODEL'
+              value: llmModel
+            }
+            {
+              name: 'LLM_TIMEOUT_SECONDS'
+              value: '120'
+            }
+            {
+              name: 'LLM_MAX_OUTPUT_TOKENS'
+              value: '700'
+            }
           ]
           volumeMounts: [
             {
@@ -231,12 +316,87 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
+resource llmContainerApp 'Microsoft.App/containerApps@2024-03-01' = if (enableLlm) {
+  name: llmContainerAppName
+  location: location
+  tags: tags
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    managedEnvironmentId: containerEnv.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: false
+        targetPort: 11434
+        transport: 'auto'
+        allowInsecure: false
+      }
+    }
+    workloadProfileName: llmWorkloadProfileName
+    template: {
+      scale: {
+        minReplicas: 0
+        maxReplicas: 1
+      }
+      containers: [
+        {
+          name: 'llm'
+          image: llmImage
+          resources: {
+            cpu: json(llmCpu)
+            memory: llmMemory
+          }
+          env: [
+            {
+              name: 'LLM_MODEL'
+              value: llmModel
+            }
+            {
+              name: 'OLLAMA_HOST'
+              value: '0.0.0.0:11434'
+            }
+            {
+              name: 'OLLAMA_MODELS'
+              value: '/root/.ollama'
+            }
+          ]
+          volumeMounts: [
+            {
+              volumeName: llmVolumeName
+              mountPath: '/root/.ollama'
+            }
+          ]
+        }
+      ]
+      volumes: [
+        {
+          name: llmVolumeName
+          storageType: 'AzureFile'
+          storageName: llmEnvStorage.name
+        }
+      ]
+    }
+  }
+}
+
 resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(acr.id, containerApp.id, acrPullRoleDefinitionId)
   scope: acr
   properties: {
     roleDefinitionId: acrPullRoleDefinitionId
     principalId: containerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource llmAcrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableLlm) {
+  name: guid(acr.id, llmContainerApp!.id, acrPullRoleDefinitionId)
+  scope: acr
+  properties: {
+    roleDefinitionId: acrPullRoleDefinitionId
+    principalId: llmContainerApp!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -249,6 +409,9 @@ output containerAppName string = containerApp.name
 output containerAppsEnvironmentName string = containerEnv.name
 output fileShareName string = fileShare.name
 output frontendUrl string = frontendOrigin
+output llmContainerAppName string = enableLlm ? llmContainerApp!.name : ''
+output llmInternalUrl string = enableLlm ? 'https://${llmContainerApp!.properties.configuration.ingress.fqdn}' : ''
+output llmModelName string = llmModel
 output logAnalyticsWorkspaceName string = logAnalytics.name
 output staticWebAppName string = staticWebApp.name
 output storageAccountName string = storage.name

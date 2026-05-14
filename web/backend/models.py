@@ -71,6 +71,7 @@ class JobSummary(BaseModel):
 
 class SafeNavigationRequest(BaseModel):
     algorithm: str = "astar"
+    optimization_objective: Literal["balanced", "safety_first", "efficiency_first", "robustness_first"] = "balanced"
     experiment_profile: Literal[
         "known_static",
         "high_risk",
@@ -100,8 +101,10 @@ class MonteCarloRequest(BaseModel):
             "risk_aware_astar",
             "tabular_q",
             "feature_q",
+            "feature_risk_astar",
         ]
     )
+    optimization_objective: Literal["balanced", "safety_first", "efficiency_first", "robustness_first"] = "balanced"
     experiment_profile: Literal[
         "known_static",
         "high_risk",
@@ -122,3 +125,21 @@ class MonteCarloRequest(BaseModel):
     risk_weight: float = Field(default=1.0, ge=0, le=10)
     max_steps: int = Field(default=300, ge=1, le=5000)
     random_seed: int = 42
+
+
+class LlmAnalysisRequest(BaseModel):
+    config: dict[str, Any] = Field(default_factory=dict)
+    summary: dict[str, Any]
+    recommendation: dict[str, Any]
+    question: str | None = Field(default=None, max_length=1000)
+    language: Literal["ro", "en"] = "ro"
+
+
+class LlmAnalysisResponse(BaseModel):
+    answer: str
+    key_points: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    used_metrics: list[str] = Field(default_factory=list)
+    model: str | None = None
+    provider: str | None = None
+    fallback: bool = False

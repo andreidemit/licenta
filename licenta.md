@@ -22,9 +22,11 @@
 
 Lucrarea de față prezintă proiectarea, implementarea și analiza experimentală a unui simulator grid-based pentru evaluarea strategiilor de navigare sigură în medii necunoscute, generate procedural. Scopul lucrării nu este doar verificarea binară a faptului că un agent ajunge sau nu la destinație, ci compararea strategiilor după mai multe criterii relevante pentru navigarea autonomă: rata de succes, riscul acumulat, coliziunile, costul traseului, eficiența și capacitatea de generalizare pe hărți noi.
 
-Valoarea proiectului constă în transformarea problemei din „agentul a ajuns la țintă?” în întrebarea mai matură „care strategie este mai potrivită pentru navigare sigură în medii necunoscute?”. În acest sens, sistemul compară strategii bazate pe aleatoriu, reguli, planificare și învățare: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning. Toți agenții sunt rulați în același tip de mediu GridWorld, ceea ce permite o comparație coerentă între comportamente diferite.
+Valoarea proiectului constă în transformarea problemei din „agentul a ajuns la țintă?” în întrebarea mai matură „care strategie este mai potrivită pentru navigare sigură în medii necunoscute?”. În acest sens, sistemul compară strategii bazate pe aleatoriu, reguli, planificare și învățare: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning, Feature-Based Q-Learning și hibridul experimental Feature-Risk A*. Toți agenții sunt rulați în același tip de mediu GridWorld, ceea ce permite o comparație coerentă între comportamente diferite.
 
 Simulatorul include un generator procedural de hărți validat prin BFS, un model explicit de risc (`RiskModel`) care calculează o hartă de influență în jurul celulelor periculoase — cu costuri discrete de 100.0, 10.0, 5.0 și 2.0 pentru distanțele Manhattan 0, 1, 2 și 3 — și o infrastructură de evaluare Monte Carlo pe distribuții de medii. Performanța nu este judecată pe o singură hartă fixă, ci pe mai multe hărți generate cu seed-uri controlate, iar intervalele de încredere de 95% sunt calculate prin bootstrap cu 1.000 de iterații și seed determinist 1.234. Metricile colectate includ `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` și `average_computation_time_ms`.
+
+Pe lângă comparația statistică, aplicația include un motor de recomandare explicabilă (`experiments/recommendation.py`). Acesta normalizează metricile agregate Monte Carlo, calculează un scor pentru fiecare strategie și produce un ranking în funcție de obiectivul ales: echilibrat, siguranță, eficiență sau robustețe. Astfel, rezultatul final nu este doar un tabel de metrici, ci o recomandare argumentată: strategia potrivită, motivul recomandării și compromisurile observate. Opțional, un model lingvistic Gemma servit prin Ollama poate fi folosit ca analist textual al rezultatelor, dar numai peste datele produse de simulator; el nu înlocuiește motorul determinist de recomandare.
 
 Cadrul comparativ este organizat în șase **profiluri experimentale** (`known_static`, `high_risk`, `stochastic_execution`, `same_map_learning`, `transfer_learning`, `training_cost`), fiecare simulând un context operațional distinct. Profilul `transfer_learning` este singurul cu `agent_lifecycle = shared_across_maps`: agenții Q sunt antrenați o singură dată pe hărți cu seed-uri offset cu `+50.000` față de hărțile de evaluare, iar politicile sunt testate pe seturi distincte. Celelalte profiluri folosesc `agent_lifecycle = per_map`, unde agentul este re-creat pentru fiecare hartă de evaluare.
 
@@ -44,9 +46,11 @@ Lucrarea evaluează patru scenarii ale sistemului energetic: Scenariul A (energi
 
 This thesis presents the design, implementation and experimental analysis of a grid-based simulator for evaluating safe navigation strategies in unknown procedurally generated environments. The goal is not merely to check whether an agent reaches the destination, but to compare strategies using a richer set of criteria: success rate, accumulated risk, collisions, path cost, efficiency and generalisation to unseen maps.
 
-The value of the project lies in reframing the problem from "did the agent reach the goal?" to "which strategy is more suitable for safe navigation in unknown environments?". The system compares random, rule-based, planning-based and learning-based approaches: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning and Feature-Based Q-Learning. All agents are evaluated in the same GridWorld setting, which enables a coherent comparison of different behaviours.
+The value of the project lies in reframing the problem from "did the agent reach the goal?" to "which strategy is more suitable for safe navigation in unknown environments?". The system compares random, rule-based, planning-based and learning-based approaches: Random Agent, Rule-Based Agent, A*, Risk-Aware A*, Tabular Q-Learning, Feature-Based Q-Learning and the experimental Feature-Risk A* hybrid. All agents are evaluated in the same GridWorld setting, which enables a coherent comparison of different behaviours.
 
 The simulator includes a procedurally generated BFS-validated map generator, an explicit risk model (`RiskModel`) that computes an influence map around dangerous cells — with discrete costs of 100.0, 10.0, 5.0 and 2.0 for Manhattan distances 0, 1, 2 and 3 respectively — and a Monte Carlo evaluation pipeline across distributions of maps. Performance is not judged on a single fixed map, but across several maps with controlled seeds; 95% confidence intervals are computed via bootstrap with 1,000 iterations and a deterministic seed of 1,234. The collected metrics include `success_rate`, `average_reward`, `average_steps`, `average_collisions`, `average_danger_entries`, `average_risk_exposure`, `average_total_cost`, `timeout_rate` and `average_computation_time_ms`.
+
+Beyond statistical comparison, the application includes an explainable recommendation engine (`experiments/recommendation.py`). It normalises aggregated Monte Carlo metrics, computes a score for each strategy and produces a ranking according to the selected objective: balanced, safety-first, efficiency-first or robustness-first. The final output is therefore not only a metric table, but an argued recommendation: the suitable strategy, the reason for the recommendation and the observed trade-offs. Optionally, a Gemma language model served through Ollama can act as a textual analyst over the simulator output, without replacing the deterministic recommendation engine.
 
 The comparative framework is organised around six **experiment profiles** (`known_static`, `high_risk`, `stochastic_execution`, `same_map_learning`, `transfer_learning`, `training_cost`), each reproducing a distinct operational context. The `transfer_learning` profile is the only one with `agent_lifecycle = shared_across_maps`: Q-agents are trained once on maps whose seeds are offset by `+50,000` from the evaluation seeds, and policies are tested on disjoint sets. All other profiles use `agent_lifecycle = per_map`, re-creating the agent for each evaluation map.
 
@@ -98,9 +102,12 @@ In the Monte Carlo experiment for the `medium` scenario (5 maps, 2 episodes per 
    - 4.9 Cadrul de navigare sigură și comparație multi-agent
      - 4.9.1 Modelul de mediu (`GridWorld`, `RiskModel`, `RewardConfig`)
      - 4.9.2 Strategiile implementate
-     - 4.9.3 Vectorul de features al `FeatureBasedQLearningAgent`
-     - 4.9.4 Profiluri experimentale și ciclul de viață al agentului
-     - 4.9.5 Agregare statistică Monte Carlo și intervale de încredere
+     - 4.9.3 Analiza algoritmilor comparați
+     - 4.9.4 Vectorul de features al `FeatureBasedQLearningAgent`
+     - 4.9.5 Profiluri experimentale și ciclul de viață al agentului
+     - 4.9.6 Agregare statistică Monte Carlo și intervale de încredere
+     - 4.9.7 Motorul de recomandare explicabilă
+     - 4.9.8 Analist AI pentru interpretarea rezultatelor
    - 4.10 Deployment Azure Cloud
 5. Experimentare și Rezultate
    - 5.1 Setup experimental
@@ -160,7 +167,7 @@ Lucrarea de față urmărește atingerea unui set de obiective precise, organiza
 
 Lucrarea aduce mai multe contribuții originale față de un proiect clasic de navigare pe grilă sau un tutorial standard de Q-Learning:
 
-**Contribuția 1 — Simulator comparativ pentru navigare sigură.** Sistemul implementează un mediu GridWorld în care strategii diferite pot fi evaluate sub aceleași condiții. Această separare între mediu, agent și simulator permite compararea directă a strategiilor Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning și Feature-Based Q-Learning.
+**Contribuția 1 — Simulator comparativ pentru navigare sigură.** Sistemul implementează un mediu GridWorld în care strategii diferite pot fi evaluate sub aceleași condiții. Această separare între mediu, agent și simulator permite compararea directă a strategiilor Random, Rule-Based, A*, Risk-Aware A*, Tabular Q-Learning, Feature-Based Q-Learning și Feature-Risk A* experimental.
 
 **Contribuția 2 — Evaluare multi-criterială a siguranței.** Lucrarea nu măsoară doar succesul, ci și coliziunile, intrările în pericol, expunerea acumulată la risc, costul total, numărul de pași, timeout-urile și timpul de calcul. Această alegere permite analiza compromisurilor dintre eficiență și siguranță.
 
@@ -170,7 +177,9 @@ Lucrarea aduce mai multe contribuții originale față de un proiect clasic de n
 
 **Contribuția 5 — Componentă Q-Learning energetică interpretabilă.** Nucleul din `src/` păstrează un agent Q-Learning tabular cu homeostazie energetică. Discretizarea energiei în patru buckets și scenariile A/B/C/WAREHOUSE oferă un studiu de caz clar despre învățare prin consolidare cu resurse interne.
 
-**Contribuția 6 — Aplicație web și reproductibilitate operațională.** Motorul Python este expus printr-un backend FastAPI, iar frontend-ul React/Vite permite antrenarea, evaluarea, editarea mediilor, compararea rulărilor și rularea experimentelor de navigare sigură din browser. Pagina dedicată `/safe-navigation/monte-carlo` expune șapte tab-uri de analiză statistică (distribuții, CI bars, scatter risc-recompensă, heatmap per hartă, breakdown eșecuri, heatmap de ocupanță, export CSV/PNG). Modulul `monteCarloStore.ts` cu persistență în `sessionStorage` asigură că rezultatele Monte Carlo sunt disponibile la navigarea între rute fără re-rularea experimentului. Configurația Azure inclusă în repository demonstrează că aplicația poate fi publicată ca sistem cloud.
+**Contribuția 6 — Motor de recomandare explicabilă.** Modulul `experiments/recommendation.py` transformă rezultatele Monte Carlo într-o decizie multi-criterială. Pentru obiectivele `balanced`, `safety_first`, `efficiency_first` și `robustness_first`, sistemul normalizează metricile pozitive și negative, calculează scoruri, ordonează strategiile și explică de ce un algoritm este recomandat în acel context.
+
+**Contribuția 7 — Aplicație web și reproductibilitate operațională.** Motorul Python este expus printr-un backend FastAPI, iar frontend-ul React/Vite permite antrenarea, evaluarea, editarea mediilor, compararea rulărilor și rularea experimentelor de navigare sigură din browser. Pagina dedicată `/safe-navigation/monte-carlo` expune șapte tab-uri de analiză statistică (distribuții, CI bars, scatter risc-recompensă, heatmap per hartă, breakdown eșecuri, heatmap de ocupanță, export CSV/PNG). Modulul `monteCarloStore.ts` cu persistență în `sessionStorage` asigură că rezultatele Monte Carlo sunt disponibile la navigarea între rute fără re-rularea experimentului. Configurația Azure inclusă în repository demonstrează că aplicația poate fi publicată ca sistem cloud.
 
 ### 1.4 Structura Lucrării
 
@@ -776,6 +785,7 @@ Fiecare strategie modelează o paradigmă diferită de luare a deciziei. Interfa
 | `RiskAwareAStarAgent` | Planificare cu cost de risc inclus în funcția $f(n) = g(n) + h(n) + w \cdot r(n)$ | Nu | Completă |
 | `TabularQLearningAgent` | RL pe coordonate absolute | Da | Nu (model-free) |
 | `FeatureBasedQLearningAgent` | RL pe vector de features locale | Da | Nu (model-free) |
+| `FeatureRiskAwareAStarAgent` | Hibrid experimental: penalizări locale învățate + Risk-Aware A* | Da | Completă în planificare, experiență în costuri locale |
 
 #### 4.9.3 Analiza algoritmilor comparați
 
@@ -793,6 +803,8 @@ Pentru ca evaluarea să fie relevantă, fiecare algoritm nu este tratat doar ca 
 
 **FeatureBasedQLearningAgent — învățare pe reguli locale generalizabile.** Rolul său este să reducă dependența de coordonate absolute. În loc să învețe „în celula (7, 4) merg dreapta”, agentul învață pe baza contextului local: există perete sus/jos/stânga/dreapta, există pericol în vecinătate, în ce direcție este obiectivul și cât de departe este acesta. Este mai bun când hărțile diferă, dar păstrează tipare locale asemănătoare: coridoare, obstacole, zone de risc și obiective. Poate deveni cel mai bun în profilul `transfer_learning`, cu suficient training pe hărți diverse, deoarece același vector de features poate apărea în medii diferite. Limitarea este aliasing-ul: două poziții pot avea același context local, dar pot necesita decizii diferite din cauza structurii globale a hărții. În lumea reală, sistemele comerciale de RL folosesc rareori exact această variantă simplă, dar folosesc aceeași idee generală: învățarea unei politici pe reprezentări care abstractizează observațiile brute. DeepRacer folosește observații din senzori și o funcție de recompensă pentru a învăța comportamente de conducere în simulare, ceea ce reprezintă o versiune mult mai avansată a aceleiași familii de abordări [38].
 
+**FeatureRiskAwareAStarAgent — hibrid experimental între learning și planning.** Această strategie nu pretinde că înlocuiește A* sau Q-Learning-ul, ci creează o structură extensibilă în care experiența locală poate modifica costurile folosite de planificare. Agentul pornește de la Risk-Aware A*, dar în timpul training-ului acumulează penalizări pentru tipare locale care au dus la risc, coliziuni sau intrări în pericol. În evaluare, aceste penalizări se adaugă peste harta de risc explicită. Rolul său în lucrare este experimental: arată cum poate fi conectată învățarea pe features locale cu planificarea sigură, fără a introduce rețele neuronale și fără a inventa rezultate în afara metricilor produse de simulator.
+
 Tabelul următor sintetizează alegerea practică:
 
 | Algoritm | Rol în lucrare | Când este mai bun | Scenariu în care poate fi cel mai bun | Analog real / piață |
@@ -803,6 +815,7 @@ Tabelul următor sintetizează alegerea practică:
 | Risk-Aware A* | Planner global orientat spre siguranță | Zone periculoase, cost mare al incidentelor | `high_risk`, medii cu persoane | Costmaps, inflation layers, cost-aware planners |
 | Tabular Q-Learning | RL interpretabil pe coordonate | Aceeași hartă repetată | `same_map_learning` | RL tabular educațional/prototipuri |
 | Feature-Based Q-Learning | RL cu transfer local | Hărți variate cu tipare comune | `transfer_learning` cu training suficient | RL pe reprezentări/features, simulatoare autonome |
+| Feature-Risk A* | Hibrid experimental | Când vrem costuri locale învățate peste planificare sigură | `stochastic_execution` / `transfer_learning` explorator | Cost learning + cost-aware planning |
 
 #### 4.9.4 Vectorul de features al `FeatureBasedQLearningAgent`
 
@@ -835,10 +848,10 @@ Modulul `experiments/compare_agents.py` definește șase **profiluri experimenta
 |--------|---------------------|-------------------|--------------------|
 | `known_static` | Hartă complet cunoscută, condiții deterministe | `per_map` | A*, Risk-Aware A* |
 | `high_risk` | Siguranța este obiectiv explicit, ponderat mai mult decât distanța | `per_map` | Risk-Aware A* |
-| `stochastic_execution` | Acțiunile pot devia lateral (`movement_noise > 0`) | `per_map` | Risk-Aware A*, Feature-Based Q |
+| `stochastic_execution` | Acțiunile pot devia lateral (`movement_noise > 0`) | `per_map` | Risk-Aware A*, Feature-Based Q, Feature-Risk A* |
 | `same_map_learning` | Training și evaluare pe aceeași hartă (coordonatele sunt stabile) | `per_map` | Tabular Q-Learning |
-| `transfer_learning` | Training pe hărți cu seed-uri diferite față de evaluare | `shared_across_maps` | Feature-Based Q-Learning |
-| `training_cost` | Compară costul de antrenare (episoade off-policy) cu costul de planificare | `per_map` | A*, Risk-Aware A*, Feature-Based Q |
+| `transfer_learning` | Training pe hărți cu seed-uri diferite față de evaluare | `shared_across_maps` | Feature-Based Q-Learning, Feature-Risk A* experimental |
+| `training_cost` | Compară costul de antrenare (episoade off-policy) cu costul de planificare | `per_map` | A*, Risk-Aware A*, Feature-Based Q, Feature-Risk A* |
 
 **Ciclul de viață `per_map`**: la fiecare hartă de evaluare, agentul este re-creat cu stare inițializată. Dacă agentul necesită training (`requires_training = True`), are loc o fază de antrenament izolată pe acea hartă înainte de evaluarea greedy. Politicile **nu se transferă** între hărți — fiecare măsurătoare reflectă o sesiune de învățare independentă.
 
@@ -867,6 +880,69 @@ def _bootstrap_ci(values, confidence=0.95, iterations=_BOOTSTRAP_SAMPLES, seed=_
 
 Distributiile agregate includ: `mean`, `std`, percentilele `p05`, `p25`, `p50`, `p75`, `p95`, `min` și `max` pentru recompensă, pași și expunere la risc. Defalcarea `per_map[]` returnează success_rate per agent per `map_seed`, folosită de componenta `PerMapHeatmap` din frontend.
 
+#### 4.9.7 Motorul de recomandare explicabilă
+
+Funcționalitatea centrală adăugată peste comparația Monte Carlo este motorul de recomandare din `experiments/recommendation.py`. Acesta primește sumarul produs de `aggregate_results(results)` și transformă tabelul de metrici într-o decizie multi-criterială. Recomandarea nu este hardcodată pe `RiskAwareAStarAgent` sau pe un alt algoritm; scorul este calculat exclusiv din rezultatele reale ale simulării.
+
+Obiectivele disponibile sunt:
+
+| Obiectiv | Ce prioritizează |
+|----------|------------------|
+| `balanced` | Echilibru între succes, risc, cost, pași și erori operaționale |
+| `safety_first` | Risc mic, coliziuni puține, intrări rare în pericol |
+| `efficiency_first` | Pași puțini și cost total redus, păstrând succesul relevant |
+| `robustness_first` | Rată de succes mare, timeout mic și intervale de încredere stabile |
+
+Pentru fiecare agent, metricile pozitive și negative sunt normalizate pe intervalul observat în experiment. `success_rate` crește scorul direct, în timp ce `average_risk_exposure`, `average_total_cost`, `average_steps`, `collision_rate`, `danger_entry_rate` și `timeout_rate` sunt inversate: o valoare mai mică produce scor mai mare. Dacă sunt disponibile intervale de încredere, lățimea lor contribuie la componenta de stabilitate, utilă mai ales în obiectivul `robustness_first`.
+
+Ieșirea API-ului Monte Carlo include:
+
+```json
+{
+  "recommendation": {
+    "objective": "safety_first",
+    "recommended_algorithm": "Risk-Aware A*",
+    "ranking": [
+      {
+        "rank": 1,
+        "algorithm": "Risk-Aware A*",
+        "score": 0.91,
+        "metrics": {
+          "success_rate": 1.0,
+          "average_risk_exposure": 125.0,
+          "average_total_cost": 124.6
+        }
+      }
+    ],
+    "explanation": "...",
+    "tradeoffs": ["..."]
+  }
+}
+```
+
+Frontend-ul afișează recomandarea ca panou separat: strategia recomandată, obiectivul folosit, scorul, ranking-ul și compromisurile. Astfel, profesorul sau utilizatorul nu trebuie să interpreteze manual toate graficele înainte de a decide; aplicația explică ce strategie este mai potrivită pentru situația configurată și de ce.
+
+#### 4.9.8 Analist AI pentru interpretarea rezultatelor
+
+Peste motorul determinist de recomandare este adăugat un strat opțional de interpretare textuală bazat pe un model lingvistic local sau cloud. În implementarea curentă, backend-ul FastAPI poate apela un model Gemma servit prin Ollama. Verificarea de disponibilitate folosește endpoint-ul OpenAI-compatible, iar generarea explicației poate reveni la endpoint-ul nativ `/api/chat` cu `think=false`, pentru a evita expunerea câmpului de reasoning al modelelor Gemma.
+
+Această componentă nu are rol de decizie. Ranking-ul, scorurile și strategia recomandată rămân calculate în `experiments/recommendation.py`, exclusiv din metricile Monte Carlo. Modelul lingvistic primește doar trei categorii de date:
+
+- configurația experimentului (`config`);
+- sumarul agregat Monte Carlo (`summary`);
+- recomandarea deterministă (`recommendation`).
+
+Promptul sistemului limitează explicit comportamentul modelului: acesta nu are voie să inventeze metrici, să contrazică ranking-ul sau să recalculeze scorurile. Rolul său este să explice în limbaj natural de ce o strategie a fost recomandată, ce compromisuri apar între siguranță și eficiență și ce limitări trebuie menționate, de exemplu număr mic de hărți, episoade puține sau instabilitate statistică.
+
+API-ul expus de backend include:
+
+| Endpoint | Rol |
+|----------|-----|
+| `/api/safe-navigation/analysis/status` | Verifică dacă analistul AI este activ și disponibil |
+| `/api/safe-navigation/analysis/explain` | Generează o explicație pentru rezultatul Monte Carlo și recomandarea curentă |
+
+În interfața React, panoul „Analist AI” apare după rularea Monte Carlo și oferă întrebări rapide, precum explicarea recomandării, motivul pentru care alți algoritmi nu au câștigat sau următorul experiment recomandat. Astfel, aplicația rămâne un simulator decizional bazat pe metrici reale, iar modelul lingvistic funcționează ca suport pedagogic pentru interpretarea rezultatelor.
+
 ### 4.10 Deployment Azure Cloud
 
 Repository-ul include și infrastructura pentru publicarea aplicației în Azure Cloud. Arhitectura de deployment este:
@@ -878,19 +954,25 @@ Azure Static Web Apps
 Azure Container Apps
   Backend FastAPI + motorul Python de simulare
 
+Azure Container Apps GPU, opțional
+  Ollama/Gemma pentru panoul Analist AI, cu ingress intern
+
 Azure Files
   Persistență pentru data/runs, Q-table-uri, CSV, JSON și PNG
+  Cache separat pentru modelele Ollama la /root/.ollama
 
 Azure Container Registry
-  Imagine Docker pentru backend
+  Imagini Docker pentru backend și, opțional, containerul Ollama
 
 Application Insights + Log Analytics
   Observabilitate, loguri și erori backend
 ```
 
-Fișierul `Dockerfile` construiește imaginea backend-ului, iar `infra/main.bicep` definește resursele Azure: Static Web App, Container Registry, Storage Account, File Share, Log Analytics, Application Insights, Container Apps Environment și Container App. Workflow-urile GitHub Actions din `.github/workflows/` separă provisioning-ul infrastructurii, deployment-ul backend-ului și deployment-ul frontend-ului.
+Fișierul `Dockerfile` construiește imaginea backend-ului, iar `Dockerfile.ollama` construiește imaginea opțională pentru Ollama/Gemma. `infra/main.bicep` definește resursele Azure: Static Web App, Container Registry, Storage Account, File Share pentru date, File Share pentru cache-ul Ollama, Log Analytics, Application Insights, Container Apps Environment, Container App backend și Container App LLM opțional. Workflow-urile GitHub Actions din `.github/workflows/` separă provisioning-ul infrastructurii, deployment-ul backend-ului, deployment-ul frontend-ului și deployment-ul containerului LLM.
 
 Această componentă nu schimbă logica algoritmilor, dar este relevantă pentru demonstrație: aplicația poate fi accesată de coordonator sau comisie din browser, cu backend Python real, artefacte persistente și interfață completă pentru experimente. În varianta actuală, ruta principală prezintă simulatorul de navigare sigură, iar laboratorul Q-Learning rămâne disponibil ca flux complementar.
+
+Pentru modelul Gemma 26B, varianta recomandată în Azure este un Container App GPU separat, de exemplu profil A100, cu `minReplicas=0` și `maxReplicas=1`. Backend-ul îl apelează prin URL intern, iar variabilele `LLM_ENABLED`, `LLM_BASE_URL` și `LLM_MODEL` controlează activarea. Dacă modelul este prea costisitor pentru demonstrație, aceeași interfață permite schimbarea tag-ului Ollama către un model mai mic, fără modificări ale API-ului sau UI-ului.
 
 ---
 
@@ -1297,7 +1379,9 @@ Lucrarea de față a demonstrat că un simulator grid-based poate fi folosit pen
 
 **Concluzia 6 — Platforma susține reproductibilitatea experimentală.** Modulul `src.final_report` generează într-un singur flux CSV-uri, grafice, manifest JSON, Q-table-uri, heatmap-uri și trasee greedy. Modulul `experiments/compare_agents.py` adaugă evaluare Monte Carlo pe hărți generate procedural cu CI 95% bootstrap (1.000 iterații, seed 1.234). Împreună, aceste fluxuri reduc riscul ca textul lucrării, prezentarea și codul să raporteze rezultate diferite.
 
-**Concluzia 7 — Aplicația web face proiectul demonstrabil și analiza accesibilă.** Backend-ul FastAPI și frontend-ul React/Vite permit rularea experimentelor din browser, vizualizarea traseelor și descărcarea artefactelor. Pagina dedicată `/safe-navigation/monte-carlo` cu șapte tab-uri (distribuții boxplot, CI bars, scatter risc-recompensă, heatmap per hartă, breakdown eșecuri, heatmap de ocupanță, export CSV/PNG) transformă datele statistice brute în analiză vizuală completă. Infrastructura Azure arată că sistemul poate fi publicat ca aplicație cloud, utilă pentru demonstrația în fața coordonatorului sau a comisiei.
+**Concluzia 7 — Recomandarea explicabilă transformă simulatorul într-un instrument decizional.** Pe lângă tabele și grafice, sistemul produce un ranking al strategiilor pentru obiectivul selectat: echilibru, siguranță, eficiență sau robustețe. Această componentă răspunde direct întrebării lucrării: nu doar dacă agentul ajunge la țintă, ci ce strategie merită aleasă pentru condițiile configurate.
+
+**Concluzia 8 — Aplicația web face proiectul demonstrabil și analiza accesibilă.** Backend-ul FastAPI și frontend-ul React/Vite permit rularea experimentelor din browser, vizualizarea traseelor și descărcarea artefactelor. Pagina dedicată `/safe-navigation/monte-carlo` cu șapte tab-uri (distribuții boxplot, CI bars, scatter risc-recompensă, heatmap per hartă, breakdown eșecuri, heatmap de ocupanță, export CSV/PNG) transformă datele statistice brute în analiză vizuală completă. Infrastructura Azure arată că sistemul poate fi publicat ca aplicație cloud, utilă pentru demonstrația în fața coordonatorului sau a comisiei.
 
 
 ### 8.2 Limitări ale Abordării
