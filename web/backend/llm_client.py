@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterator
 
 import httpx
 
@@ -75,13 +76,19 @@ class LlmClient:
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 response = client.post(self.chat_url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                content = self._extract_openai_content(data)
-                if content:
-                    return content
+                try:
+                    response.raise_for_status()
+                    data = response.json()
+                    content = self._extract_openai_content(data)
+                    if content:
+                        return content
+                except httpx.HTTPStatusError:
+                    if self.provider != "ollama":
+                        raise
                 if self.provider == "ollama":
                     return self._chat_native_ollama(client, messages, temperature)
+        except LlmClientError:
+            raise
         except Exception as exc:
             raise LlmClientError(str(exc)) from exc
 
@@ -111,6 +118,115 @@ class LlmClient:
         if not content:
             raise LlmClientError("Răspuns LLM invalid: conținut gol")
         return content
+
+    def chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.2,
+    ) -> Iterator[str]:
+        """Iterează tokenii returnați de LLM. Nu folosește JSON mode."""
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": self.max_output_tokens,
+            "stream": True,
+        }
+        try:
+            client = httpx.Client(timeout=self.timeout_seconds)
+        except Exception as exc:
+            raise LlmClientError(str(exc)) from exc
+
+        try:
+            try:
+                with client.stream("POST", self.chat_url, json=payload) as response:
+                    if response.status_code >= 400:
+                        if self.provider == "ollama":
+                            yield from self._stream_native_ollama(client, messages, temperature)
+                            return
+                        response.raise_for_status()
+                    yielded = False
+                    for token in self._iter_openai_sse(response):
+                        yielded = True
+                        yield token
+                    if yielded:
+                        return
+                    if self.provider == "ollama":
+                        yield from self._stream_native_ollama(client, messages, temperature)
+                        return
+            except httpx.HTTPStatusError:
+                if self.provider != "ollama":
+                    raise
+                yield from self._stream_native_ollama(client, messages, temperature)
+        except LlmClientError:
+            raise
+        except Exception as exc:
+            raise LlmClientError(str(exc)) from exc
+        finally:
+            client.close()
+
+    @staticmethod
+    def _iter_openai_sse(response: httpx.Response) -> Iterator[str]:
+        for raw_line in response.iter_lines():
+            line = raw_line.strip() if isinstance(raw_line, str) else ""
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if not data or data == "[DONE]":
+                if data == "[DONE]":
+                    return
+                continue
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            choices = payload.get("choices") if isinstance(payload, dict) else None
+            if not choices:
+                continue
+            delta = choices[0].get("delta") if isinstance(choices[0], dict) else None
+            content = delta.get("content") if isinstance(delta, dict) else None
+            if isinstance(content, str) and content:
+                yield content
+
+    def _stream_native_ollama(
+        self,
+        client: httpx.Client,
+        messages: list[dict[str, str]],
+        temperature: float,
+    ) -> Iterator[str]:
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "think": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": self.max_output_tokens,
+            },
+        }
+        with client.stream("POST", self.native_ollama_chat_url, json=payload) as response:
+            response.raise_for_status()
+            for raw_line in response.iter_lines():
+                line = raw_line.strip() if isinstance(raw_line, str) else ""
+                if not line:
+                    continue
+                try:
+                    payload_obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(payload_obj, dict):
+                    continue
+                if payload_obj.get("done"):
+                    return
+                message = payload_obj.get("message")
+                if isinstance(message, dict):
+                    content = message.get("content")
+                    if isinstance(content, str) and content:
+                        yield content
+                else:
+                    chunk = payload_obj.get("response")
+                    if isinstance(chunk, str) and chunk:
+                        yield chunk
 
     @staticmethod
     def _extract_openai_content(data: dict[str, Any]) -> str:

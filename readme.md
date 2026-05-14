@@ -50,7 +50,7 @@ Recomandarea nu este hardcodată pe un algoritm anume. Dashboard-ul afișează s
 
 ### Analist AI cu Gemma/Ollama
 
-Aplicația poate include opțional un analist AI local sau cloud. Acest strat nu decide strategia și nu schimbă scorurile; el primește `config`, `summary` și `recommendation` produse de simulator și generează o explicație textuală în română pentru profesor sau utilizator.
+Aplicația poate include opțional un analist AI local sau cloud. Acest strat nu decide strategia și nu schimbă scorurile; el poate transforma o cerință în limbaj natural într-o configurație validată de backend și poate genera explicații textuale în română pentru profesor sau utilizator peste `config`, `summary` și `recommendation`.
 
 Local, backend-ul verifică disponibilitatea prin API-ul OpenAI-compatible expus de Ollama. Pentru generarea explicației, clientul poate reveni automat la endpoint-ul nativ Ollama `/api/chat` cu `think=false`, astfel încât modelele Gemma cu reasoning separat să returneze răspuns final în `content`, nu în câmpul de reasoning.
 
@@ -70,9 +70,10 @@ python -m web.backend
 Endpoint-uri:
 
 - `GET /api/safe-navigation/analysis/status` — verifică dacă analistul AI este activ și disponibil;
+- `POST /api/safe-navigation/analysis/configure` — propune o configurație safe-navigation dintr-o cerință în limbaj natural; backend-ul validează strict câmpurile înainte de aplicare;
 - `POST /api/safe-navigation/analysis/explain` — explică rezultatul Monte Carlo și recomandarea curentă.
 
-Promptul este restrictiv: modelul folosește doar metricile primite, nu inventează rezultate, nu schimbă ranking-ul și semnalează limitările când experimentul are prea puține hărți sau episoade.
+Promptul este restrictiv: modelul folosește doar metricile primite, nu inventează rezultate, nu schimbă ranking-ul și semnalează limitările când experimentul are prea puține hărți sau episoade. După finalizarea Monte Carlo, cardul principal „Interpretarea rezultatelor” cere automat explicația LLM, iar panoul „Analist AI” rămâne disponibil pentru întrebări suplimentare.
 
 ### Rulare simulator web
 

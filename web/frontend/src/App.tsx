@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Server, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Bot, Server, ShieldAlert, ShieldCheck } from 'lucide-react';
 import './styles.css';
 import { safeNavigationApi } from './features/safe-navigation/api';
 import { ControlPanel, type WizardStage } from './features/safe-navigation/ControlPanel';
 import { setLatestMonteCarlo } from './features/safe-navigation/monteCarloStore';
 import type {
+  LlmAnalysisStatus,
   MonteCarloResult,
   MonteCarloJobSnapshot,
   MonteCarloLiveEvent,
   MonteCarloLiveState,
+  LlmConfigResponse,
   SafeEnvironment,
   SafeEpisodeResult,
   SafeNavigationConfig,
@@ -33,7 +35,7 @@ const initialConfig: SafeNavigationConfig = {
   random_seed: 42,
 };
 
-type BusyAction = 'map' | 'episode' | 'monte-carlo';
+type BusyAction = 'map' | 'episode' | 'monte-carlo' | 'config';
 
 const monteCarloAlgorithms = [
   'random',
@@ -109,6 +111,7 @@ export function App() {
   const [showPath, setShowPath] = useState(true);
   const [showRisk, setShowRisk] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(false);
+  const [llmStatus, setLlmStatus] = useState<LlmAnalysisStatus | null>(null);
   const requestId = useRef(0);
   const monteCarloStreamCleanup = useRef<(() => void) | undefined>(undefined);
 
@@ -191,6 +194,42 @@ export function App() {
       setMessage('Configurație de rulare actualizată.');
     }
   }, [activeStage, config]);
+
+  const describeConfig = useCallback(async (prompt: string): Promise<LlmConfigResponse | undefined> => {
+    const id = ++requestId.current;
+    setBusy(true);
+    setBusyAction('config');
+    setMessage('Asistentul AI propune o configurație...');
+    setErrorMessage('');
+    try {
+      const response = await safeNavigationApi.configureAnalysis({
+        prompt,
+        current_config: config,
+        language: 'ro',
+      });
+      if (id !== requestId.current) return undefined;
+      setBackendStatus('online');
+      updateConfig(response.config);
+      setMessage(
+        response.fallback
+          ? 'Asistentul AI este dezactivat; configurația curentă a fost păstrată.'
+          : 'Configurație propusă de AI și validată de backend.',
+      );
+      return response;
+    } catch (error) {
+      if (id !== requestId.current) return undefined;
+      const detail = error instanceof Error ? error.message : 'Asistentul AI nu a putut propune configurația.';
+      setBackendStatus('offline');
+      setErrorMessage(detail);
+      setMessage('Configurarea AI a eșuat');
+      return undefined;
+    } finally {
+      if (id === requestId.current) {
+        setBusy(false);
+        setBusyAction(undefined);
+      }
+    }
+  }, [config, updateConfig]);
 
   const runEpisode = useCallback(async () => {
     await runRequest(
@@ -300,6 +339,14 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    safeNavigationApi.analysisStatus()
+      .then((status) => { if (!cancelled) setLlmStatus(status); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -307,9 +354,20 @@ export function App() {
           <p className="eyebrow">Simulator de navigare sigură</p>
           <h1>Simularea și evaluarea agenților autonomi în medii necunoscute pe grilă</h1>
         </div>
-        <div className={`run-status backend-${backendStatus}`}>
-          {backendStatus === 'offline' ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
-          <span>{busy ? 'Se lucrează' : message}</span>
+        <div className="topbar-right">
+          {llmStatus && (
+            <span
+              className={`ai-header-badge ${llmStatus.available ? 'ai-header-badge--available' : llmStatus.enabled ? 'ai-header-badge--unavailable' : 'ai-header-badge--disabled'}`}
+              title={llmStatus.message}
+            >
+              <Bot size={12} />
+              {llmStatus.available ? `AI · ${llmStatus.model}` : llmStatus.enabled ? 'AI indisponibil' : 'AI dezactivat'}
+            </span>
+          )}
+          <div className={`run-status backend-${backendStatus}`}>
+            {backendStatus === 'offline' ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
+            <span>{busy ? 'Se lucrează' : message}</span>
+          </div>
         </div>
       </header>
       {errorMessage && (
@@ -339,6 +397,7 @@ export function App() {
         showCoordinates={showCoordinates}
         onStageChange={setActiveStage}
         onChange={updateConfig}
+        onDescribeConfig={describeConfig}
         onPreview={(nextConfig) => generateMap(nextConfig)}
         onMonteCarlo={runMonteCarlo}
         onTogglePath={() => setShowPath((value) => !value)}

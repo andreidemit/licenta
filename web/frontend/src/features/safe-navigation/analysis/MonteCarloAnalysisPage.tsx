@@ -110,7 +110,7 @@ export function MonteCarloAnalysisPage() {
             onObjectiveChange={(objective) => setPayload((current) => ({ ...current, optimization_objective: objective }))}
           />
 
-          <AiAnalystPanel result={result} />
+          <AiAnalystPanel result={result} autoTrigger />
 
           <Tabs.Root value={tab} onValueChange={setTab}>
             <Tabs.List className="mc-page__tabs">

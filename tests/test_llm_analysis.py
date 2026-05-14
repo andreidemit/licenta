@@ -17,6 +17,7 @@ def _request() -> LlmAnalysisRequest:
                 {
                     "algorithm": "Risk-Aware A*",
                     "success_rate": 1.0,
+                    "collision_rate": 0.0,
                     "average_risk_exposure": 4.0,
                     "average_total_cost": 42.0,
                 }
@@ -40,6 +41,9 @@ def test_build_messages_includes_summary_recommendation_and_truncates():
     assert messages[0]["role"] == "system"
     assert "Recomandarea este calculată determinist" in messages[0]["content"]
     user_content = messages[1]["content"]
+    assert "metric_digest" in user_content
+    assert "Risk-Aware A*" in user_content
+    assert "average_risk_exposure" in user_content
     assert "summary" in user_content
     assert "recommendation" in user_content
     assert "truncated" in user_content
@@ -60,6 +64,14 @@ def test_parse_analysis_response_accepts_json_and_raw_fallback():
     assert fallback.answer == "text brut"
     assert fallback.fallback is True
     assert fallback.limitations
+
+    fenced = parse_analysis_response(
+        '```json\n{"answer":"OK fenced","key_points":["punct"],"limitations":[],"used_metrics":["average_risk_exposure=4.0"]}\n```',
+        model="gemma4:26b",
+        provider="ollama",
+    )
+    assert fenced.answer == "OK fenced"
+    assert fenced.fallback is False
 
 
 def test_disabled_response_is_clear_fallback():

@@ -1,8 +1,12 @@
 import type {
+  EpisodeExplainRequest,
   ExperimentProfileId,
   LlmAnalysisRequest,
   LlmAnalysisResponse,
   LlmAnalysisStatus,
+  LlmConfigRequest,
+  LlmConfigResponse,
+  MapExplainRequest,
   MonteCarloJobSnapshot,
   MonteCarloLiveEvent,
   MonteCarloResult,
@@ -122,6 +126,60 @@ export const safeNavigationApi = {
     get<LlmAnalysisStatus>('/api/safe-navigation/analysis/status'),
   explainAnalysis: (payload: LlmAnalysisRequest) =>
     post<LlmAnalysisResponse>('/api/safe-navigation/analysis/explain', payload),
+  explainEpisode: (payload: EpisodeExplainRequest) =>
+    post<LlmAnalysisResponse>('/api/safe-navigation/episode/explain', payload),
+  explainMap: (payload: MapExplainRequest) =>
+    post<LlmAnalysisResponse>('/api/safe-navigation/map/explain', payload),
+  streamExplainAnalysis: (
+    payload: LlmAnalysisRequest,
+    onToken: (token: string) => void,
+    onDone: () => void,
+    onError: (err: Error) => void,
+    signal?: AbortSignal,
+  ) => {
+    fetch(apiUrl('/api/safe-navigation/analysis/explain/stream'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal,
+    })
+      .then(async (response) => {
+        if (!response.ok || !response.body) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(
+            typeof data.detail === 'string' ? data.detail : 'Streaming eșuat',
+          );
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            try {
+              const parsed = JSON.parse(line.slice(5).trim());
+              if (parsed.error) { onError(new Error(String(parsed.error))); return; }
+              if (parsed.done) { onDone(); return; }
+              if (typeof parsed.token === 'string') onToken(parsed.token);
+            } catch {
+              // ignora linii malformate
+            }
+          }
+        }
+        onDone();
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        onError(err instanceof Error ? err : new Error(String(err)));
+      });
+  },
+  configureAnalysis: (payload: LlmConfigRequest) =>
+    post<LlmConfigResponse>('/api/safe-navigation/analysis/configure', payload),
   streamMonteCarloJob: (
     jobId: string,
     onEvent: (event: MonteCarloLiveEvent) => void,

@@ -2,8 +2,8 @@ import { BarChart3 } from 'lucide-react';
 import { AiAnalystPanel } from './AiAnalystPanel';
 import { RecommendationPanel } from './RecommendationPanel';
 import { TooltipLabel } from './TooltipLabel';
-import type { MonteCarloResult, MonteCarloSummaryRow, OptimizationObjective } from './types';
-import { algorithmUseCases, getExperimentProfile } from './experimentProfiles';
+import type { MonteCarloResult, OptimizationObjective } from './types';
+import { algorithmUseCases } from './experimentProfiles';
 
 function pct(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -56,90 +56,6 @@ const columnTooltips = {
   reward: 'Recompensa medie totală. Include pași, coliziuni, pericol, risc și succes.',
 };
 
-function profileTakeaway(profile: NonNullable<MonteCarloResult['profile']> | ReturnType<typeof getExperimentProfile>) {
-  return 'expected_takeaway' in profile ? profile.expected_takeaway : profile.expectedTakeaway;
-}
-
-function buildOverallComment(rows: MonteCarloSummaryRow[]) {
-  if (!rows.length) return 'Nu există încă suficiente rezultate pentru interpretare.';
-  const bestBySuccess = rows[0];
-  const safest = [...rows].sort((a, b) => a.average_risk_exposure - b.average_risk_exposure)[0];
-  const fastest = [...rows].sort((a, b) => a.average_steps - b.average_steps)[0];
-  const bestLabel = algorithmLabel(bestBySuccess.algorithm);
-  const safestLabel = algorithmLabel(safest.algorithm);
-  const fastestLabel = algorithmLabel(fastest.algorithm);
-
-  if (bestBySuccess.algorithm === safest.algorithm) {
-    return `${bestLabel} este cea mai echilibrată strategie în această rulare: are cea mai mare rată de succes și cea mai mică expunere la risc.`;
-  }
-  if (bestBySuccess.algorithm === fastest.algorithm) {
-    return `${bestLabel} ajunge cel mai des la obiectiv și are traseele cele mai scurte, dar ${safestLabel} este mai prudent din perspectiva riscului.`;
-  }
-  return `${bestLabel} conduce la rata de succes, ${safestLabel} minimizează riscul, iar ${fastestLabel} produce cele mai scurte trasee.`;
-}
-
-function buildProfileConclusion(result: MonteCarloResult, rows: MonteCarloSummaryRow[]) {
-  const profile = result.profile ?? getExperimentProfile(String(result.config.experiment_profile));
-  const bestBySuccess = rows[0];
-  const safest = [...rows].sort((a, b) => a.average_risk_exposure - b.average_risk_exposure)[0];
-  const fastest = [...rows].sort((a, b) => a.average_steps - b.average_steps)[0];
-  const robust = [...rows].sort((a, b) => {
-    const unsafeA = a.collision_rate + a.danger_entry_rate + a.timeout_rate;
-    const unsafeB = b.collision_rate + b.danger_entry_rate + b.timeout_rate;
-    if (unsafeA !== unsafeB) return unsafeA - unsafeB;
-    return b.success_rate - a.success_rate;
-  })[0];
-  return {
-    profile,
-    text: `${profileTakeaway(profile)} În această rulare: ${algorithmLabel(bestBySuccess.algorithm)} conduce la succes, ${algorithmLabel(safest.algorithm)} minimizează riscul, ${algorithmLabel(fastest.algorithm)} are cele mai scurte trasee, iar ${algorithmLabel(robust.algorithm)} are cel mai stabil profil operațional.`,
-  };
-}
-
-function buildRowComment(row: MonteCarloSummaryRow, rows: MonteCarloSummaryRow[]) {
-  const key = algorithmKey(row.algorithm);
-  const bestSuccess = Math.max(...rows.map((item) => item.success_rate));
-  const bestRisk = Math.min(...rows.map((item) => item.average_risk_exposure));
-  const bestSteps = Math.min(...rows.map((item) => item.average_steps));
-  const highRisk = row.average_risk_exposure > bestRisk * 1.35 && row.average_risk_exposure > 0;
-  const slow = row.average_steps > bestSteps * 1.35;
-  const unsafeEvents = row.average_collisions > 0.25 || row.average_danger_entries > 0.25;
-
-  if (row.success_rate === bestSuccess && row.average_risk_exposure === bestRisk) {
-    return 'Cea mai bună combinație între succes și siguranță.';
-  }
-  if (row.success_rate === bestSuccess) {
-    return highRisk ? 'Foarte eficient, dar plătește prin expunere mai mare la risc.' : 'Rată de succes foarte bună pe hărțile generate.';
-  }
-  if (row.average_risk_exposure === bestRisk) {
-    return slow ? 'Cel mai prudent, dar traseele sunt mai lungi.' : 'Cel mai sigur profil de risc în această comparație.';
-  }
-  if (row.timeout_rate > 0.25) {
-    return 'Are dificultăți de finalizare; timeout-ul sugerează blocaje sau explorare slabă.';
-  }
-  if (unsafeEvents) {
-    return 'Produce evenimente de siguranță; merită analizate coliziunile și intrările în pericol.';
-  }
-  if (key === 'tabular_q') {
-    return 'Reflectă limitarea Q-Learning-ului tabular: coordonatele învățate transferă greu pe hărți noi.';
-  }
-  if (key === 'feature_q') {
-    return 'Folosește tipare locale; rezultatul indică cât de bine se transferă aceste trăsături.';
-  }
-  if (key === 'feature_risk_astar') {
-    return 'Hibrid experimental: verifică dacă penalizările locale învățate ajută planificarea risk-aware.';
-  }
-  if (key === 'astar' && highRisk) {
-    return 'Planifică eficient, dar riscul nu este obiectivul principal al rutei.';
-  }
-  if (key === 'risk_aware_astar') {
-    return 'Preferă trasee mai sigure, chiar dacă uneori acceptă pași suplimentari.';
-  }
-  if (row.success_rate < 0.35) {
-    return 'Baseline slab pentru acest scenariu; mediul este dificil fără planificare robustă.';
-  }
-  return 'Performanță intermediară; util ca reper în comparația cu strategiile de top.';
-}
-
 export function ExperimentDashboard({
   result,
   busy = false,
@@ -176,8 +92,6 @@ export function ExperimentDashboard({
     if (b.success_rate !== a.success_rate) return b.success_rate - a.success_rate;
     return a.average_risk_exposure - b.average_risk_exposure;
   });
-  const overallComment = buildOverallComment(sortedRows);
-  const profileConclusion = buildProfileConclusion(result, sortedRows);
   const maxRisk = Math.max(1, ...sortedRows.map((row) => row.average_risk_exposure));
   const bestSuccess = Math.max(...sortedRows.map((row) => row.success_rate));
   const bestRisk = Math.min(...sortedRows.map((row) => row.average_risk_exposure));
@@ -194,14 +108,6 @@ export function ExperimentDashboard({
         onObjectiveChange={onObjectiveChange}
       />
       <AiAnalystPanel result={result} />
-      <div className="comparison-insight">
-        <strong>Concluzie experimentală: {profileConclusion.profile.label}</strong>
-        <span>{profileConclusion.text}</span>
-      </div>
-      <div className="comparison-insight secondary-insight">
-        <strong>Comentariu numeric</strong>
-        <span>{overallComment}</span>
-      </div>
       <div className="comparison-table">
         <div className="table-head">
           <span><TooltipLabel text={columnTooltips.algorithm}>Algoritm</TooltipLabel></span>
@@ -214,7 +120,6 @@ export function ExperimentDashboard({
           <div className="table-row" key={row.algorithm}>
             <div className="algorithm-cell">
               <strong>{algorithmLabel(row.algorithm)}</strong>
-              <small>{buildRowComment(row, sortedRows)}</small>
               <em>{useCaseFor(row.algorithm)}</em>
             </div>
             <span className={row.success_rate === bestSuccess ? 'winner-cell' : ''}>{pct(row.success_rate)}</span>

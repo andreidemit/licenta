@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { BookOpen, Brain, ChevronDown, ChevronUp, MapPinned, Route, ShieldAlert } from 'lucide-react';
-import type { MonteCarloResult, SafeEnvironment, SafeEpisodeResult, SafeNavigationConfig } from './types';
+import { BookOpen, Brain, ChevronDown, ChevronUp, Loader2, MapPinned, Route, ShieldAlert } from 'lucide-react';
+import { AiInsightCard } from '../../components/AiInsightCard';
+import type { LlmAnalysisResponse, MonteCarloResult, SafeEnvironment, SafeEpisodeResult, SafeNavigationConfig } from './types';
 import { algorithmUseCases, getExperimentProfile } from './experimentProfiles';
+import { safeNavigationApi } from './api';
 
 const algorithmNotes: Record<string, string> = {
   random: 'Alege uniform dintre acțiuni. Este util ca baseline, deoarece orice strategie structurată ar trebui să îl depășească.',
@@ -129,6 +131,52 @@ export function ExplanationPanel({
   compact?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [episodeAi, setEpisodeAi] = useState<LlmAnalysisResponse | null>(null);
+  const [episodeAiLoading, setEpisodeAiLoading] = useState(false);
+  const [episodeAiError, setEpisodeAiError] = useState<string | null>(null);
+  const [mapAi, setMapAi] = useState<LlmAnalysisResponse | null>(null);
+  const [mapAiLoading, setMapAiLoading] = useState(false);
+  const [mapAiError, setMapAiError] = useState<string | null>(null);
+
+  async function explainEpisodeWithAi() {
+    if (!result || episodeAiLoading) return;
+    setEpisodeAiLoading(true);
+    setEpisodeAiError(null);
+    setEpisodeAi(null);
+    try {
+      const response = await safeNavigationApi.explainEpisode({
+        result,
+        algorithm: config.algorithm,
+        config: config as unknown as Record<string, unknown>,
+        language: 'ro',
+      });
+      setEpisodeAi(response);
+    } catch (err) {
+      setEpisodeAiError(err instanceof Error ? err.message : 'Eroare la generarea explicației.');
+    } finally {
+      setEpisodeAiLoading(false);
+    }
+  }
+
+  async function explainMapWithAi() {
+    if (!environment || mapAiLoading) return;
+    setMapAiLoading(true);
+    setMapAiError(null);
+    setMapAi(null);
+    try {
+      const response = await safeNavigationApi.explainMap({
+        environment,
+        config: config as unknown as Record<string, unknown>,
+        language: 'ro',
+      });
+      setMapAi(response);
+    } catch (err) {
+      setMapAiError(err instanceof Error ? err.message : 'Eroare la generarea explicației hărții.');
+    } finally {
+      setMapAiLoading(false);
+    }
+  }
+
   const label = algorithmLabel(config.algorithm);
   const mapSummary = environment
     ? `Grilă ${environment.rows}x${environment.cols}, sămânță ${config.random_seed}, scenariu ${scenarioLabel(config.scenario)}.`
@@ -203,6 +251,27 @@ export function ExplanationPanel({
         <strong><MapPinned size={15} /> Harta curentă</strong>
         <p>{mapSummary}</p>
         <p>Densitate pereți {config.wall_probability}, densitate pericole {config.danger_probability}, zgomot mișcare {config.movement_noise}, pondere risc {config.risk_weight}.</p>
+        {environment && (
+          <button
+            type="button"
+            className="btn-ai-explain"
+            onClick={explainMapWithAi}
+            disabled={mapAiLoading}
+            title="Explică harta cu AI"
+          >
+            <span className="btn-ai-explain__icon">✦</span>
+            {mapAiLoading ? <><Loader2 size={12} className="mc-spin" /> Generează…</> : 'Explică harta cu AI'}
+          </button>
+        )}
+        {(mapAi || mapAiLoading || mapAiError) && (
+          <AiInsightCard
+            title="Analiză hartă"
+            response={mapAi}
+            loading={mapAiLoading}
+            error={mapAiError}
+            className="explanation-ai-card"
+          />
+        )}
       </div>
       <div className="explanation-block">
         <strong><Route size={15} /> Episodul curent</strong>
@@ -211,6 +280,27 @@ export function ExplanationPanel({
           <p>{result.collisions === 0 && result.danger_entries === 0
             ? 'Ruta a evitat atât pereții, cât și celulele periculoase.'
             : `Ruta a produs ${result.collisions} coliziuni și ${result.danger_entries} intrări în pericol.`}</p>
+        )}
+        {result && (
+          <button
+            type="button"
+            className="btn-ai-explain"
+            onClick={explainEpisodeWithAi}
+            disabled={episodeAiLoading}
+            title="Explică episodul cu AI"
+          >
+            <span className="btn-ai-explain__icon">✦</span>
+            {episodeAiLoading ? <><Loader2 size={12} className="mc-spin" /> Generează…</> : 'Explică episodul cu AI'}
+          </button>
+        )}
+        {(episodeAi || episodeAiLoading || episodeAiError) && (
+          <AiInsightCard
+            title="Analiză episod"
+            response={episodeAi}
+            loading={episodeAiLoading}
+            error={episodeAiError}
+            className="explanation-ai-card"
+          />
         )}
       </div>
       {comparison && (

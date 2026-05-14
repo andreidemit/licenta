@@ -926,7 +926,9 @@ Frontend-ul afișează recomandarea ca panou separat: strategia recomandată, ob
 
 Peste motorul determinist de recomandare este adăugat un strat opțional de interpretare textuală bazat pe un model lingvistic local sau cloud. În implementarea curentă, backend-ul FastAPI poate apela un model Gemma servit prin Ollama. Verificarea de disponibilitate folosește endpoint-ul OpenAI-compatible, iar generarea explicației poate reveni la endpoint-ul nativ `/api/chat` cu `think=false`, pentru a evita expunerea câmpului de reasoning al modelelor Gemma.
 
-Această componentă nu are rol de decizie. Ranking-ul, scorurile și strategia recomandată rămân calculate în `experiments/recommendation.py`, exclusiv din metricile Monte Carlo. Modelul lingvistic primește doar trei categorii de date:
+Această componentă nu are rol de decizie. Ranking-ul, scorurile și strategia recomandată rămân calculate în `experiments/recommendation.py`, exclusiv din metricile Monte Carlo. Înainte de rulare, același strat poate funcționa ca asistent de configurare: utilizatorul descrie experimentul în limbaj natural, modelul propune câmpuri precum scenariu, densitate de pericole, zgomot de mișcare sau obiectiv de optimizare, iar backend-ul validează strict propunerea prin modelele Pydantic înainte ca valorile să fie aplicate în UI.
+
+Pentru analiza post-rulare, modelul lingvistic primește doar trei categorii de date:
 
 - configurația experimentului (`config`);
 - sumarul agregat Monte Carlo (`summary`);
@@ -939,9 +941,10 @@ API-ul expus de backend include:
 | Endpoint | Rol |
 |----------|-----|
 | `/api/safe-navigation/analysis/status` | Verifică dacă analistul AI este activ și disponibil |
+| `/api/safe-navigation/analysis/configure` | Transformă o cerință în limbaj natural într-o configurație validată de backend |
 | `/api/safe-navigation/analysis/explain` | Generează o explicație pentru rezultatul Monte Carlo și recomandarea curentă |
 
-În interfața React, panoul „Analist AI” apare după rularea Monte Carlo și oferă întrebări rapide, precum explicarea recomandării, motivul pentru care alți algoritmi nu au câștigat sau următorul experiment recomandat. Astfel, aplicația rămâne un simulator decizional bazat pe metrici reale, iar modelul lingvistic funcționează ca suport pedagogic pentru interpretarea rezultatelor.
+În interfața React, asistentul de configurare apare în prima etapă a wizard-ului și permite descrierea experimentului în limbaj natural. După rularea Monte Carlo, cardul principal „Interpretarea rezultatelor” este generat automat de modelul lingvistic peste metricile agregate și recomandarea deterministă, iar panoul „Analist AI” oferă întrebări suplimentare, precum explicarea recomandării, motivul pentru care alți algoritmi nu au câștigat sau următorul experiment recomandat. Astfel, aplicația rămâne un simulator decizional bazat pe metrici reale, iar modelul lingvistic funcționează ca suport pedagogic pentru configurarea și interpretarea rezultatelor.
 
 ### 4.10 Deployment Azure Cloud
 

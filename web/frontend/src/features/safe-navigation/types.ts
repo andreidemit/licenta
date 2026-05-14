@@ -202,6 +202,35 @@ export type LlmAnalysisResponse = {
   fallback: boolean;
 };
 
+export type LlmConfigRequest = {
+  prompt: string;
+  current_config: SafeNavigationConfig;
+  language?: 'ro' | 'en';
+};
+
+export type LlmConfigResponse = {
+  config: SafeNavigationConfig;
+  rationale: string;
+  warnings: string[];
+  applied_fields: string[];
+  model?: string | null;
+  provider?: string | null;
+  fallback: boolean;
+};
+
+export type EpisodeExplainRequest = {
+  result: SafeEpisodeResult;
+  algorithm?: string;
+  config?: Record<string, unknown>;
+  language?: 'ro' | 'en';
+};
+
+export type MapExplainRequest = {
+  environment: SafeEnvironment;
+  config?: Record<string, unknown>;
+  language?: 'ro' | 'en';
+};
+
 export type MonteCarloJobProgress = {
   completed: number;
   total: number;

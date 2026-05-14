@@ -1,23 +1,27 @@
-import { useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
   Activity,
   ArrowLeft,
   ArrowRight,
   BarChart3,
+  Bot,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Dice5,
   Lightbulb,
+  Loader2,
   Play,
   RefreshCw,
+  Send,
   Settings2,
   Shuffle,
   X,
 } from 'lucide-react';
 import { ExperimentDashboard } from './ExperimentDashboard';
 import { GridWorldView } from './GridWorldView';
+import { AiAnalystPanel } from './AiAnalystPanel';
 import { ScenarioConfigDialog } from './ScenarioConfigDialog';
 import { TooltipLabel } from './TooltipLabel';
 import { ExportPanel } from './analysis/ExportPanel';
@@ -32,6 +36,7 @@ import type {
   MonteCarloResult,
   MonteCarloLiveEvent,
   MonteCarloLiveState,
+  LlmConfigResponse,
   SafeEnvironment,
   SafeEpisodeResult,
   SafeNavigationConfig,
@@ -92,13 +97,14 @@ type Props = {
   monteCarlo?: MonteCarloResult;
   liveMonteCarlo?: MonteCarloLiveState;
   busy: boolean;
-  busyAction?: 'map' | 'episode' | 'monte-carlo';
+  busyAction?: 'map' | 'episode' | 'monte-carlo' | 'config';
   pendingMapConfig: boolean;
   showPath: boolean;
   showRisk: boolean;
   showCoordinates: boolean;
   onStageChange: (stage: WizardStage) => void;
   onChange: (config: SafeNavigationConfig) => void;
+  onDescribeConfig: (prompt: string) => Promise<LlmConfigResponse | undefined>;
   onPreview: (config?: SafeNavigationConfig) => void;
   onMonteCarlo: () => void;
   onTogglePath: () => void;
@@ -481,6 +487,84 @@ function StageNarrativePanel({
   );
 }
 
+const configQuickPrompts = [
+  'Configurează un scenariu dificil, cu multe pericole, unde siguranța contează mai mult decât viteza.',
+  'Vreau un demo rapid, stabil, potrivit pentru prezentare în clasă.',
+  'Testează robustețea agenților când execuția mișcărilor este zgomotoasă.',
+];
+
+function NaturalLanguageConfigAssistant({
+  busy,
+  onDescribeConfig,
+}: {
+  busy: boolean;
+  onDescribeConfig: (prompt: string) => Promise<LlmConfigResponse | undefined>;
+}) {
+  const [prompt, setPrompt] = useState(configQuickPrompts[0]);
+  const [suggestion, setSuggestion] = useState<LlmConfigResponse>();
+
+  async function submit(event?: FormEvent<HTMLFormElement>, nextPrompt = prompt) {
+    event?.preventDefault();
+    const cleanPrompt = nextPrompt.trim();
+    if (!cleanPrompt || busy) return;
+    setSuggestion(undefined);
+    const response = await onDescribeConfig(cleanPrompt);
+    if (response) setSuggestion(response);
+  }
+
+  return (
+    <section className="panel-card nl-config-card">
+      <div className="nl-config-card__heading">
+        <div>
+          <p className="eyebrow"><Bot size={14} /> Asistent configurare AI</p>
+          <h3>Descrie experimentul în limbaj natural</h3>
+        </div>
+      </div>
+      <p>
+        LLM-ul propune valori pentru formular, iar backend-ul le validează strict înainte să fie aplicate.
+      </p>
+      <div className="nl-config-card__prompts">
+        {configQuickPrompts.map((item) => (
+          <button
+            type="button"
+            key={item}
+            disabled={busy}
+            onClick={() => {
+              setPrompt(item);
+              void submit(undefined, item);
+            }}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+      <form className="nl-config-card__form" onSubmit={(event) => submit(event)}>
+        <textarea
+          value={prompt}
+          disabled={busy}
+          rows={4}
+          onChange={(event) => setPrompt(event.target.value)}
+        />
+        <button type="submit" className="primary-button" disabled={busy || !prompt.trim()}>
+          {busy ? <Loader2 size={15} className="mc-spin" /> : <Send size={15} />} Aplică propunerea
+        </button>
+      </form>
+      {suggestion ? (
+        <div className="nl-config-card__result">
+          <strong>{suggestion.fallback ? 'Fallback controlat' : 'Configurație aplicată'}</strong>
+          <p>{suggestion.rationale}</p>
+          {suggestion.applied_fields.length ? (
+            <small>Câmpuri modificate: {suggestion.applied_fields.join(', ')}</small>
+          ) : null}
+          {suggestion.warnings.length ? (
+            <ul>{suggestion.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function ScenarioStage({
   config,
   scenarioPresets,
@@ -491,12 +575,13 @@ function ScenarioStage({
   showRisk,
   showCoordinates,
   onChange,
+  onDescribeConfig,
   onPreview,
   onContinue,
   onTogglePath,
   onToggleRisk,
   onToggleCoordinates,
-}: Pick<Props, 'config' | 'scenarioPresets' | 'environment' | 'busy' | 'pendingMapConfig' | 'showPath' | 'showRisk' | 'showCoordinates' | 'onChange' | 'onPreview' | 'onTogglePath' | 'onToggleRisk' | 'onToggleCoordinates'> & {
+}: Pick<Props, 'config' | 'scenarioPresets' | 'environment' | 'busy' | 'pendingMapConfig' | 'showPath' | 'showRisk' | 'showCoordinates' | 'onChange' | 'onDescribeConfig' | 'onPreview' | 'onTogglePath' | 'onToggleRisk' | 'onToggleCoordinates'> & {
   onContinue: () => void;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -531,31 +616,37 @@ function ScenarioStage({
       </div>
 
       <div className="scenario-stage-grid">
-        <section className="panel-card preset-list-card">
-          <h3>Scenarii presetate</h3>
-          <div className="scenario-options">
-            {scenarios.map(([id, label, description]) => {
-              const preset = presetFor(id, scenarioPresets);
-              const isActive = config.scenario === id;
-              return (
-                <button
-                  type="button"
-                  key={id}
-                  className={isActive ? 'scenario-option active' : 'scenario-option'}
-                  onClick={() => changeScenario(id)}
-                >
-                  <strong>{label}</strong>
-                  <span>{description}</span>
-                  <small>
-                    {id === 'custom' || !preset
-                      ? `${config.rows}x${config.cols} · configurabil`
-                      : `${preset.rows}x${preset.cols} · pereți ${fmtProbability(preset.wall_probability)} · pericole ${fmtProbability(preset.danger_probability)}`}
-                  </small>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        <div className="scenario-left-stack">
+          <NaturalLanguageConfigAssistant
+            busy={busy}
+            onDescribeConfig={onDescribeConfig}
+          />
+          <section className="panel-card preset-list-card">
+            <h3>Scenarii presetate</h3>
+            <div className="scenario-options">
+              {scenarios.map(([id, label, description]) => {
+                const preset = presetFor(id, scenarioPresets);
+                const isActive = config.scenario === id;
+                return (
+                  <button
+                    type="button"
+                    key={id}
+                    className={isActive ? 'scenario-option active' : 'scenario-option'}
+                    onClick={() => changeScenario(id)}
+                  >
+                    <strong>{label}</strong>
+                    <span>{description}</span>
+                    <small>
+                      {id === 'custom' || !preset
+                        ? `${config.rows}x${config.cols} · configurabil`
+                        : `${preset.rows}x${preset.cols} · pereți ${fmtProbability(preset.wall_probability)} · pericole ${fmtProbability(preset.danger_probability)}`}
+                    </small>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
 
         <section className="scenario-preview-stack">
           <div className="scenario-info-row">
@@ -897,18 +988,22 @@ function ResultsStage({
       {monteCarlo || isMonteCarloBusy ? (
         <div className="mc-results-stage">
           <div className="mc-results-stage__overview">
+            {monteCarlo ? (
+              <AiAnalystPanel result={monteCarlo} autoTrigger />
+            ) : (
+              <StageNarrativePanel
+                stage="results"
+                config={config}
+                environment={environment}
+                result={result}
+                monteCarlo={monteCarlo}
+              />
+            )}
             <ExperimentDashboard
               result={monteCarlo}
               busy={isMonteCarloBusy}
               selectedObjective={config.optimization_objective}
               onObjectiveChange={(objective) => onChange({ ...config, optimization_objective: objective })}
-            />
-            <StageNarrativePanel
-              stage="results"
-              config={config}
-              environment={environment}
-              result={result}
-              monteCarlo={monteCarlo}
             />
           </div>
 
@@ -982,6 +1077,7 @@ export function ControlPanel({
   showCoordinates,
   onStageChange,
   onChange,
+  onDescribeConfig,
   onPreview,
   onMonteCarlo,
   onTogglePath,
@@ -1011,6 +1107,7 @@ export function ControlPanel({
             showRisk={showRisk}
             showCoordinates={showCoordinates}
             onChange={onChange}
+            onDescribeConfig={onDescribeConfig}
             onPreview={onPreview}
             onContinue={() => onStageChange('run')}
             onTogglePath={onTogglePath}
