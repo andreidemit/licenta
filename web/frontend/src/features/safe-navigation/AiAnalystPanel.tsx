@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Bot, Loader2, MessageSquareText, Send } from 'lucide-react';
 import { safeNavigationApi } from './api';
 import type { LlmAnalysisResponse, LlmAnalysisStatus, MonteCarloResult } from './types';
@@ -35,6 +35,7 @@ export function AiAnalystPanel({ result }: { result?: MonteCarloResult }) {
   const [analysis, setAnalysis] = useState<LlmAnalysisResponse>();
   const [error, setError] = useState('');
 
+  const customQuestion = question.trim();
   const canAsk = !!result?.recommendation && !busy && (status.available || !status.enabled);
   const statusClass = status.available ? 'available' : status.enabled ? 'unavailable' : 'disabled';
   const statusLabel = status.available ? 'disponibil' : status.enabled ? 'indisponibil' : 'dezactivat';
@@ -70,15 +71,17 @@ export function AiAnalystPanel({ result }: { result?: MonteCarloResult }) {
   }, [result, status]);
 
   async function ask(nextQuestion: string) {
-    if (!result?.recommendation) return;
+    const prompt = nextQuestion.trim();
+    if (!result?.recommendation || !prompt || busy) return;
     setBusy(true);
     setError('');
+    setAnalysis(undefined);
     try {
       const response = await safeNavigationApi.explainAnalysis({
         config: result.config,
         summary: result.summary,
         recommendation: result.recommendation,
-        question: nextQuestion,
+        question: prompt,
         language: 'ro',
       });
       setAnalysis(response);
@@ -87,6 +90,12 @@ export function AiAnalystPanel({ result }: { result?: MonteCarloResult }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  function submitCustomQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canAsk || !customQuestion) return;
+    void ask(customQuestion);
   }
 
   return (
@@ -114,21 +123,18 @@ export function AiAnalystPanel({ result }: { result?: MonteCarloResult }) {
         ))}
       </div>
 
-      <div className="ai-question-row">
+      <form className="ai-question-row" onSubmit={submitCustomQuestion}>
         <input
           type="text"
           value={question}
           placeholder="Întrebare liberă despre rezultat..."
           disabled={!result?.recommendation || busy}
           onChange={(event) => setQuestion(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && question.trim()) ask(question.trim());
-          }}
         />
-        <button type="button" disabled={!canAsk || !question.trim()} onClick={() => ask(question.trim())}>
+        <button type="submit" disabled={!canAsk || !customQuestion}>
           {busy ? <Loader2 size={15} className="mc-spin" /> : <Send size={15} />} Trimite
         </button>
-      </div>
+      </form>
 
       {error ? <p className="ai-error">{error}</p> : null}
 
